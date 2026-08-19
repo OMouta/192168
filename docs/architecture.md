@@ -97,6 +97,10 @@ Clients reach any deployment from a base URL alone by fetching
 servers, and optional features. API, realtime, and STUN addresses are never
 exposed as separate user-facing settings.
 
+No server is baked into the client. The daemon starts with none configured and
+waits to be told, so the first-run flow is the user typing in a server — the
+same path a self-hoster uses, rather than a special case bolted onto a default.
+
 ## Network changes
 
 Wi-Fi switches, sleep/resume, and public IP changes all invalidate NAT

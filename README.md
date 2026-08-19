@@ -78,10 +78,15 @@ curl http://localhost:8080/.well-known/192168
 
 Plain HTTP is only accepted for localhost; everything else must be HTTPS.
 
-## Self-hosting
+## Servers
 
-192168 is self-hostable and the shipped client works against any compatible
-server — you paste a URL into Settings, no rebuild required. See
+There is no default server baked into the app. On first run you type in the
+server you were given or the one you run yourself, and the client learns the
+API, realtime, and STUN endpoints from its discovery document. That is the only
+address a user ever sees, and pointing the shipped client at a different
+deployment never requires a rebuild.
+
+Running your own is a Docker compose file and a domain — see
 [docs/self-hosting.md](docs/self-hosting.md).
 
 ## License
