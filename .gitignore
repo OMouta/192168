@@ -1,0 +1,42 @@
+# Planning scratch
+.plan/
+
+# Go
+/bin/
+/dist/
+*.exe
+*.exe~
+*.test
+*.out
+coverage.*
+
+# .NET
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+.vs/
+*.binlog
+
+# Wintun redistributable (downloaded during build, not vendored)
+/third_party/wintun/
+
+# Local config and secrets
+*.local.json
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+
+# Server data
+*.db
+*.db-shm
+*.db-wal
+
+# Editors / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+Thumbs.db
+desktop.ini
