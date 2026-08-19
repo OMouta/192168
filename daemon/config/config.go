@@ -11,14 +11,13 @@ import (
 	"github.com/OMouta/192168/protocol"
 )
 
-// DefaultServerURL is the deployment used until the user points the app at
-// their own. Only this one value is user-facing: everything else (API,
-// realtime, STUN) comes from the server's discovery document.
-const DefaultServerURL = "https://192168.lol"
-
 // Config is the daemon's local configuration.
 type Config struct {
-	// ServerURL is the base URL of the coordination server.
+	// ServerURL is the base URL of the coordination server, empty until the
+	// user picks one. There is no default deployment baked in: a server is
+	// something you are given or run, and it is the only address the user ever
+	// types. Everything else (API, realtime, STUN) comes from its discovery
+	// document.
 	ServerURL string
 	// DataDir holds the device identity, membership credentials, and logs.
 	DataDir string
@@ -36,11 +35,15 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		ServerURL: strings.TrimRight(envOr("NET192168_SERVER_URL", DefaultServerURL), "/"),
+		ServerURL: strings.TrimRight(os.Getenv("NET192168_SERVER_URL"), "/"),
 		DataDir:   dataDir,
 	}
-	if err := ValidateServerURL(cfg.ServerURL); err != nil {
-		return Config{}, err
+	// An unconfigured server is the normal first-run state, not an error: the
+	// daemon still has to start so the client can connect and set one.
+	if cfg.ServerURL != "" {
+		if err := ValidateServerURL(cfg.ServerURL); err != nil {
+			return Config{}, err
+		}
 	}
 	return cfg, nil
 }

@@ -27,7 +27,7 @@ func main() {
 		log.Error("invalid configuration", "error", err)
 		os.Exit(1)
 	}
-	log.Info("starting", "serverUrl", cfg.ServerURL, "dataDir", cfg.DataDir)
+	log.Info("starting", "serverUrl", cfg.ServerURL, "serverConfigured", cfg.ServerURL != "", "dataDir", cfg.DataDir)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
