@@ -19,15 +19,8 @@ type Config struct {
 	// Addr is the listen address, e.g. ":8080".
 	Addr string
 	// PublicURL is the externally reachable base URL. It is the one address
-	// users paste into the app, and where the discovery document is served.
+	// users type into the app, and where the discovery document is served.
 	PublicURL string
-	// APIOverride, when set, is advertised as the API base instead of the
-	// value derived from PublicURL. It exists for deployments that answer
-	// discovery on one host and serve the API on another, such as
-	// https://192168.lol advertising https://api.192168.lol.
-	APIOverride string
-	// RealtimeOverride does the same for the WebSocket URL.
-	RealtimeOverride string
 	// STUN servers advertised to clients.
 	STUN []string
 	// DatabaseURL is the storage DSN. An empty value means the local SQLite
@@ -38,12 +31,10 @@ type Config struct {
 // Load reads configuration from the environment and validates it.
 func Load() (Config, error) {
 	c := Config{
-		Addr:             envOr("NET192168_ADDR", ":8080"),
-		PublicURL:        trimURL(os.Getenv("NET192168_PUBLIC_URL")),
-		APIOverride:      trimURL(os.Getenv("NET192168_API_URL")),
-		RealtimeOverride: trimURL(os.Getenv("NET192168_REALTIME_URL")),
-		DatabaseURL:      os.Getenv("NET192168_DATABASE_URL"),
-		STUN:             DefaultSTUN,
+		Addr:        envOr("NET192168_ADDR", ":8080"),
+		PublicURL:   strings.TrimRight(strings.TrimSpace(os.Getenv("NET192168_PUBLIC_URL")), "/"),
+		DatabaseURL: os.Getenv("NET192168_DATABASE_URL"),
+		STUN:        DefaultSTUN,
 	}
 
 	if raw := os.Getenv("NET192168_STUN"); raw != "" {
@@ -53,58 +44,41 @@ func Load() (Config, error) {
 	if c.PublicURL == "" {
 		return Config{}, fmt.Errorf("NET192168_PUBLIC_URL is required")
 	}
-	if err := checkPublic("NET192168_PUBLIC_URL", c.PublicURL, "https"); err != nil {
+	if err := checkPublicURL(c.PublicURL); err != nil {
 		return Config{}, err
-	}
-	if c.APIOverride != "" {
-		if err := checkPublic("NET192168_API_URL", c.APIOverride, "https"); err != nil {
-			return Config{}, err
-		}
-	}
-	if c.RealtimeOverride != "" {
-		if err := checkPublic("NET192168_REALTIME_URL", c.RealtimeOverride, "wss"); err != nil {
-			return Config{}, err
-		}
 	}
 
 	return c, nil
 }
 
 // APIURL is the API base advertised to clients.
-func (c Config) APIURL() string {
-	if c.APIOverride != "" {
-		return c.APIOverride
-	}
-	return c.PublicURL + "/api"
-}
+func (c Config) APIURL() string { return c.PublicURL + "/api" }
 
-// RealtimeURL is the WebSocket URL advertised to clients. Deriving it from the
-// public URL is what lets an operator configure one address rather than four.
+// RealtimeURL is the WebSocket URL advertised to clients. Deriving both from
+// the public URL is what lets an operator configure one address rather than
+// three.
 func (c Config) RealtimeURL() string {
-	if c.RealtimeOverride != "" {
-		return c.RealtimeOverride
-	}
 	if rest, ok := strings.CutPrefix(c.PublicURL, "https://"); ok {
 		return "wss://" + rest + "/realtime"
 	}
 	return "ws://" + strings.TrimPrefix(c.PublicURL, "http://") + "/realtime"
 }
 
-// checkPublic rejects addresses clients would refuse to use. Control-plane
+// checkPublicURL rejects addresses clients would refuse to use. Control-plane
 // traffic is TLS-only, with a localhost exception so the server can be
 // developed against without certificates.
-func checkPublic(name, raw, secureScheme string) error {
+func checkPublicURL(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("%s is not a valid URL: %w", name, err)
+		return fmt.Errorf("NET192168_PUBLIC_URL is not a valid URL: %w", err)
 	}
 	if u.Host == "" {
-		return fmt.Errorf("%s has no host: %q", name, raw)
+		return fmt.Errorf("NET192168_PUBLIC_URL has no host: %q", raw)
 	}
-	if u.Scheme == secureScheme || isLoopback(u.Hostname()) {
+	if u.Scheme == "https" || isLoopback(u.Hostname()) {
 		return nil
 	}
-	return fmt.Errorf("%s must use %s (got %q)", name, secureScheme, raw)
+	return fmt.Errorf("NET192168_PUBLIC_URL must use https (got %q)", raw)
 }
 
 func envOr(key, fallback string) string {
@@ -113,8 +87,6 @@ func envOr(key, fallback string) string {
 	}
 	return fallback
 }
-
-func trimURL(raw string) string { return strings.TrimRight(strings.TrimSpace(raw), "/") }
 
 func splitAndTrim(raw string) []string {
 	parts := strings.Split(raw, ",")

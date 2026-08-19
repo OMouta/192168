@@ -12,10 +12,6 @@ services:
       # a TLS-terminating reverse proxy in front of this.
       NET192168_PUBLIC_URL: ${NET192168_PUBLIC_URL:?set NET192168_PUBLIC_URL}
       NET192168_ADDR: ":8080"
-      # Set these only when the API is served from a different host than
-      # discovery, e.g. https://192168.lol advertising https://api.192168.lol.
-      NET192168_API_URL: ${NET192168_API_URL:-}
-      NET192168_REALTIME_URL: ${NET192168_REALTIME_URL:-}
       # Comma-separated. Defaults to a public STUN server when unset.
       NET192168_STUN: ${NET192168_STUN:-}
       NET192168_DATABASE_URL: ${NET192168_DATABASE_URL:-}
