@@ -1,0 +1,74 @@
+// Package ipc describes the local control channel between the Windows client
+// and the daemon, carried over a named pipe.
+//
+// The daemon is the source of truth for connection state. The client sends
+// high-level intents ("connect to this group") and renders the state it is
+// told about; it never drives sockets, routes, or NAT traversal itself.
+package ipc
+
+import "encoding/json"
+
+// PipeName is the named pipe the daemon listens on.
+const PipeName = `\\.\pipe\192168`
+
+// Method is a client -> daemon request.
+type Method string
+
+const (
+	MethodGetState    Method = "GetState"
+	MethodGetGroups   Method = "GetGroups"
+	MethodCreateGroup Method = "CreateGroup"
+	MethodJoinGroup   Method = "JoinGroup"
+	MethodLeaveGroup  Method = "LeaveGroup"
+	MethodConnect     Method = "ConnectGroup"
+	MethodDisconnect  Method = "Disconnect"
+	MethodSetNickname Method = "SetNickname"
+	MethodGetServer   Method = "GetServer"
+	MethodSetServer   Method = "SetServer"
+	MethodTestServer  Method = "TestServer"
+)
+
+// Request is one client call. ID correlates the response; it is opaque to the
+// daemon.
+type Request struct {
+	ID     string          `json:"id"`
+	Method Method          `json:"method"`
+	Params json.RawMessage `json:"params,omitempty"`
+}
+
+// Response answers exactly one Request. Err is set when OK is false.
+type Response struct {
+	ID     string          `json:"id"`
+	OK     bool            `json:"ok"`
+	Result json.RawMessage `json:"result,omitempty"`
+	Err    *Error          `json:"error,omitempty"`
+}
+
+// Error carries a user-presentable failure. Socket codes and other diagnostics
+// go to the daemon log, not here.
+type Error struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// EventName is a daemon -> client push.
+type EventName string
+
+const (
+	EventStateChanged            EventName = "StateChanged"
+	EventGroupConnected          EventName = "GroupConnected"
+	EventGroupDisconnected       EventName = "GroupDisconnected"
+	EventPeerAdded               EventName = "PeerAdded"
+	EventPeerRemoved             EventName = "PeerRemoved"
+	EventPeerStateChanged        EventName = "PeerStateChanged"
+	EventPeerLatencyChanged      EventName = "PeerLatencyChanged"
+	EventServerConnectionChanged EventName = "ServerConnectionChanged"
+	EventFatalError              EventName = "FatalError"
+)
+
+// Event is an unsolicited daemon message. Clients ignore names they do not
+// know so the daemon can add events without breaking an older client.
+type Event struct {
+	Event EventName       `json:"event"`
+	Data  json.RawMessage `json:"data,omitempty"`
+}
