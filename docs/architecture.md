@@ -32,6 +32,34 @@ current endpoint candidates, and the peer list.
 One group session is active at a time. Switching groups means disconnecting the
 first one completely.
 
+## Identity and passwords
+
+A device registers once by signing its own registration with the key it is
+registering, which proves it holds that key. The server hands back a bearer
+token, and every later request carries it. That signature is the only
+unauthenticated write in the API, so it also carries a timestamp and a nonce and
+the server rejects stale or repeated ones.
+
+The group password never leaves the machine. The daemon runs Argon2id over it
+and sends the result, which the code calls the proof. The salt is the group
+name, because two people typing the same password have to arrive at the same
+proof or only the creator could ever get in. The server hashes that proof again
+with a random salt and stores the verifier.
+
+So a stolen database gives an attacker an offline guessing problem rather than
+group access, and a server operator reading their own logs never sees a
+password. What the proof does not survive is being intercepted, since anyone
+holding it can join. That is why TLS is not optional on the control plane.
+
+There is no separate membership credential. The device token says who is
+calling, and the server knows which groups that device belongs to, which is
+enough to reconnect without the password. Revoking a membership is a change on
+the server, so it applies whether or not the device is online.
+
+The password reaches the daemon in the clear over the named pipe, because the
+daemon owns all cryptography and the UI never implements a KDF. The pipe has to
+be restricted to the current user for that to be safe.
+
 ## Processes
 
 ```
