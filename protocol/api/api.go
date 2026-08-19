@@ -24,21 +24,35 @@ type Features struct {
 	PeerRouting bool `json:"peerRouting"`
 }
 
-// RegisterDeviceRequest registers this installation's long-lived identity.
-// The private half of the key pair never leaves the machine.
+// RegisterDeviceRequest registers this installation's long-lived identity. The
+// private half of the key pair never leaves the machine.
+//
+// This is the one unauthenticated write in the API. Signature covers the other
+// fields and is made with the key being registered, which proves the caller
+// holds it. IssuedAt and Nonce are what stop a captured registration from being
+// replayed later.
 type RegisterDeviceRequest struct {
 	DeviceID   string `json:"deviceId"`
 	PublicKey  string `json:"publicKey"`
 	DeviceName string `json:"deviceName"`
+	IssuedAt   int64  `json:"issuedAt"`
+	Nonce      string `json:"nonce"`
+	Signature  string `json:"signature"`
 }
 
-// CreateGroupRequest creates a new virtual LAN. PasswordProof is derived from
-// the group password client-side; the plaintext password is never sent.
+// RegisterDeviceResponse hands back the bearer token every later request
+// carries. It is shown once and stored under OS-backed protection.
+type RegisterDeviceResponse struct {
+	DeviceToken string `json:"deviceToken"`
+}
+
+// CreateGroupRequest creates a new virtual LAN. PasswordProof comes out of the
+// client-side KDF in protocol/auth. The password itself never leaves the
+// machine.
 type CreateGroupRequest struct {
 	Name          string `json:"name"`
 	PasswordProof string `json:"passwordProof"`
 	Nickname      string `json:"nickname"`
-	DeviceID      string `json:"deviceId"`
 }
 
 // JoinGroupRequest joins an existing group by name or ID.
@@ -46,18 +60,18 @@ type JoinGroupRequest struct {
 	Group         string `json:"group"`
 	PasswordProof string `json:"passwordProof"`
 	Nickname      string `json:"nickname"`
-	DeviceID      string `json:"deviceId"`
 }
 
-// Membership is the persistent relationship between a device and a group. The
-// credential is what lets the daemon reconnect without the group password, so
-// it is returned once and stored under OS-backed protection.
+// Membership is the relationship between a device and a group. It is what lets
+// the daemon reconnect without the group password: the device token
+// authenticates the caller, and the server looks up what it is a member of.
+// Revoking a membership is a server-side change, so it takes effect whether or
+// not that device is online.
 type Membership struct {
 	MembershipID string `json:"membershipId"`
 	GroupID      string `json:"groupId"`
 	GroupName    string `json:"groupName"`
 	Nickname     string `json:"nickname"`
-	Credential   string `json:"credential,omitempty"`
 	Subnet       string `json:"subnet"`
 }
 
