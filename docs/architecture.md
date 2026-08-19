@@ -8,19 +8,21 @@ server going down.
 
 ## Concepts
 
-Three things that are deliberately separate:
+Three things stay separate on purpose.
 
-- **Device identity** — one per installation. A random device ID and a
-  persistent key pair; the private key never leaves the machine.
-- **Membership** — the relationship between a device and a group. Created by
-  joining with the group password, then represented by a long-lived credential
-  so the password is never needed again. Nicknames are per-group display
-  labels, not identity.
-- **Session** — exists only while connected. Carries the assigned virtual IP,
-  the current endpoint candidates, and the peer list.
+**Device identity.** One per installation. A random device ID and a persistent
+key pair. The private key never leaves the machine.
 
-Only one group session is active at a time. Switching groups means fully
-disconnecting first.
+**Membership.** The relationship between a device and a group. You create it by
+joining with the group password, and from then on a long-lived credential stands
+in for the password. Nicknames are per-group display labels and carry no
+identity.
+
+**Session.** Exists only while connected. Carries the assigned virtual IP, the
+current endpoint candidates, and the peer list.
+
+One group session is active at a time. Switching groups means disconnecting the
+first one completely.
 
 ## Processes
 
@@ -42,10 +44,10 @@ disconnecting first.
             internet
 ```
 
-The client sends intents — `ConnectGroup`, `Disconnect`, `JoinGroup` — and
-renders the state it is pushed. It does not open sockets, punch NATs, or track
-peer state. The daemon runs as its own process so closing the window does not
-drop the tunnel.
+The client sends intents like `ConnectGroup`, `Disconnect`, and `JoinGroup`,
+then draws whatever state comes back. It never opens a socket, punches a NAT, or
+tracks peer state. The daemon is a separate process, so closing the window
+leaves the tunnel up.
 
 ## Connecting
 
@@ -54,72 +56,73 @@ drop the tunnel.
    the server.
 3. Server assigns a virtual IP within the group's subnet (`10.69.0.0/24`).
 4. Daemon brings up the Wintun adapter and local routes.
-5. Daemon opens its UDP socket and discovers its public endpoint via STUN.
+5. Daemon opens its UDP socket and finds its public endpoint through STUN.
 6. Daemon publishes the endpoint and receives the peer list.
-7. Daemon and each peer hole-punch simultaneously, then run an authenticated
+7. Daemon and each peer hole-punch at the same time, then run an authenticated
    handshake.
 8. Established sessions become routes for the virtual adapter.
 
-Every pairwise link is independent. Failing to reach one peer must never affect
+Every pairwise link stands alone. Failing to reach one peer must never affect
 the others.
 
 ## Routing
 
-Connected members form a full mesh — fine at the intended scale of under ten
-peers, and it keeps packet forwarding out of the middle.
+Connected members form a full mesh. That is fine under ten peers and keeps
+packet forwarding out of the middle.
 
-The daemon maps each peer's virtual IP to a route. A route is an abstraction,
-not a socket: only `Direct` exists today, but `Via(peer)` (peer-assisted) and
-`Relay` are shaped into the protocol so adding them later is not a rewrite.
+The daemon maps each peer's virtual IP to a route, and a route is not the same
+thing as a socket. Only `Direct` exists today. `Via(peer)` and `Relay` already
+have a place in the protocol, so adding them later will not mean a rewrite.
 Anything forwarded carries a hop limit.
 
 ## Transport
 
-Binary and versioned from day one — see `protocol/transport`. A fixed 20-byte
-envelope (magic, version, type, sender, counter) precedes the payload and is
-authenticated as additional data, so it can be read for routing without being
-tamperable.
+Binary and versioned from day one. See `protocol/transport`. A fixed 20-byte
+envelope of magic, version, type, sender, and counter sits in front of the
+payload. The AEAD authenticates it as additional data, so a daemon can read it
+for routing and an attacker still cannot change it.
 
-The counter drives both the AEAD nonce and replay rejection. All peer traffic
-is encrypted end to end using an established construction — no custom
-cryptography. An endpoint learned from the server proves nothing; only packets
-that verify against the session keys are accepted.
+The counter feeds the AEAD nonce and the replay check. Peer traffic is encrypted
+end to end with an established construction. We do not write our own crypto.
+
+An endpoint learned from the server proves nothing on its own. A peer accepts
+only packets that verify against the session keys.
 
 ## Coordination
 
-The control plane is HTTPS plus a WebSocket carrying presence and endpoint
-changes, so the daemon never polls. Losing the WebSocket does not tear down
-established tunnels: during an outage, existing games keep working, but new
-peers cannot be discovered and endpoint changes stop propagating.
+The control plane is HTTPS plus a WebSocket that carries presence and endpoint
+changes, so the daemon never polls. Losing the WebSocket leaves established
+tunnels alone. Games in progress keep working. What stops is discovering new
+peers and learning about endpoint changes.
 
-Clients reach any deployment from a base URL alone by fetching
-`/.well-known/192168`, which advertises the API URL, realtime URL, STUN
-servers, and optional features. API, realtime, and STUN addresses are never
-exposed as separate user-facing settings.
+A client reaches any deployment from a base URL alone by fetching
+`/.well-known/192168`, which advertises the API URL, realtime URL, STUN servers,
+and optional features. Those addresses never appear as separate settings a user
+has to fill in.
 
-The client ships pointing at the hosted deployment and reaches any other by URL,
-so a self-hosted server is the same code path as the default one.
+The client points at the hosted deployment out of the box and reaches any other
+by URL, so a self-hosted server runs the same code path as the default one.
 
 ## Network changes
 
-Wi-Fi switches, sleep/resume, and public IP changes all invalidate NAT
-mappings. On a detected change the daemon revalidates its socket, re-runs STUN,
-publishes the new endpoint, and re-punches — without disturbing membership or
-UI state.
+Wi-Fi switches, sleep and resume, and public IP changes all invalidate NAT
+mappings. When the daemon detects one it revalidates its socket, re-runs STUN,
+publishes the new endpoint, and punches again. Membership and UI state stay
+where they are.
 
 ## Broadcast discovery
 
 The overlay is Layer 3, so UDP broadcast, multicast, and mDNS do not cross it.
-Games where you type in the host's IP work; automatic server-browser discovery
-may need selective broadcast replication later. That is not a blocker for the
-first working version.
+Games where you type in the host's IP work today. Automatic server-browser
+discovery may need selective broadcast replication later, and that can wait
+until the first version works.
 
 ## Versioning
 
-Discovery, transport, IPC, and realtime are versioned independently in
+Discovery, transport, IPC, and realtime carry separate version numbers in
 `protocol`, because a self-hosted server, a shipped client, and a peer's daemon
-all update on their own schedules. Incompatibility must surface as a clear
-message, not a mysterious failure.
+all update on their own schedules. When they disagree the user should get a
+clear message rather than a mysterious failure.
 
 ## Logging
 

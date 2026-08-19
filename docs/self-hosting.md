@@ -1,12 +1,12 @@
 # Self-hosting
 
-The shipped Windows app defaults to the hosted server, and users reach any
-other one by typing its URL into Settings. Nothing is rebuilt to point the
+The Windows app talks to the hosted server by default, and a user reaches any
+other one by typing its URL into Settings. Nobody rebuilds anything to point a
 client at yours.
 
 ## Requirements
 
-- A public HTTPS domain (TLS terminated by your reverse proxy).
+- A public HTTPS domain, with your reverse proxy terminating TLS.
 - Docker, or a Go 1.26+ toolchain.
 
 ## Run it
@@ -17,8 +17,8 @@ cp .env.example .env      # set NET192168_PUBLIC_URL
 docker compose up -d
 ```
 
-Point your reverse proxy at port 8080 and confirm the discovery document is
-reachable:
+Point your reverse proxy at port 8080, then check that the discovery document
+comes back:
 
 ```sh
 curl https://lan.example.com/.well-known/192168
@@ -35,7 +35,7 @@ curl https://lan.example.com/.well-known/192168
 }
 ```
 
-Then open the app, enter `https://lan.example.com` as the server, test the
+Now open the app, enter `https://lan.example.com` as the server, test the
 connection, and save.
 
 ## Configuration
@@ -47,13 +47,13 @@ connection, and save.
 | `NET192168_STUN` | no | Comma-separated STUN servers to advertise. Defaults to a public one. |
 | `NET192168_DATABASE_URL` | no | Storage DSN. Defaults to local SQLite. |
 
-The API and realtime URLs are derived from `NET192168_PUBLIC_URL`, so there is
-one address to get right, and it is the same one your users type in.
+The server builds the API and realtime URLs from `NET192168_PUBLIC_URL`, so you
+have one address to get right, and it is the same one your users type in.
 
 ## Notes
 
-- The server does not forward game traffic. It stays small and idle even with
-  several active groups.
-- Group passwords are stored as verifiers, never in plaintext.
-- Your users' peers connect directly to each other, so the server going down
-  does not drop games already in progress.
+- The server never forwards game traffic. It stays small and idle even with
+  several groups connected.
+- The server stores a verifier for each group password, never the password.
+- Peers connect straight to each other, so the server going down does not drop
+  a game already in progress.
