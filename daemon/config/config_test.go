@@ -24,9 +24,8 @@ func TestValidateServerURL(t *testing.T) {
 	}
 }
 
-// No server configured is the first-run state, so the daemon has to come up
-// anyway: the client cannot ask it to set one otherwise.
-func TestLoadWithoutServerURL(t *testing.T) {
+// The hosted deployment is used until the user points the app elsewhere.
+func TestLoadDefaultsToHostedServer(t *testing.T) {
 	t.Setenv("NET192168_SERVER_URL", "")
 	t.Setenv("NET192168_DATA_DIR", t.TempDir())
 
@@ -34,8 +33,8 @@ func TestLoadWithoutServerURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.ServerURL != "" {
-		t.Errorf("ServerURL = %q, want empty", cfg.ServerURL)
+	if cfg.ServerURL != DefaultServerURL {
+		t.Errorf("ServerURL = %q, want %q", cfg.ServerURL, DefaultServerURL)
 	}
 }
 
