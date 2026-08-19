@@ -27,17 +27,22 @@ type Features struct {
 // RegisterDeviceRequest registers this installation's long-lived identity. The
 // private half of the key pair never leaves the machine.
 //
-// This is the one unauthenticated write in the API. Signature covers the other
-// fields and is made with the key being registered, which proves the caller
-// holds it. IssuedAt and Nonce are what stop a captured registration from being
-// replayed later.
+// A device carries two keys. PublicKey is Ed25519 and signs this request, which
+// proves the caller holds it. TransportKey is the Curve25519 static key peers
+// run the Noise handshake against, and the server passes it to the rest of the
+// group. One key signs, the other does key agreement.
+//
+// This is the one unauthenticated write in the API. The signature covers every
+// other field, and IssuedAt and Nonce are what stop a captured registration
+// from being replayed later.
 type RegisterDeviceRequest struct {
-	DeviceID   string `json:"deviceId"`
-	PublicKey  string `json:"publicKey"`
-	DeviceName string `json:"deviceName"`
-	IssuedAt   int64  `json:"issuedAt"`
-	Nonce      string `json:"nonce"`
-	Signature  string `json:"signature"`
+	DeviceID     string `json:"deviceId"`
+	PublicKey    string `json:"publicKey"`
+	TransportKey string `json:"transportKey"`
+	DeviceName   string `json:"deviceName"`
+	IssuedAt     int64  `json:"issuedAt"`
+	Nonce        string `json:"nonce"`
+	Signature    string `json:"signature"`
 }
 
 // RegisterDeviceResponse hands back the bearer token every later request
@@ -84,12 +89,17 @@ type CreateSessionResponse struct {
 }
 
 // Peer is another device with an active session in the same group.
+//
+// TransportKey is the Curve25519 static key this peer's handshake runs against.
+// Checking it is what makes the endpoint below safe to dial: the address is
+// only a hint, and anything answering there that cannot prove it holds this key
+// gets nowhere.
 type Peer struct {
-	DeviceID  string    `json:"deviceId"`
-	Nickname  string    `json:"nickname"`
-	VirtualIP string    `json:"virtualIp"`
-	PublicKey string    `json:"publicKey"`
-	Endpoint  *Endpoint `json:"endpoint,omitempty"`
+	DeviceID     string    `json:"deviceId"`
+	Nickname     string    `json:"nickname"`
+	VirtualIP    string    `json:"virtualIp"`
+	TransportKey string    `json:"transportKey"`
+	Endpoint     *Endpoint `json:"endpoint,omitempty"`
 }
 
 // Endpoint is a public UDP address candidate discovered via STUN.

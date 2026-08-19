@@ -74,3 +74,19 @@ func TestMagicCannotBeConfusedWithSTUN(t *testing.T) {
 		t.Errorf("Magic = %#04x: leading two bits are zero, which collides with STUN", Magic)
 	}
 }
+
+// A packet at the tunnel MTU has to survive the smallest real path we expect,
+// or games see loss that looks like a network problem.
+func TestPacketsFitInsideAStandardMTU(t *testing.T) {
+	const (
+		ethernetMTU = 1500
+		ipv6Header  = 40
+		udpHeader   = 8
+	)
+	if got := MaxPacketSize + ipv6Header + udpHeader; got > ethernetMTU {
+		t.Errorf("a full packet is %d bytes on the wire, over the %d byte MTU", got, ethernetMTU)
+	}
+	if MaxPacketSize != TunnelMTU+HeaderSize+AEADTagSize {
+		t.Errorf("MaxPacketSize = %d, does not match its parts", MaxPacketSize)
+	}
+}

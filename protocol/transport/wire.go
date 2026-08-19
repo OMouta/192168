@@ -113,3 +113,30 @@ func Decode(pkt []byte) (Header, []byte, error) {
 	}
 	return h, pkt[HeaderSize:], nil
 }
+
+// Sizing for the data plane.
+//
+// A datagram leaves this machine as an IP packet from the virtual adapter, gets
+// an AEAD tag and our header, then travels inside UDP over the real network. If
+// the total goes past the real path's MTU it fragments or gets dropped, and a
+// game sees packet loss it cannot explain.
+//
+// The worst case underneath is an IPv6 header of 40 bytes plus 8 for UDP, which
+// leaves 1500-48-20-16 = 1416 bytes. TunnelMTU rounds that down, so links that
+// carry a little extra, such as PPPoE, still fit.
+const (
+	// AEADTagSize is the authentication tag appended by ChaCha20-Poly1305.
+	AEADTagSize = 16
+
+	// Overhead is what a data packet costs on the wire beyond the IP packet it
+	// carries, not counting the UDP and IP headers underneath.
+	Overhead = HeaderSize + AEADTagSize
+
+	// TunnelMTU is the MTU the virtual adapter advertises, which is what makes
+	// Windows hand us packets that fit.
+	TunnelMTU = 1400
+
+	// MaxPacketSize is the largest datagram this protocol produces, and the
+	// size a receive buffer has to be.
+	MaxPacketSize = TunnelMTU + Overhead
+)

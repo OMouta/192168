@@ -39,16 +39,22 @@ func DecodePublicKey(encoded string) (ed25519.PublicKey, error) {
 	return ed25519.PublicKey(raw), nil
 }
 
-// RegisterSigningInput builds the exact bytes both sides sign and verify. It
-// is a fixed field order with newline separators, so there is no canonical JSON
+// RegisterSigningInput builds the exact bytes both sides sign and verify. It is
+// a fixed field order with newline separators, so there is no canonical JSON
 // problem to get wrong.
-func RegisterSigningInput(deviceID, publicKey string, issuedAt time.Time, nonce string) []byte {
+//
+// The transport key is in here too. It is the key peers authenticate each other
+// with, so letting it be swapped in transit would hand an attacker the whole
+// point of the handshake.
+func RegisterSigningInput(deviceID, publicKey, transportKey string, issuedAt time.Time, nonce string) []byte {
 	var b strings.Builder
 	b.WriteString(registerContext)
 	b.WriteByte('\n')
 	b.WriteString(deviceID)
 	b.WriteByte('\n')
 	b.WriteString(publicKey)
+	b.WriteByte('\n')
+	b.WriteString(transportKey)
 	b.WriteByte('\n')
 	b.WriteString(strconv.FormatInt(issuedAt.Unix(), 10))
 	b.WriteByte('\n')
@@ -58,15 +64,15 @@ func RegisterSigningInput(deviceID, publicKey string, issuedAt time.Time, nonce 
 
 // SignRegister signs a registration with the device's private key, proving the
 // device holds the key it is registering.
-func SignRegister(priv ed25519.PrivateKey, deviceID, publicKey string, issuedAt time.Time, nonce string) string {
-	sig := ed25519.Sign(priv, RegisterSigningInput(deviceID, publicKey, issuedAt, nonce))
+func SignRegister(priv ed25519.PrivateKey, deviceID, publicKey, transportKey string, issuedAt time.Time, nonce string) string {
+	sig := ed25519.Sign(priv, RegisterSigningInput(deviceID, publicKey, transportKey, issuedAt, nonce))
 	return base64.RawStdEncoding.EncodeToString(sig)
 }
 
 // VerifyRegister checks a registration signature against the public key being
 // registered. The server still has to reject a stale issuedAt and a replayed
 // nonce, which this cannot see.
-func VerifyRegister(publicKey, deviceID, signature string, issuedAt time.Time, nonce string) error {
+func VerifyRegister(publicKey, deviceID, transportKey, signature string, issuedAt time.Time, nonce string) error {
 	pub, err := DecodePublicKey(publicKey)
 	if err != nil {
 		return err
@@ -75,7 +81,7 @@ func VerifyRegister(publicKey, deviceID, signature string, issuedAt time.Time, n
 	if err != nil {
 		return fmt.Errorf("auth: malformed signature: %w", err)
 	}
-	if !ed25519.Verify(pub, RegisterSigningInput(deviceID, publicKey, issuedAt, nonce), sig) {
+	if !ed25519.Verify(pub, RegisterSigningInput(deviceID, publicKey, transportKey, issuedAt, nonce), sig) {
 		return fmt.Errorf("auth: signature does not verify")
 	}
 	return nil

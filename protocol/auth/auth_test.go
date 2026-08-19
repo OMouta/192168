@@ -92,27 +92,30 @@ func TestRegisterSignature(t *testing.T) {
 		t.Fatalf("GenerateKey: %v", err)
 	}
 	encoded := EncodePublicKey(pub)
+	const transportKey = "dHJhbnNwb3J0LWtleQ"
 	issuedAt := time.Unix(1_800_000_000, 0)
 
-	sig := SignRegister(priv, "dev_123", encoded, issuedAt, "nonce-1")
-	if err := VerifyRegister(encoded, "dev_123", sig, issuedAt, "nonce-1"); err != nil {
+	sig := SignRegister(priv, "dev_123", encoded, transportKey, issuedAt, "nonce-1")
+	if err := VerifyRegister(encoded, "dev_123", transportKey, sig, issuedAt, "nonce-1"); err != nil {
 		t.Fatalf("VerifyRegister: %v", err)
 	}
 
 	// Every signed field has to actually be covered by the signature.
 	tampered := []struct {
-		name     string
-		deviceID string
-		issuedAt time.Time
-		nonce    string
+		name         string
+		deviceID     string
+		transportKey string
+		issuedAt     time.Time
+		nonce        string
 	}{
-		{"device id", "dev_456", issuedAt, "nonce-1"},
-		{"timestamp", "dev_123", issuedAt.Add(time.Second), "nonce-1"},
-		{"nonce", "dev_123", issuedAt, "nonce-2"},
+		{"device id", "dev_456", transportKey, issuedAt, "nonce-1"},
+		{"transport key", "dev_123", "c3dhcHBlZC1rZXk", issuedAt, "nonce-1"},
+		{"timestamp", "dev_123", transportKey, issuedAt.Add(time.Second), "nonce-1"},
+		{"nonce", "dev_123", transportKey, issuedAt, "nonce-2"},
 	}
 	for _, tt := range tampered {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := VerifyRegister(encoded, tt.deviceID, sig, tt.issuedAt, tt.nonce); err == nil {
+			if err := VerifyRegister(encoded, tt.deviceID, tt.transportKey, sig, tt.issuedAt, tt.nonce); err == nil {
 				t.Errorf("a changed %s still verified", tt.name)
 			}
 		})
@@ -122,7 +125,7 @@ func TestRegisterSignature(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateKey: %v", err)
 	}
-	if err := VerifyRegister(EncodePublicKey(otherPub), "dev_123", sig, issuedAt, "nonce-1"); err == nil {
+	if err := VerifyRegister(EncodePublicKey(otherPub), "dev_123", transportKey, sig, issuedAt, "nonce-1"); err == nil {
 		t.Error("a signature verified against the wrong public key")
 	}
 }
