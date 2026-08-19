@@ -6,6 +6,14 @@ The coordination server introduces peers to each other. It never carries game
 traffic. Once two daemons have found each other, their session survives the
 server going down.
 
+A game packet takes this path and touches nothing else:
+
+```
+Game -> Windows IP stack -> Wintun adapter -> daemon
+     -> encrypted UDP over the internet ->
+        daemon -> Wintun adapter -> Windows IP stack -> Game
+```
+
 ## Concepts
 
 Three things stay separate on purpose.

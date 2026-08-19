@@ -3,91 +3,49 @@
 192168 puts you and your friends on the same LAN from different networks, so you
 can play LAN games together.
 
-Pick a nickname, create or join a private group, hit Connect. Everyone in the
-group gets a virtual LAN IP. Games that let you type in a host address work
-without anything else.
+Pick a nickname, create a private group, share the name and password with your
+friends. Everyone who connects gets a virtual LAN IP like `10.69.0.2`. Games
+that let you type in a host address work from there.
 
-> The server introduces peers. The clients create the LAN.
+Your traffic goes straight to the other players, encrypted. The server only
+introduces you to each other and then stays out of the way, so it never sees a
+game packet and never adds a hop to your latency.
 
-Traffic goes straight between peers over encrypted UDP. The coordination server
-handles group membership, presence, and endpoint exchange, then gets out of the
-way. It never sees a game packet.
+Status: early development. There is nothing to download yet.
 
-Status: early development. Not usable yet.
+## What you need
 
-## What it is not
+Windows. The app installs a virtual network adapter, so it needs administrator
+rights the first time it connects.
 
-Not a privacy VPN. Not an exit node. Not a Tailscale or ZeroTier competitor, and
-not built for hundreds of peers. It is built for four to six friends who want to
-play a LAN game, on Windows.
+Games have to support connecting to a host by IP address. Anything that only
+finds servers by scanning the local network will not see your friends yet.
 
-## How it works
+## Groups
 
-```
-Game -> Windows IP stack -> Wintun adapter -> daemon
-     -> encrypted UDP over the internet ->
-        daemon -> Wintun adapter -> Windows IP stack -> Game
-```
+A group is a private LAN that sticks around. Make one for a game, or one for the
+people you play with, whatever fits.
 
-Two processes on the client.
+Joining takes the group name and its password, once. After that the app
+remembers you, and connecting is one click. You can belong to as many groups as
+you like, but only one can be connected at a time.
 
-**WinUI 3 client** (C#). The UI, tray, and settings. Presentation only.
-
-**Daemon** (Go). Device identity, membership credentials, the virtual adapter,
-STUN, NAT traversal, encryption, peer sessions, routing. It decides what the
-connection state is, and the UI shows what it reports. Closing the window does
-not drop a tunnel.
-
-They talk over a named pipe. See [docs/architecture.md](docs/architecture.md).
-
-## Layout
-
-```
-protocol/   shapes shared across process and machine boundaries
-  transport/  binary peer-to-peer UDP wire format
-  ipc/        local client <-> daemon control protocol
-  api/        control-plane HTTP and WebSocket payloads
-daemon/     Go networking daemon (Windows)
-server/     Go coordination server
-client/     WinUI 3 desktop client
-deploy/     Docker deployment for the server
-docs/       architecture and self-hosting
-```
-
-A name cannot start with a digit in an environment variable, a C# namespace, or
-a Go identifier. Those read `Net192168` and `NET192168_`. Everything a user sees
-is `192168`, including the app, the well-known path, and the virtual adapter.
-
-## Development
-
-Requires Go 1.26+ and the .NET 10 SDK.
-
-```sh
-go test ./...
-go build ./daemon/cmd/192168-daemon
-go build ./server/cmd/192168-server
-
-dotnet build client/windows/192168.slnx -p:Platform=x64
-```
-
-Run the server locally:
-
-```sh
-NET192168_PUBLIC_URL=http://localhost:8080 go run ./server/cmd/192168-server
-curl http://localhost:8080/.well-known/192168
-```
-
-Plain HTTP only works against localhost. Everything else has to be HTTPS.
+Everyone in a group sees who else is online, their nickname, and their virtual
+IP.
 
 ## Servers
 
 The app talks to `https://api.192168.lol` by default. To use a different one,
-type its URL into Settings. The client reads the API, realtime, and STUN
-addresses from that server's discovery document, so pointing the shipped binary
-at another deployment never means rebuilding it.
+type its URL into Settings. Nothing gets rebuilt, and a friend running their own
+server is as usable as the default one.
 
-Running your own takes a Docker compose file and a domain. See
-[docs/self-hosting.md](docs/self-hosting.md).
+To run your own, see [docs/self-hosting.md](docs/self-hosting.md).
+
+## Hacking on it
+
+[docs/development.md](docs/development.md) covers building and running the
+pieces. [docs/architecture.md](docs/architecture.md) covers how the networking
+works.
 
 ## License
 
