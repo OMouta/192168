@@ -1,4 +1,6 @@
-# 192168
+<p align="center">
+  <img src="assets/github_banner.png" alt="192168.lol" width="400">
+</p>
 
 192168 is a Windows app that puts you and your friends on the same LAN from
 different networks, so you can play LAN games together.
@@ -25,8 +27,16 @@ name and password once. After that the app remembers you and connecting is one
 click.
 
 You can belong to any number of groups, and one of them can be connected at a
-time. While you are connected you see everyone else who is online, their
-nickname, and their virtual IP.
+time. While you are connected you see everyone else who is online.
+
+```
+Friday Night                        Connected
+
+Tiago       10.69.0.1               You
+João        10.69.0.2               Direct · 18 ms
+Pedro       10.69.0.3               Direct · 24 ms
+Miguel      10.69.0.4               Connecting
+```
 
 ## Servers
 
