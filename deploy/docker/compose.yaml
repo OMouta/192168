@@ -1,0 +1,26 @@
+services:
+  server:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Must match the URL users paste into the app: it is what the discovery
+      # document advertises. HTTPS is required unless it is localhost, so put
+      # a TLS-terminating reverse proxy in front of this.
+      NET192168_PUBLIC_URL: ${NET192168_PUBLIC_URL:?set NET192168_PUBLIC_URL}
+      NET192168_ADDR: ":8080"
+      # Set these only when the API is served from a different host than
+      # discovery, e.g. https://192168.lol advertising https://api.192168.lol.
+      NET192168_API_URL: ${NET192168_API_URL:-}
+      NET192168_REALTIME_URL: ${NET192168_REALTIME_URL:-}
+      # Comma-separated. Defaults to a public STUN server when unset.
+      NET192168_STUN: ${NET192168_STUN:-}
+      NET192168_DATABASE_URL: ${NET192168_DATABASE_URL:-}
+    volumes:
+      - 192168-data:/data
+
+volumes:
+  192168-data:
