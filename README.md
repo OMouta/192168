@@ -80,11 +80,10 @@ Plain HTTP is only accepted for localhost; everything else must be HTTPS.
 
 ## Servers
 
-There is no default server baked into the app. On first run you type in the
-server you were given or the one you run yourself, and the client learns the
-API, realtime, and STUN endpoints from its discovery document. That is the only
-address a user ever sees, and pointing the shipped client at a different
-deployment never requires a rebuild.
+The app talks to `https://api.192168.lol` by default. To use a different one,
+type its URL into Settings — the client reads the API, realtime, and STUN
+endpoints from that server's discovery document, so pointing the shipped
+binary at another deployment never requires a rebuild.
 
 Running your own is a Docker compose file and a domain — see
 [docs/self-hosting.md](docs/self-hosting.md).

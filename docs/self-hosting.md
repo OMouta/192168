@@ -1,7 +1,8 @@
 # Self-hosting
 
-The shipped Windows app has no default server: every user types one in. That
-address can be yours. Nothing is rebuilt to point the client at it.
+The shipped Windows app defaults to the hosted server, and users reach any
+other one by typing its URL into Settings. Nothing is rebuilt to point the
+client at yours.
 
 ## Requirements
 
@@ -43,25 +44,11 @@ connection, and save.
 | --- | --- | --- |
 | `NET192168_PUBLIC_URL` | yes | Public base URL. Must match what users type in. HTTPS unless localhost. |
 | `NET192168_ADDR` | no | Listen address. Defaults to `:8080`. |
-| `NET192168_API_URL` | no | Advertise a different API base than the one derived from the public URL. |
-| `NET192168_REALTIME_URL` | no | Advertise a different WebSocket URL. |
 | `NET192168_STUN` | no | Comma-separated STUN servers to advertise. Defaults to a public one. |
 | `NET192168_DATABASE_URL` | no | Storage DSN. Defaults to local SQLite. |
 
-The API and realtime URLs are derived from `NET192168_PUBLIC_URL`, so a simple
-deployment has one address to get right.
-
-Override them when discovery is answered on one host and the API is served from
-another — which is how the 192168.lol deployment is set up:
-
-```sh
-NET192168_PUBLIC_URL=https://192168.lol
-NET192168_API_URL=https://api.192168.lol
-NET192168_REALTIME_URL=wss://api.192168.lol/realtime
-```
-
-Users still type one address, `192168.lol`; the discovery document sends the
-client to the API host from there.
+The API and realtime URLs are derived from `NET192168_PUBLIC_URL`, so there is
+one address to get right, and it is the same one your users type in.
 
 ## Notes
 
