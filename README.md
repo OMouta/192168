@@ -1,7 +1,5 @@
 # 192168
 
-Same LAN, different houses.
-
 192168 is a Windows app that puts you and your friends on the same LAN from
 different networks, so you can play LAN games together.
 
