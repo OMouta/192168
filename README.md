@@ -1,45 +1,39 @@
 # 192168
 
-192168 puts you and your friends on the same LAN from different networks, so you
-can play LAN games together.
+Same LAN, different houses.
 
-Pick a nickname, create a private group, share the name and password with your
-friends. Everyone who connects gets a virtual LAN IP like `10.69.0.2`. Games
-that let you type in a host address work from there.
+192168 is a Windows app that puts you and your friends on the same LAN from
+different networks, so you can play LAN games together.
 
-Your traffic goes straight to the other players, encrypted. The server only
-introduces you to each other and then stays out of the way, so it never sees a
-game packet and never adds a hop to your latency.
+Create a private group and give your friends its name and password. Everyone who
+connects gets a virtual LAN IP like `10.69.0.2`, and any game that lets you type
+in a host address works from there.
 
-Status: early development. There is nothing to download yet.
+Traffic goes straight between players, encrypted. The server hands out the
+addresses and says who is online. Game packets never reach it.
 
 ## What you need
 
-Windows. The app installs a virtual network adapter, so it needs administrator
-rights the first time it connects.
+Windows. Connecting installs a virtual network adapter, so the app asks for
+administrator rights.
 
-Games have to support connecting to a host by IP address. Anything that only
-finds servers by scanning the local network will not see your friends yet.
+A game that can connect to a host by IP. Games that only find servers by
+scanning the local network do not see anyone in your group.
 
 ## Groups
 
-A group is a private LAN that sticks around. Make one for a game, or one for the
-people you play with, whatever fits.
+A group is a private LAN that sticks around between sessions. You join with its
+name and password once. After that the app remembers you and connecting is one
+click.
 
-Joining takes the group name and its password, once. After that the app
-remembers you, and connecting is one click. You can belong to as many groups as
-you like, but only one can be connected at a time.
-
-Everyone in a group sees who else is online, their nickname, and their virtual
-IP.
+You can belong to any number of groups, and one of them can be connected at a
+time. While you are connected you see everyone else who is online, their
+nickname, and their virtual IP.
 
 ## Servers
 
-The app talks to `https://api.192168.lol` by default. To use a different one,
-type its URL into Settings. Nothing gets rebuilt, and a friend running their own
-server is as usable as the default one.
-
-To run your own, see [docs/self-hosting.md](docs/self-hosting.md).
+The app talks to `https://api.192168.lol`. To use another one, type its URL into
+Settings. To run your own, see [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Hacking on it
 
