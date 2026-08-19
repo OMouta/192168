@@ -14,6 +14,7 @@ import (
 
 	"github.com/OMouta/192168/server/api"
 	"github.com/OMouta/192168/server/config"
+	"github.com/OMouta/192168/server/storage"
 )
 
 func main() {
@@ -25,14 +26,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	srv := &http.Server{
-		Addr:              cfg.Addr,
-		Handler:           api.New(cfg, log),
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	store, err := storage.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Error("cannot open the database", "error", err)
+		os.Exit(1)
+	}
+	defer store.Close()
+
+	srv := &http.Server{
+		Addr:              cfg.Addr,
+		Handler:           api.New(cfg, store, log),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 
 	go func() {
 		log.Info("listening", "addr", cfg.Addr, "publicUrl", cfg.PublicURL)

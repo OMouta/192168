@@ -1,0 +1,474 @@
+package api
+
+import (
+	"bytes"
+	"crypto/ed25519"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/OMouta/192168/protocol"
+	papi "github.com/OMouta/192168/protocol/api"
+	"github.com/OMouta/192168/protocol/auth"
+	"github.com/OMouta/192168/protocol/session"
+	"github.com/OMouta/192168/server/config"
+	"github.com/OMouta/192168/server/storage"
+)
+
+func newTestServer(t *testing.T) http.Handler {
+	t.Helper()
+	store, err := storage.Open(t.Context(), filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("storage.Open: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	cfg := config.Config{PublicURL: "https://api.192168.lol", STUN: []string{"stun:stun.example.com:3478"}}
+	return New(cfg, store, slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+// call sends a request and decodes the response into out when out is not nil.
+func call(t *testing.T, h http.Handler, method, path, token string, body, out any) int {
+	t.Helper()
+
+	var reader io.Reader
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal body: %v", err)
+		}
+		reader = bytes.NewReader(encoded)
+	}
+
+	req := httptest.NewRequest(method, path, reader)
+	req.RemoteAddr = "203.0.113.10:5000"
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if out != nil && rec.Body.Len() > 0 {
+		if err := json.Unmarshal(rec.Body.Bytes(), out); err != nil {
+			t.Fatalf("decode %s %s response %q: %v", method, path, rec.Body.String(), err)
+		}
+	}
+	return rec.Code
+}
+
+// device is a registered test device with everything needed to make requests.
+type device struct {
+	id    string
+	token string
+}
+
+func register(t *testing.T, h http.Handler, id string) device {
+	t.Helper()
+
+	_, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	keys, err := session.GenerateKeypair()
+	if err != nil {
+		t.Fatalf("GenerateKeypair: %v", err)
+	}
+
+	publicKey := auth.EncodePublicKey(priv.Public().(ed25519.PublicKey))
+	transportKey := auth.EncodePublicKey(ed25519.PublicKey(keys.Public))
+	issuedAt := time.Now()
+	nonce := "nonce-" + id
+
+	req := papi.RegisterDeviceRequest{
+		DeviceID:     id,
+		PublicKey:    publicKey,
+		TransportKey: transportKey,
+		DeviceName:   id + "-PC",
+		IssuedAt:     issuedAt.Unix(),
+		Nonce:        nonce,
+		Signature:    auth.SignRegister(priv, id, publicKey, transportKey, issuedAt, nonce),
+	}
+
+	var res papi.RegisterDeviceResponse
+	if code := call(t, h, http.MethodPost, "/api/devices/register", "", req, &res); code != http.StatusCreated {
+		t.Fatalf("register %s: status %d", id, code)
+	}
+	if res.DeviceToken == "" {
+		t.Fatalf("register %s returned no token", id)
+	}
+	return device{id: id, token: res.DeviceToken}
+}
+
+func TestRegistrationRejectsAReplay(t *testing.T) {
+	h := newTestServer(t)
+
+	_, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	publicKey := auth.EncodePublicKey(priv.Public().(ed25519.PublicKey))
+	issuedAt := time.Now()
+
+	req := papi.RegisterDeviceRequest{
+		DeviceID:     "dev_1",
+		PublicKey:    publicKey,
+		TransportKey: "transport",
+		IssuedAt:     issuedAt.Unix(),
+		Nonce:        "nonce-1",
+		Signature:    auth.SignRegister(priv, "dev_1", publicKey, "transport", issuedAt, "nonce-1"),
+	}
+
+	if code := call(t, h, http.MethodPost, "/api/devices/register", "", req, nil); code != http.StatusCreated {
+		t.Fatalf("first registration: status %d", code)
+	}
+	// The same signed message a second time is someone replaying a capture.
+	if code := call(t, h, http.MethodPost, "/api/devices/register", "", req, nil); code != http.StatusUnauthorized {
+		t.Errorf("replayed registration: status %d, want 401", code)
+	}
+}
+
+func TestRegistrationRejectsBadSignaturesAndStaleClocks(t *testing.T) {
+	h := newTestServer(t)
+
+	_, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	publicKey := auth.EncodePublicKey(priv.Public().(ed25519.PublicKey))
+
+	now := time.Now()
+	stale := now.Add(-2 * auth.RegisterMaxSkew)
+
+	tests := []struct {
+		name string
+		req  papi.RegisterDeviceRequest
+		want int
+	}{
+		{
+			name: "unsigned",
+			req: papi.RegisterDeviceRequest{
+				DeviceID: "dev_a", PublicKey: publicKey, TransportKey: "t",
+				IssuedAt: now.Unix(), Nonce: "n1", Signature: "",
+			},
+			want: http.StatusUnauthorized,
+		},
+		{
+			name: "signed for a different device",
+			req: papi.RegisterDeviceRequest{
+				DeviceID: "dev_b", PublicKey: publicKey, TransportKey: "t",
+				IssuedAt: now.Unix(), Nonce: "n2",
+				Signature: auth.SignRegister(priv, "dev_other", publicKey, "t", now, "n2"),
+			},
+			want: http.StatusUnauthorized,
+		},
+		{
+			name: "clock too far off",
+			req: papi.RegisterDeviceRequest{
+				DeviceID: "dev_c", PublicKey: publicKey, TransportKey: "t",
+				IssuedAt: stale.Unix(), Nonce: "n3",
+				Signature: auth.SignRegister(priv, "dev_c", publicKey, "t", stale, "n3"),
+			},
+			want: http.StatusBadRequest,
+		},
+		{
+			name: "missing fields",
+			req:  papi.RegisterDeviceRequest{DeviceID: "dev_d"},
+			want: http.StatusBadRequest,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if code := call(t, h, http.MethodPost, "/api/devices/register", "", tt.req, nil); code != tt.want {
+				t.Errorf("status %d, want %d", code, tt.want)
+			}
+		})
+	}
+}
+
+func TestEndpointsNeedAToken(t *testing.T) {
+	h := newTestServer(t)
+
+	for _, path := range []string{"/api/groups"} {
+		if code := call(t, h, http.MethodGet, path, "", nil, nil); code != http.StatusUnauthorized {
+			t.Errorf("GET %s without a token: status %d, want 401", path, code)
+		}
+		if code := call(t, h, http.MethodGet, path, "not-a-real-token", nil, nil); code != http.StatusUnauthorized {
+			t.Errorf("GET %s with a junk token: status %d, want 401", path, code)
+		}
+	}
+}
+
+// The flow a real client walks: register, create a group, have a friend join,
+// both connect, exchange endpoints, disconnect.
+func TestGroupAndSessionFlow(t *testing.T) {
+	h := newTestServer(t)
+	host := register(t, h, "dev_host")
+	guest := register(t, h, "dev_guest")
+
+	proof := auth.DeriveGroupProof("hunter2", "Friday Night")
+
+	var created papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
+		Name: "Friday Night", PasswordProof: proof, Nickname: "Tiago",
+	}, &created); code != http.StatusCreated {
+		t.Fatalf("create group: status %d", code)
+	}
+	if created.GroupID == "" || created.Subnet != DefaultSubnet {
+		t.Fatalf("membership = %+v", created)
+	}
+
+	// The name is matched loosely, so what someone types finds the group.
+	var joined papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups/join", guest.token, papi.JoinGroupRequest{
+		Group: "  friday night ", PasswordProof: proof, Nickname: "João",
+	}, &joined); code != http.StatusOK {
+		t.Fatalf("join group: status %d", code)
+	}
+	if joined.GroupID != created.GroupID {
+		t.Fatalf("joined %q, want %q", joined.GroupID, created.GroupID)
+	}
+
+	var groups []papi.Membership
+	if code := call(t, h, http.MethodGet, "/api/groups", guest.token, nil, &groups); code != http.StatusOK {
+		t.Fatalf("list groups: status %d", code)
+	}
+	if len(groups) != 1 || groups[0].Nickname != "João" {
+		t.Fatalf("groups = %+v", groups)
+	}
+
+	sessionPath := "/api/groups/" + created.GroupID + "/sessions"
+
+	var hostSession papi.CreateSessionResponse
+	if code := call(t, h, http.MethodPost, sessionPath, host.token, nil, &hostSession); code != http.StatusCreated {
+		t.Fatalf("host connect: status %d", code)
+	}
+	if hostSession.VirtualIP != "10.69.0.1" || len(hostSession.Peers) != 0 {
+		t.Fatalf("host session = %+v", hostSession)
+	}
+
+	// The host publishes where it can be reached, so the guest learns it.
+	if code := call(t, h, http.MethodPut, "/api/sessions/"+hostSession.SessionID+"/endpoint", host.token,
+		papi.Endpoint{Protocol: "udp", Address: "203.0.113.50", Port: 51821}, nil); code != http.StatusNoContent {
+		t.Fatalf("publish endpoint: status %d", code)
+	}
+
+	var guestSession papi.CreateSessionResponse
+	if code := call(t, h, http.MethodPost, sessionPath, guest.token, nil, &guestSession); code != http.StatusCreated {
+		t.Fatalf("guest connect: status %d", code)
+	}
+	if guestSession.VirtualIP != "10.69.0.2" {
+		t.Errorf("guest ip = %q, want 10.69.0.2", guestSession.VirtualIP)
+	}
+	if len(guestSession.Peers) != 1 {
+		t.Fatalf("guest peers = %+v", guestSession.Peers)
+	}
+
+	peer := guestSession.Peers[0]
+	if peer.DeviceID != host.id || peer.Nickname != "Tiago" || peer.VirtualIP != "10.69.0.1" {
+		t.Errorf("peer = %+v", peer)
+	}
+	if peer.TransportKey == "" {
+		t.Error("peer has no transport key, so the guest cannot authenticate it")
+	}
+	if peer.Endpoint == nil || peer.Endpoint.Port != 51821 {
+		t.Errorf("peer endpoint = %+v", peer.Endpoint)
+	}
+
+	if code := call(t, h, http.MethodPost, "/api/sessions/"+guestSession.SessionID+"/heartbeat", guest.token, nil, nil); code != http.StatusNoContent {
+		t.Errorf("heartbeat: status %d", code)
+	}
+
+	// Disconnecting frees the address for whoever connects next.
+	if code := call(t, h, http.MethodDelete, "/api/sessions/"+guestSession.SessionID, guest.token, nil, nil); code != http.StatusNoContent {
+		t.Fatalf("disconnect: status %d", code)
+	}
+	var afterHost papi.CreateSessionResponse
+	if code := call(t, h, http.MethodPost, sessionPath, host.token, nil, &afterHost); code != http.StatusCreated {
+		t.Fatalf("host reconnect: status %d", code)
+	}
+	if len(afterHost.Peers) != 0 {
+		t.Errorf("a disconnected peer is still listed: %+v", afterHost.Peers)
+	}
+}
+
+func TestJoiningWithTheWrongPasswordLooksLikeAMissingGroup(t *testing.T) {
+	h := newTestServer(t)
+	host := register(t, h, "dev_host")
+	guest := register(t, h, "dev_guest")
+
+	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+	}, nil); code != http.StatusCreated {
+		t.Fatalf("create group: status %d", code)
+	}
+
+	// A wrong password and a group that does not exist have to be told apart by
+	// nobody, or this endpoint becomes a way to enumerate groups.
+	var wrongPassword, missingGroup papi.Error
+	wrongCode := call(t, h, http.MethodPost, "/api/groups/join", guest.token, papi.JoinGroupRequest{
+		Group: "Friday Night", PasswordProof: auth.DeriveGroupProof("wrong", "Friday Night"), Nickname: "João",
+	}, &wrongPassword)
+	missingCode := call(t, h, http.MethodPost, "/api/groups/join", guest.token, papi.JoinGroupRequest{
+		Group: "No Such Group", PasswordProof: auth.DeriveGroupProof("hunter2", "No Such Group"), Nickname: "João",
+	}, &missingGroup)
+
+	if wrongCode != missingCode {
+		t.Errorf("status %d for a wrong password and %d for a missing group", wrongCode, missingCode)
+	}
+	if wrongPassword != missingGroup {
+		t.Errorf("body %+v for a wrong password and %+v for a missing group", wrongPassword, missingGroup)
+	}
+}
+
+func TestDuplicateGroupNamesAreRejected(t *testing.T) {
+	h := newTestServer(t)
+	host := register(t, h, "dev_host")
+
+	req := papi.CreateGroupRequest{
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+	}
+	if code := call(t, h, http.MethodPost, "/api/groups", host.token, req, nil); code != http.StatusCreated {
+		t.Fatalf("create group: status %d", code)
+	}
+
+	var body papi.Error
+	if code := call(t, h, http.MethodPost, "/api/groups", host.token, req, &body); code != http.StatusConflict {
+		t.Errorf("duplicate name: status %d, want 409", code)
+	}
+	if body.Code != papi.ErrGroupNameTaken {
+		t.Errorf("code = %q, want %q", body.Code, papi.ErrGroupNameTaken)
+	}
+}
+
+func TestSessionsBelongToOneDevice(t *testing.T) {
+	h := newTestServer(t)
+	host := register(t, h, "dev_host")
+	stranger := register(t, h, "dev_stranger")
+
+	var group papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+	}, &group); code != http.StatusCreated {
+		t.Fatalf("create group: status %d", code)
+	}
+
+	var sess papi.CreateSessionResponse
+	if code := call(t, h, http.MethodPost, "/api/groups/"+group.GroupID+"/sessions", host.token, nil, &sess); code != http.StatusCreated {
+		t.Fatalf("connect: status %d", code)
+	}
+
+	// Holding somebody else's session ID gets you nothing.
+	if code := call(t, h, http.MethodDelete, "/api/sessions/"+sess.SessionID, stranger.token, nil, nil); code != http.StatusNotFound {
+		t.Errorf("deleting another device's session: status %d, want 404", code)
+	}
+	if code := call(t, h, http.MethodPut, "/api/sessions/"+sess.SessionID+"/endpoint", stranger.token,
+		papi.Endpoint{Address: "203.0.113.9", Port: 1234}, nil); code != http.StatusNotFound {
+		t.Errorf("publishing to another device's session: status %d, want 404", code)
+	}
+}
+
+func TestConnectingWithoutMembershipIsRefused(t *testing.T) {
+	h := newTestServer(t)
+	host := register(t, h, "dev_host")
+	stranger := register(t, h, "dev_stranger")
+
+	var group papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+	}, &group); code != http.StatusCreated {
+		t.Fatalf("create group: status %d", code)
+	}
+
+	path := "/api/groups/" + group.GroupID + "/sessions"
+	if code := call(t, h, http.MethodPost, path, stranger.token, nil, nil); code != http.StatusNotFound {
+		t.Errorf("connecting to a group you are not in: status %d, want 404", code)
+	}
+
+	// And a member who leaves cannot connect any more.
+	if code := call(t, h, http.MethodDelete, "/api/groups/"+group.GroupID+"/membership", host.token, nil, nil); code != http.StatusNoContent {
+		t.Fatalf("leave group: status %d", code)
+	}
+	if code := call(t, h, http.MethodPost, path, host.token, nil, nil); code != http.StatusNotFound {
+		t.Errorf("connecting after leaving: status %d, want 404", code)
+	}
+}
+
+func TestEndpointValidation(t *testing.T) {
+	h := newTestServer(t)
+	host := register(t, h, "dev_host")
+
+	var group papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+	}, &group); code != http.StatusCreated {
+		t.Fatalf("create group: status %d", code)
+	}
+	var sess papi.CreateSessionResponse
+	if code := call(t, h, http.MethodPost, "/api/groups/"+group.GroupID+"/sessions", host.token, nil, &sess); code != http.StatusCreated {
+		t.Fatalf("connect: status %d", code)
+	}
+
+	path := "/api/sessions/" + sess.SessionID + "/endpoint"
+	for _, endpoint := range []papi.Endpoint{
+		{Protocol: "udp", Address: "not-an-address", Port: 51821},
+		{Protocol: "udp", Address: "203.0.113.50", Port: 0},
+		{Protocol: "udp", Address: "203.0.113.50", Port: 70000},
+		{Protocol: "tcp", Address: "203.0.113.50", Port: 51821},
+	} {
+		if code := call(t, h, http.MethodPut, path, host.token, endpoint, nil); code != http.StatusBadRequest {
+			t.Errorf("endpoint %+v: status %d, want 400", endpoint, code)
+		}
+	}
+}
+
+func TestJoinAttemptsAreRateLimited(t *testing.T) {
+	h := newTestServer(t)
+	guest := register(t, h, "dev_guest")
+
+	req := papi.JoinGroupRequest{
+		Group: "No Such Group", PasswordProof: "proof", Nickname: "João",
+	}
+
+	var limited bool
+	for range 20 {
+		if call(t, h, http.MethodPost, "/api/groups/join", guest.token, req, nil) == http.StatusTooManyRequests {
+			limited = true
+			break
+		}
+	}
+	if !limited {
+		t.Error("20 wrong password attempts in a row were all allowed")
+	}
+}
+
+func TestDiscoveryDocument(t *testing.T) {
+	h := newTestServer(t)
+
+	var doc papi.Discovery
+	if code := call(t, h, http.MethodGet, protocol.WellKnownPath, "", nil, &doc); code != http.StatusOK {
+		t.Fatalf("discovery: status %d", code)
+	}
+
+	if doc.Version != protocol.DiscoveryVersion {
+		t.Errorf("version = %d, want %d", doc.Version, protocol.DiscoveryVersion)
+	}
+	if doc.API != "https://api.192168.lol/api" {
+		t.Errorf("api = %q", doc.API)
+	}
+	if doc.Realtime != "wss://api.192168.lol/realtime" {
+		t.Errorf("realtime = %q", doc.Realtime)
+	}
+	if len(doc.STUN) != 1 || doc.STUN[0] != "stun:stun.example.com:3478" {
+		t.Errorf("stun = %v", doc.STUN)
+	}
+	// Nothing may advertise a feature this deployment cannot do.
+	if doc.Features.Relay || doc.Features.PeerRouting || doc.Relay != nil {
+		t.Errorf("features = %+v, relay = %v", doc.Features, doc.Relay)
+	}
+}
