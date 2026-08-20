@@ -8,6 +8,7 @@ import (
 
 	"github.com/OMouta/192168/daemon/control"
 	"github.com/OMouta/192168/daemon/ipcserver"
+	"github.com/OMouta/192168/daemon/tun"
 	"github.com/OMouta/192168/protocol/api"
 	"github.com/OMouta/192168/protocol/ipc"
 )
@@ -253,6 +254,9 @@ func (c *Core) finishDisconnect(session *activeSession, reason string) {
 	}
 	if device != nil {
 		device.Close()
+		// The rules named a subnet nobody is on now. Leaving them would mean an
+		// app that keeps firewall rules after it stops being used.
+		tun.BlockSubnet(c.log)
 	}
 
 	c.log.Info("disconnected", "groupId", session.groupID, "reason", reason)

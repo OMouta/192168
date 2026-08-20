@@ -34,6 +34,14 @@ func (c *Core) startAdapter(ctx context.Context, links *mesh.Mesh, virtualIP, su
 		return
 	}
 
+	// Windows blocks unsolicited inbound traffic on a network it does not know,
+	// and this adapter is always one of those. Without this the tunnel carries
+	// packets perfectly and the machine at the other end still cannot ping this
+	// one or join a game hosted on it.
+	if err := tun.AllowSubnet(subnet, c.log); err != nil {
+		c.log.Warn("cannot open the firewall to the virtual network", "subnet", subnet, "error", err)
+	}
+
 	c.mu.Lock()
 	c.device = device
 	c.mu.Unlock()
