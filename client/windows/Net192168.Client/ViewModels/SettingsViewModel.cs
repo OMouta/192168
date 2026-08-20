@@ -46,7 +46,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
         catch (DaemonException e)
         {
-            Status = e.Message;
+            Status = ErrorCopy.Describe(e);
         }
     }
 
@@ -67,7 +67,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
         catch (DaemonException e)
         {
-            Status = e.Message;
+            Status = ErrorCopy.Describe(e);
         }
         finally
         {
@@ -91,7 +91,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
         catch (DaemonException e)
         {
-            Status = e.Message;
+            Status = ErrorCopy.Describe(e);
             return false;
         }
         finally
@@ -116,7 +116,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
         catch (DaemonException e)
         {
-            Status = e.Message;
+            Status = ErrorCopy.Describe(e);
         }
         finally
         {

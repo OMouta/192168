@@ -83,11 +83,12 @@ public sealed partial class HomePage : Page
         }
         catch (DaemonException error)
         {
+            var context = mode == GroupDialogMode.Create ? ErrorContext.General : ErrorContext.Join;
             await new ContentDialog
             {
                 XamlRoot = XamlRoot,
                 Title = mode == GroupDialogMode.Create ? "Could not create that group" : "Could not join that group",
-                Content = error.Message,
+                Content = ErrorCopy.Describe(error, context),
                 CloseButtonText = "OK",
             }.ShowAsync();
         }

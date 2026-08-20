@@ -126,7 +126,7 @@ public sealed partial class HomeViewModel : ObservableObject
         }
         catch (DaemonException e)
         {
-            Message = e.Message;
+            Message = ErrorCopy.Describe(e);
         }
         finally
         {
@@ -224,7 +224,7 @@ public sealed partial class HomeViewModel : ObservableObject
         }
         catch (DaemonException e)
         {
-            Message = e.Message;
+            Message = ErrorCopy.Describe(e);
         }
         finally
         {
