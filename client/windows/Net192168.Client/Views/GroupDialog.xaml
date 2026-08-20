@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="Net192168.Client.Views.GroupDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary"
+    IsPrimaryButtonEnabled="False">
+
+    <StackPanel Width="340" Spacing="14">
+        <TextBox
+            x:Name="NameBox"
+            Header="Group name"
+            PlaceholderText="Friday Night"
+            TextChanged="OnChanged" />
+        <PasswordBox
+            x:Name="PasswordInput"
+            Header="Password"
+            PasswordChanged="OnChanged" />
+        <TextBox
+            x:Name="NicknameBox"
+            Header="Your nickname"
+            TextChanged="OnChanged" />
+        <TextBlock
+            x:Name="HintText"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Style="{StaticResource CaptionTextBlockStyle}"
+            TextWrapping="Wrap" />
+    </StackPanel>
+</ContentDialog>

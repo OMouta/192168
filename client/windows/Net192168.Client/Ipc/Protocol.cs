@@ -1,0 +1,112 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Net192168.Client.Ipc;
+
+/// <summary>
+/// The shapes the daemon speaks. These mirror protocol/ipc on the Go side, and
+/// the field names are the contract between them.
+/// </summary>
+public static class Protocol
+{
+    public const string PipeName = "192168";
+
+    /// <summary>
+    /// Both sides use camelCase names and lowercase enum values.
+    /// </summary>
+    public static readonly JsonSerializerOptions Json = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+    };
+}
+
+/// <summary>The daemon's overall status. One group is active at a time.</summary>
+public enum ConnectionState
+{
+    Disconnected,
+    Connecting,
+    Connected,
+    Disconnecting,
+    Error,
+}
+
+/// <summary>
+/// The state of one peer link. Links are independent: failing to reach one peer
+/// says nothing about the others.
+/// </summary>
+public enum PeerState
+{
+    Connecting,
+    Direct,
+    Indirect,
+    Offline,
+    Failed,
+}
+
+/// <summary>Everything needed to draw the app.</summary>
+public sealed record DaemonState
+{
+    public ConnectionState Connection { get; init; }
+    public string ServerUrl { get; init; } = "";
+    public bool ServerOnline { get; init; }
+    public string? GroupId { get; init; }
+    public string? GroupName { get; init; }
+    public string? Nickname { get; init; }
+    public string? VirtualIp { get; init; }
+    public IReadOnlyList<PeerView> Peers { get; init; } = [];
+    public string? Message { get; init; }
+}
+
+/// <summary>One row of the active group screen.</summary>
+public sealed record PeerView
+{
+    public string DeviceId { get; init; } = "";
+    public string Nickname { get; init; } = "";
+    public string VirtualIp { get; init; } = "";
+    public PeerState State { get; init; }
+    public int? LatencyMs { get; init; }
+}
+
+/// <summary>One saved membership.</summary>
+public sealed record Group
+{
+    public string GroupId { get; init; } = "";
+    public string Name { get; init; } = "";
+    public string Nickname { get; init; } = "";
+    public bool Active { get; init; }
+    public int? OnlineMembers { get; init; }
+}
+
+public sealed record GetGroupsResult
+{
+    public IReadOnlyList<Group> Groups { get; init; } = [];
+}
+
+public sealed record GroupResult
+{
+    public Group Group { get; init; } = new();
+}
+
+public sealed record GetServerResult
+{
+    public string Url { get; init; } = "";
+}
+
+public sealed record TestServerResult
+{
+    public bool Reachable { get; init; }
+    public int Version { get; init; }
+    public string? Message { get; init; }
+}
+
+public sealed record CreateGroupParams(string Name, string Password, string Nickname);
+
+public sealed record JoinGroupParams(string Group, string Password, string Nickname);
+
+public sealed record GroupParams(string GroupId);
+
+public sealed record SetNicknameParams(string GroupId, string Nickname);
+
+public sealed record ServerParams(string Url);
