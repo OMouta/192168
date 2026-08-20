@@ -13,8 +13,9 @@ import (
 // this exists to keep the daemon buildable and testable elsewhere.
 //
 // The socket sits in a directory only this user can enter, which is the closest
-// equivalent to the pipe's access control.
-func Listen() (net.Listener, error) {
+// equivalent to the pipe's access control. There are no services here, so
+// asService changes nothing.
+func Listen(asService bool) (net.Listener, error) {
 	dir, err := os.MkdirTemp("", "192168-")
 	if err != nil {
 		return nil, fmt.Errorf("ipcserver: create socket directory: %w", err)

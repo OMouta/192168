@@ -27,14 +27,14 @@ type Config struct {
 }
 
 // Load resolves configuration from the environment and OS conventions.
-func Load() (Config, error) {
-	dataDir := os.Getenv("NET192168_DATA_DIR")
-	if dataDir == "" {
-		base, err := os.UserConfigDir()
-		if err != nil {
-			return Config{}, fmt.Errorf("resolve data directory: %w", err)
-		}
-		dataDir = filepath.Join(base, protocol.Name)
+//
+// asService picks where the identity lives. A service runs as LocalSystem with
+// no user profile, so its data goes under ProgramData. Secrets are sealed to
+// the account that wrote them, so the two locations cannot share one anyway.
+func Load(asService bool) (Config, error) {
+	dataDir, err := DataDir(asService)
+	if err != nil {
+		return Config{}, err
 	}
 
 	cfg := Config{
@@ -45,6 +45,33 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+// DataDir is where the identity and the logs live. Separate from Load because
+// the log opens before the configuration is read.
+func DataDir(asService bool) (string, error) {
+	if dir := os.Getenv("NET192168_DATA_DIR"); dir != "" {
+		return dir, nil
+	}
+	return defaultDataDir(asService)
+}
+
+// defaultDataDir is where the identity and the logs live. ProgramData is where
+// a LocalSystem service keeps its state.
+func defaultDataDir(asService bool) (string, error) {
+	if asService {
+		base := os.Getenv("ProgramData")
+		if base == "" {
+			return "", fmt.Errorf("resolve data directory: ProgramData is not set")
+		}
+		return filepath.Join(base, protocol.Name), nil
+	}
+
+	base, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve data directory: %w", err)
+	}
+	return filepath.Join(base, protocol.Name), nil
 }
 
 // ValidateServerURL enforces the transport rule for control-plane traffic:

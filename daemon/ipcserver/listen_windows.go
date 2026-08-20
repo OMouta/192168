@@ -15,12 +15,13 @@ import (
 // Listen opens the named pipe the client connects to.
 //
 // Group passwords cross this pipe in the clear, because the daemon owns all
-// cryptography and the UI never implements a KDF. So the pipe is restricted to
-// the account that owns the daemon, and nothing else on the machine can open
-// it. If the daemon ever becomes a service running as SYSTEM, this has to grant
-// the interactive user instead of whoever the daemon is.
-func Listen() (net.Listener, error) {
-	sddl, err := currentUserOnly()
+// cryptography and the UI never implements a KDF, so who may open it matters.
+//
+// In the foreground the daemon runs as the person using it and the pipe is
+// theirs alone. As a service it runs as SYSTEM, which matches no user account,
+// so the pipe names who may use it instead.
+func Listen(asService bool) (net.Listener, error) {
+	sddl, err := descriptor(asService)
 	if err != nil {
 		return nil, err
 	}
@@ -35,10 +36,18 @@ func Listen() (net.Listener, error) {
 	return listener, nil
 }
 
-// currentUserOnly builds a security descriptor granting full access to this
-// account and to SYSTEM, and to nobody else. The P in D:P blocks inherited
-// entries, which is what stops a permissive parent from widening this.
-func currentUserOnly() (string, error) {
+// descriptor builds the pipe's security descriptor. The P in D:P blocks
+// inherited entries, which is what stops a permissive parent from widening it.
+//
+// The service variant grants INTERACTIVE: accounts signed in at this machine.
+// On a shared PC another person at the console could drive the tunnel and read
+// the group passwords crossing it. Narrowing that further needs the pipe to
+// authenticate callers, which it does not do.
+func descriptor(asService bool) (string, error) {
+	if asService {
+		return "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;IU)", nil
+	}
+
 	me, err := user.Current()
 	if err != nil {
 		return "", fmt.Errorf("ipcserver: current user: %w", err)

@@ -6,11 +6,23 @@
 // pipe and renders the state it reports.
 //
 // The daemon runs as its own process so that peer sessions survive the UI being
-// closed.
+// closed. On an installed machine that process is a Windows service, because
+// creating the adapter needs rights the app does not have; run from a console
+// it behaves exactly the same way, which is what makes it developable.
+//
+// Usage:
+//
+//	192168-daemon                    run in the foreground
+//	192168-daemon service install    register the service (needs admin)
+//	192168-daemon service uninstall  stop it, remove the adapter, deregister
+//	192168-daemon service start      start it
+//	192168-daemon service stop       stop it
+//	192168-daemon service status     print absent, stopped, running, or pending
 package main
 
 import (
 	"context"
+	"fmt"
 	stdlog "log"
 	"log/slog"
 	"os"
@@ -22,33 +34,64 @@ import (
 	"github.com/OMouta/192168/daemon/core"
 	"github.com/OMouta/192168/daemon/identity"
 	"github.com/OMouta/192168/daemon/ipcserver"
+	"github.com/OMouta/192168/daemon/service"
+	"github.com/OMouta/192168/daemon/tun"
+	"github.com/OMouta/192168/protocol"
 	"github.com/OMouta/192168/protocol/ipc"
 )
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: config.LogLevel()}))
-	captureStandardLog(log)
+	if len(os.Args) > 1 {
+		os.Exit(serviceCommand(os.Args[1:]))
+	}
 
-	cfg, err := config.Load()
+	// Started by the SCM decides the data directory, the pipe ACL, and where
+	// the log goes.
+	asService := service.IsService()
+
+	log, closeLog, err := openLogger(asService)
 	if err != nil {
-		log.Error("invalid configuration", "error", err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+	defer closeLog()
+
+	if asService {
+		if err := service.Run(func(ctx context.Context) error { return run(ctx, asService, log) }, log); err != nil {
+			log.Error("the service stopped", "error", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if err := run(ctx, asService, log); err != nil {
+		log.Error("stopped", "error", err)
+		os.Exit(1)
+	}
+}
+
+// run is the daemon itself. It returns when ctx is cancelled, which is a signal
+// in the foreground and a stop request as a service, and not before the adapter
+// is down.
+func run(ctx context.Context, asService bool, log *slog.Logger) error {
+	cfg, err := config.Load(asService)
+	if err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+
 	id, err := identity.Load(cfg.DataDir)
 	if err != nil {
-		log.Error("cannot load the device identity", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("cannot load the device identity: %w", err)
 	}
 
 	brain, err := core.New(ctx, id, cfg.DataDir, cfg.ServerURL, log)
 	if err != nil {
-		log.Error("cannot start", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("cannot start: %w", err)
 	}
+	// Closing the core takes the adapter down.
 	defer brain.Close()
 
 	// The core and the IPC server need each other, so one is built first and
@@ -56,24 +99,95 @@ func main() {
 	server := ipcserver.New(brain, log)
 	brain.SetEvents(server)
 
-	listener, err := ipcserver.Listen()
+	listener, err := ipcserver.Listen(asService)
 	if err != nil {
-		log.Error("cannot open the control channel", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("cannot open the control channel: %w", err)
 	}
 	defer listener.Close()
 
 	log.Info("started",
 		"deviceId", id.DeviceID,
 		"pipe", ipc.PipeName,
-		"dataDir", cfg.DataDir)
+		"dataDir", cfg.DataDir,
+		"service", asService)
 
 	if err := server.Serve(ctx, listener); err != nil {
-		log.Error("the control channel failed", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("the control channel failed: %w", err)
 	}
 
 	log.Info("shutting down")
+	return nil
+}
+
+// serviceCommand handles the service subcommands and returns the exit code.
+func serviceCommand(args []string) int {
+	if args[0] != "service" || len(args) != 2 {
+		fmt.Fprintln(os.Stderr, "usage: 192168-daemon service install|uninstall|start|stop|status")
+		return 2
+	}
+
+	var err error
+	switch args[1] {
+	case "install":
+		if err = service.Install(); err == nil {
+			fmt.Printf("Installed %s. It is set to start on demand and will not start on its own.\n", service.Name)
+		}
+	case "uninstall":
+		// The adapter outlives the service, so uninstall removes it too.
+		err = service.Uninstall(func() error {
+			return tun.Remove(protocol.Name, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+		})
+		if err == nil {
+			fmt.Printf("Removed %s and its network adapter.\n", service.Name)
+		}
+	case "start":
+		if err = service.Start(); err == nil {
+			fmt.Printf("%s is running.\n", service.Name)
+		}
+	case "stop":
+		if err = service.Stop(); err == nil {
+			fmt.Printf("%s is stopped.\n", service.Name)
+		}
+	case "status":
+		var state service.State
+		if state, err = service.Status(); err == nil {
+			fmt.Println(state)
+		}
+	default:
+		fmt.Fprintln(os.Stderr, "usage: 192168-daemon service install|uninstall|start|stop|status")
+		return 2
+	}
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
+}
+
+// openLogger builds the daemon logger and returns how to close it. A service
+// has no console, so its log is a file.
+func openLogger(asService bool) (*slog.Logger, func(), error) {
+	options := &slog.HandlerOptions{Level: config.LogLevel()}
+
+	if !asService {
+		log := slog.New(slog.NewJSONHandler(os.Stdout, options))
+		captureStandardLog(log)
+		return log, func() {}, nil
+	}
+
+	dataDir, err := config.DataDir(asService)
+	if err != nil {
+		return nil, nil, err
+	}
+	file, err := config.OpenLog(dataDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	log := slog.New(slog.NewJSONHandler(file, options))
+	captureStandardLog(log)
+	return log, func() { file.Close() }, nil
 }
 
 // captureStandardLog sends anything logged through the standard library into

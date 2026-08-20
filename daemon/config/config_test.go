@@ -29,7 +29,7 @@ func TestLoadDefaultsToHostedServer(t *testing.T) {
 	t.Setenv("NET192168_SERVER_URL", "")
 	t.Setenv("NET192168_DATA_DIR", t.TempDir())
 
-	cfg, err := Load()
+	cfg, err := Load(false)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestLoadRejectsUnusableServerURL(t *testing.T) {
 	t.Setenv("NET192168_SERVER_URL", "http://192168.lol")
 	t.Setenv("NET192168_DATA_DIR", t.TempDir())
 
-	if _, err := Load(); err == nil {
+	if _, err := Load(false); err == nil {
 		t.Error("Load: want error for plain-http server URL, got nil")
 	}
 }
