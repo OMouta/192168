@@ -72,7 +72,7 @@ func (c *Core) runConnect(groupID string) {
 		return
 	}
 
-	groupName, nickname := c.describeGroup(ctx, groupID)
+	groupName, nickname, subnet := c.describeGroup(ctx, groupID)
 
 	c.mu.Lock()
 	c.session = &activeSession{
@@ -81,6 +81,7 @@ func (c *Core) runConnect(groupID string) {
 		groupName: groupName,
 		nickname:  nickname,
 		virtualIP: session.VirtualIP,
+		subnet:    subnet,
 		stop:      stop,
 		done:      make(chan struct{}),
 	}
@@ -232,7 +233,9 @@ func (c *Core) dropSession(reason string) {
 func (c *Core) finishDisconnect(session *activeSession, reason string) {
 	c.mu.Lock()
 	links := c.mesh
+	device := c.device
 	c.mesh = nil
+	c.device = nil
 	c.state.Connection = ipc.StateDisconnected
 	c.state.GroupID = ""
 	c.state.GroupName = ""
@@ -242,10 +245,14 @@ func (c *Core) finishDisconnect(session *activeSession, reason string) {
 	state := c.snapshot()
 	c.mu.Unlock()
 
-	// The socket goes with the session. Leaving it open would keep NAT
+	// The socket and the adapter go with the session. An adapter left up would
+	// keep routing a subnet nobody is in, and an open socket would keep NAT
 	// mappings alive for a group this device has left.
 	if links != nil {
 		links.Close()
+	}
+	if device != nil {
+		device.Close()
 	}
 
 	c.log.Info("disconnected", "groupId", session.groupID, "reason", reason)
@@ -256,21 +263,22 @@ func (c *Core) finishDisconnect(session *activeSession, reason string) {
 	c.emit(ipc.EventStateChanged, state)
 }
 
-// describeGroup finds the name and nickname for a group. The session response
-// does not carry them, and the UI needs something to put in its title.
-func (c *Core) describeGroup(ctx context.Context, groupID string) (name, nickname string) {
+// describeGroup finds the name, nickname, and subnet for a group. The session
+// response carries none of them: the UI needs the first two for its title, and
+// the adapter needs the third to route the whole range rather than one address.
+func (c *Core) describeGroup(ctx context.Context, groupID string) (name, nickname, subnet string) {
 	memberships, err := withClient(c, ctx, func(client *control.Client) ([]api.Membership, error) {
 		return client.Groups(ctx)
 	})
 	if err != nil {
-		return groupID, ""
+		return groupID, "", ""
 	}
 	for _, m := range memberships {
 		if m.GroupID == groupID {
-			return m.GroupName, m.Nickname
+			return m.GroupName, m.Nickname, m.Subnet
 		}
 	}
-	return groupID, ""
+	return groupID, "", ""
 }
 
 // sortPeers keeps the list in a stable order, so a UI redraw does not shuffle

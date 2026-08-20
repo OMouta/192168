@@ -24,6 +24,11 @@
     Delete the local server database and the device identity first, which is the
     difference between testing a returning user and a new one.
 
+.PARAMETER Elevated
+    Run the daemon as administrator, which is what creating the virtual adapter
+    needs. Without this the daemon runs and links open, but no game traffic
+    moves and the app says why. Expect a UAC prompt.
+
 .PARAMETER Stop
     Stop everything this script started and exit.
 
@@ -38,7 +43,8 @@ param(
     [int]$Port = 8080,
     [switch]$NoClient,
     [switch]$Reset,
-    [switch]$Stop
+    [switch]$Stop,
+    [switch]$Elevated
 )
 
 $ErrorActionPreference = 'Stop'
@@ -88,6 +94,11 @@ if ($Reset) {
 
 New-Item -ItemType Directory -Force -Path $binDir, $logDir | Out-Null
 
+# The adapter driver is not in this repository, so it is fetched once.
+if (-not (Test-Path (Join-Path $binDir 'wintun.dll'))) {
+    & (Join-Path $PSScriptRoot 'fetch-wintun.ps1') -Destination $binDir
+}
+
 Write-Host 'Building Go...' -ForegroundColor Cyan
 Push-Location $repo
 try {
@@ -117,7 +128,8 @@ function Start-Console {
         [string]$Exe,
         [string]$LogFile,
         [hashtable]$Environment,
-        [string[]]$Notes
+        [string[]]$Notes,
+        [switch]$AsAdmin
     )
 
     $lines = @(
@@ -137,9 +149,18 @@ function Start-Console {
     $lines += "Write-Host ''"
     $lines += "Write-Host '  $Title exited.' -ForegroundColor Red"
 
-    $console = Start-Process $shell -PassThru -ArgumentList @(
-        '-NoLogo', '-NoExit', '-Command', ($lines -join '; ')
-    )
+    $arguments = @('-NoLogo', '-NoExit', '-Command', ($lines -join '; '))
+
+    if ($AsAdmin) {
+        # An elevated child cannot be tracked in the pid file the same way, and
+        # RunAs refuses to redirect output, which is why the log goes through
+        # Tee inside the console instead.
+        $console = Start-Process $shell -PassThru -Verb RunAs -ArgumentList $arguments
+    }
+    else {
+        $console = Start-Process $shell -PassThru -ArgumentList $arguments
+    }
+
     Add-Content -Path $pidFile -Value $console.Id
     return $console
 }
@@ -170,13 +191,19 @@ foreach ($attempt in 1..30) {
 if (-not $ready) { throw "The server never answered on $serverUrl. Its console will say why." }
 
 Write-Host 'Starting the daemon' -ForegroundColor Cyan
-Start-Console -Title '192168 DAEMON' -Colour 'Cyan' `
+$adapterNote = if ($Elevated) {
+    'elevated, so the virtual adapter can be created'
+}
+else {
+    'not elevated, so no adapter and no game traffic'
+}
+Start-Console -Title '192168 DAEMON' -Colour 'Cyan' -AsAdmin:$Elevated `
     -Exe (Join-Path $binDir '192168-daemon.exe') `
     -LogFile (Join-Path $logDir 'daemon.log') `
-    -Notes @('networking daemon    pipe \\.\pipe\192168', "talking to  $serverUrl") `
+    -Notes @('networking daemon    pipe \\.\pipe\192168', "talking to  $serverUrl", $adapterNote) `
     -Environment @{ NET192168_SERVER_URL = $serverUrl } | Out-Null
 
-Start-Sleep -Seconds 1
+Start-Sleep -Seconds 2
 if (-not (Get-Process -Name '192168-daemon' -ErrorAction SilentlyContinue)) {
     throw 'The daemon exited. Its console will say why.'
 }
@@ -194,3 +221,6 @@ Write-Host "  logs      $logDir"
 Write-Host "  crashes   $(Join-Path $identityDir 'client-crash.log')"
 Write-Host ''
 Write-Host 'Stop everything with: .\scripts\dev.ps1 -Stop' -ForegroundColor DarkGray
+if (-not $Elevated) {
+    Write-Host 'No virtual adapter. Add -Elevated to carry game traffic.' -ForegroundColor DarkYellow
+}

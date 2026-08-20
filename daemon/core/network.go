@@ -40,6 +40,7 @@ func (c *Core) startNetwork(ctx context.Context, session *activeSession, peers [
 
 	go c.publishEndpoint(ctx, links, session.sessionID)
 	go c.watchGroup(ctx, session)
+	go c.startAdapter(ctx, links, session.virtualIP, session.subnet)
 }
 
 // publishEndpoint asks STUN where this socket appears from the outside and

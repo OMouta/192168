@@ -16,6 +16,7 @@ import (
 	"github.com/OMouta/192168/daemon/identity"
 	"github.com/OMouta/192168/daemon/ipcserver"
 	"github.com/OMouta/192168/daemon/mesh"
+	"github.com/OMouta/192168/daemon/tun"
 	"github.com/OMouta/192168/protocol/api"
 	"github.com/OMouta/192168/protocol/ipc"
 )
@@ -50,6 +51,9 @@ type Core struct {
 
 	// mesh is the peer-to-peer socket, alive only while a group is connected.
 	mesh *mesh.Mesh
+
+	// device is the virtual adapter, alive for the same span.
+	device *tun.Device
 }
 
 // activeSession is the group connection. There is at most one, because two
@@ -60,6 +64,10 @@ type activeSession struct {
 	groupName string
 	nickname  string
 	virtualIP string
+
+	// subnet is the group's range, which the adapter needs so Windows routes
+	// every peer here rather than only the one address.
+	subnet string
 
 	// stop ends the work that belongs to this session, so a disconnect does
 	// not leave a heartbeat running against a session that is gone.
