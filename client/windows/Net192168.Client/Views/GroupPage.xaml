@@ -5,46 +5,17 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     KeyDown="OnKeyDown">
 
+    <!--  Back and the title of this screen are in the window header.  -->
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!--  Back and a title, the same shape on every screen that is not home.  -->
-        <Grid
-            Grid.Row="0"
-            Margin="8,0,16,8"
-            ColumnSpacing="4">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <Button
-                Grid.Column="0"
-                Width="32"
-                Height="32"
-                Padding="0"
-                AutomationProperties.Name="Back"
-                Background="Transparent"
-                BorderThickness="0"
-                Click="OnBack"
-                ToolTipService.ToolTip="Back">
-                <FontIcon FontSize="14" Glyph="&#xE72B;" />
-            </Button>
-
-            <TextBlock
-                Grid.Column="1"
-                VerticalAlignment="Center"
-                Style="{StaticResource BodyStrongTextBlockStyle}"
-                Text="{x:Bind ViewModel.Title}" />
-        </Grid>
-
         <StackPanel
-            Grid.Row="1"
-            Margin="16,4,16,0"
+            Grid.Row="0"
+            Margin="16,8,16,0"
             Spacing="14">
             <TextBox
                 x:Name="NameBox"
@@ -72,30 +43,40 @@
                 TextWrapping="Wrap" />
         </StackPanel>
 
-        <Grid
-            Grid.Row="2"
-            Padding="16,12"
-            ColumnSpacing="8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <!--
+            Failing here keeps the screen and the typing, so this is where it
+            says why, with room for the whole sentence.
+        -->
+        <InfoBar
+            Grid.Row="1"
+            Margin="12,12,12,0"
+            CloseButtonClick="OnDismissError"
+            IsOpen="{x:Bind ViewModel.Error, Mode=OneWay, Converter={StaticResource NotNullToBoolean}}"
+            Message="{x:Bind ViewModel.Error, Mode=OneWay}"
+            Severity="Error" />
 
-            <!--  Failing here keeps the screen and the typing, so this is where it says why.  -->
-            <TextBlock
-                Grid.Column="0"
-                VerticalAlignment="Center"
-                Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                Style="{StaticResource CaptionTextBlockStyle}"
-                Text="{x:Bind ViewModel.Error, Mode=OneWay}"
-                TextWrapping="Wrap" />
-
+        <Grid Grid.Row="2" Padding="16,12">
             <Button
-                Grid.Column="1"
+                HorizontalAlignment="Stretch"
                 Click="OnSubmit"
-                Content="{x:Bind ViewModel.SubmitLabel}"
                 IsEnabled="{x:Bind ViewModel.CanSubmit, Mode=OneWay}"
-                Style="{StaticResource AccentButtonStyle}" />
+                Style="{StaticResource AccentButtonStyle}">
+                <StackPanel
+                    HorizontalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="8">
+                    <!--
+                        Creating a group talks to a server, so the button says
+                        it is still going rather than sitting there disabled.
+                    -->
+                    <ProgressRing
+                        Width="14"
+                        Height="14"
+                        IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
+                        Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                    <TextBlock Text="{x:Bind ViewModel.SubmitLabel}" />
+                </StackPanel>
+            </Button>
         </Grid>
     </Grid>
 </Page>

@@ -3,7 +3,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.System;
-using Net192168.Client.Ipc;
 using Net192168.Client.ViewModels;
 
 namespace Net192168.Client.Views;
@@ -45,6 +44,7 @@ public sealed partial class HomePage : Page
         }
         else if (e.Key == VirtualKey.Escape)
         {
+            // Handled here so it stops before the header's back accelerator.
             e.Handled = true;
             ViewModel.CancelEditingNicknameCommand.Execute(null);
         }
@@ -55,46 +55,38 @@ public sealed partial class HomePage : Page
 
     private async void OnConnect(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: GroupListItem item })
+        if (Group(sender) is GroupListItem item)
         {
             await ViewModel.ConnectAsync(item);
         }
     }
 
-    /// <summary>
-    /// Leaves a group, after asking.
-    ///
-    /// The daemon never stores a group password, so getting back in means
-    /// having it to hand again. That is worth a question, and the answer names
-    /// the group so it is clear which one is going.
-    /// </summary>
+    private void OnStartLeaving(object sender, RoutedEventArgs e)
+        => ViewModel.StartLeavingCommand.Execute(Group(sender));
+
+    private void OnCancelLeaving(object sender, RoutedEventArgs e)
+        => ViewModel.CancelLeavingCommand.Execute(Group(sender));
+
     private async void OnLeave(object sender, RoutedEventArgs e)
     {
-        // The flyout lives in its own popup rather than under the row, so the
-        // group is carried on the item itself. DataContext is checked too,
-        // because that is what a flyout inherits when it does reach it.
-        var item = (sender as FrameworkElement)?.Tag as GroupListItem
-            ?? (sender as FrameworkElement)?.DataContext as GroupListItem;
-        if (item is null)
-        {
-            return;
-        }
-
-        var confirm = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = $"Leave {item.Name}?",
-            Content = "You will need the group password to join again.",
-            PrimaryButtonText = "Leave",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-        };
-
-        if (await confirm.ShowAsync() == ContentDialogResult.Primary)
+        if (Group(sender) is GroupListItem item)
         {
             await ViewModel.LeaveAsync(item);
         }
     }
+
+    private void OnDismissMessage(InfoBar sender, object args) => ViewModel.Message = null;
+
+    /// <summary>
+    /// The group a row's button belongs to.
+    ///
+    /// A flyout lives in its own popup rather than under the row, so the group
+    /// is carried on the item itself. DataContext is checked too, because that
+    /// is what an element does inherit when it stays in the tree.
+    /// </summary>
+    private static GroupListItem? Group(object sender)
+        => (sender as FrameworkElement)?.Tag as GroupListItem
+            ?? (sender as FrameworkElement)?.DataContext as GroupListItem;
 
     // The group screen reports its own failures and comes back only once it has
     // worked, so there is nothing to catch here.

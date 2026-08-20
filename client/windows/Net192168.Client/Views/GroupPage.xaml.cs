@@ -34,8 +34,8 @@ public sealed partial class GroupPage : Page
     {
         base.OnNavigatedTo(e);
 
-        // The mode decides every word on the screen, so it has to be in place
-        // before anything binds.
+        // The mode decides every word on the screen, including the name the
+        // window header shows, so it has to be in place before anything binds.
         var creating = e.Parameter is not GroupPageMode.Join;
         ViewModel = new GroupViewModel(App.Daemon, creating);
         Bindings.Update();
@@ -47,8 +47,8 @@ public sealed partial class GroupPage : Page
         => ViewModel.Password = PasswordInput.Password;
 
     /// <summary>
-    /// Enter submits and Escape backs out, which is what the dialog this
-    /// replaced did and what the keys mean on a form.
+    /// Enter submits, which is what the key means on a form. Escape backs out,
+    /// and that is the window header's accelerator rather than this screen's.
     /// </summary>
     private async void OnKeyDown(object sender, KeyRoutedEventArgs e)
     {
@@ -57,28 +57,15 @@ public sealed partial class GroupPage : Page
             e.Handled = true;
             await SubmitAsync();
         }
-        else if (e.Key == VirtualKey.Escape)
-        {
-            e.Handled = true;
-            GoBack();
-        }
     }
 
-    private void OnBack(object sender, RoutedEventArgs e) => GoBack();
+    private void OnDismissError(InfoBar sender, object args) => ViewModel.Error = null;
 
     private async void OnSubmit(object sender, RoutedEventArgs e) => await SubmitAsync();
 
     private async Task SubmitAsync()
     {
-        if (await ViewModel.SubmitAsync())
-        {
-            GoBack();
-        }
-    }
-
-    private void GoBack()
-    {
-        if (Frame.CanGoBack)
+        if (await ViewModel.SubmitAsync() && Frame.CanGoBack)
         {
             Frame.GoBack();
         }

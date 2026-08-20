@@ -9,6 +9,9 @@
          with a digit, so the code-side name is Net192168. The product is
          presented as 192168 through the window title, shortcut, and installer. -->
     <AssemblyName>Net192168.Client</AssemblyName>
+    <!-- What the About screen shows. AppInfo reads it back off the assembly. -->
+    <Version>0.1.0</Version>
+    <Product>192168</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/icon.ico</ApplicationIcon>
     <Platforms>x64;ARM64</Platforms>

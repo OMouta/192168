@@ -7,24 +7,55 @@
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="3" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!--
-            Connected, this is the panel somebody reads off to a friend: the
-            address first, the name they are showing as, and how it is going.
+            Connecting means waiting on a server and then on an adapter, which
+            is seconds with nothing else to show for it. The row is always here
+            so that the screen does not shift when the bar appears.
+        -->
+        <ProgressBar
+            Grid.Row="0"
+            Height="3"
+            MinHeight="3"
+            IsIndeterminate="True"
+            Visibility="{x:Bind ViewModel.IsWorking, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+        <!--
+            Nothing on this screen works without the daemon, so this says so
+            rather than leaving every button to fail one at a time. It clears
+            itself: the connection to the daemon retries on its own.
+        -->
+        <InfoBar
+            Grid.Row="1"
+            Margin="12,8,12,0"
+            IsClosable="False"
+            IsOpen="{x:Bind ViewModel.IsReady, Mode=OneWay, Converter={StaticResource NotBoolean}}"
+            Message="Waiting for it to come back."
+            Severity="Error"
+            Title="The background service is not running" />
+
+        <!--
+            The panel somebody reads off to a friend: the address first, the
+            name they are showing as, and how it is going. There is nothing to
+            put in it while no group is up, so it is not there at all.
         -->
         <Grid
-            Grid.Row="0"
-            Margin="16,4,16,12"
+            Grid.Row="2"
+            Margin="16,8,16,12"
             Padding="16,12"
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
             BorderThickness="1"
             CornerRadius="8"
-            RowSpacing="2">
+            RowSpacing="4"
+            Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -70,9 +101,13 @@
                 FontSize="22"
                 Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                 IsTextSelectionEnabled="True"
-                Text="{x:Bind ViewModel.VirtualIp, Mode=OneWay}"
-                Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                Text="{x:Bind ViewModel.VirtualIp, Mode=OneWay}" />
 
+            <!--
+                Copying leaves nothing behind on its own, so the button answers
+                for itself for a moment rather than putting a line of text
+                somewhere that then has to be cleared.
+            -->
             <Button
                 Grid.Row="1"
                 Grid.Column="2"
@@ -83,23 +118,38 @@
                 Background="Transparent"
                 BorderThickness="0"
                 Command="{x:Bind ViewModel.CopyAddressCommand}"
-                ToolTipService.ToolTip="Copy address"
-                Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                <FontIcon FontSize="14" Glyph="&#xE8C8;" />
+                ToolTipService.ToolTip="Copy address">
+                <Grid>
+                    <FontIcon
+                        FontSize="14"
+                        Glyph="&#xE8C8;"
+                        Visibility="{x:Bind ViewModel.JustCopied, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}" />
+                    <FontIcon
+                        FontSize="14"
+                        Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                        Glyph="&#xE73E;"
+                        Visibility="{x:Bind ViewModel.JustCopied, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                </Grid>
             </Button>
 
             <!--  The name everyone else sees, changed in place.  -->
-            <TextBlock
+            <StackPanel
                 Grid.Row="2"
                 Grid.Column="1"
-                VerticalAlignment="Center"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                Text="{x:Bind ViewModel.Nickname, Mode=OneWay}"
-                TextTrimming="CharacterEllipsis">
-                <TextBlock.Visibility>
-                    <Binding Converter="{StaticResource BooleanToCollapsed}" Path="ViewModel.IsEditingNickname" />
-                </TextBlock.Visibility>
-            </TextBlock>
+                Orientation="Horizontal"
+                Spacing="6"
+                Visibility="{x:Bind ViewModel.IsEditingNickname, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}">
+                <FontIcon
+                    VerticalAlignment="Center"
+                    FontSize="12"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Glyph="&#xE77B;" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{x:Bind ViewModel.Nickname, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis" />
+            </StackPanel>
 
             <TextBox
                 x:Name="NicknameBox"
@@ -122,12 +172,12 @@
                 BorderThickness="0"
                 Click="OnEditNickname"
                 ToolTipService.ToolTip="Change your nickname"
-                Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                Visibility="{x:Bind ViewModel.IsEditingNickname, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}">
                 <FontIcon FontSize="13" Glyph="&#xE70F;" />
             </Button>
         </Grid>
 
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="3">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -209,58 +259,96 @@
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="vm:GroupListItem">
-                        <Grid ColumnSpacing="6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+                        <Grid>
+                            <Grid ColumnSpacing="6" Visibility="{x:Bind IsConfirmingLeave, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
 
-                            <StackPanel
-                                Grid.Column="0"
-                                Margin="0,0,4,0"
-                                VerticalAlignment="Center">
-                                <TextBlock Text="{x:Bind Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
-                                <TextBlock
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                    Style="{StaticResource CaptionTextBlockStyle}"
-                                    Text="{x:Bind Nickname, Mode=OneWay}" />
-                            </StackPanel>
+                                <StackPanel
+                                    Grid.Column="0"
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                        Text="{x:Bind Nickname, Mode=OneWay}" />
+                                </StackPanel>
 
-                            <Button
-                                Grid.Column="1"
-                                Click="OnConnect"
-                                Content="Connect"
-                                Tag="{x:Bind}" />
+                                <!--
+                                    Wide enough for either word, so the row does
+                                    not jump the moment it is pressed.
+                                -->
+                                <Button
+                                    Grid.Column="1"
+                                    MinWidth="104"
+                                    Click="OnConnect"
+                                    IsEnabled="{x:Bind CanConnect, Mode=OneWay}"
+                                    Tag="{x:Bind}">
+                                    <StackPanel
+                                        HorizontalAlignment="Center"
+                                        Orientation="Horizontal"
+                                        Spacing="8">
+                                        <ProgressRing
+                                            Width="14"
+                                            Height="14"
+                                            IsActive="{x:Bind IsConnecting, Mode=OneWay}"
+                                            Visibility="{x:Bind IsConnecting, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                                        <TextBlock Text="{x:Bind ConnectLabel, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Button>
+
+                                <!--
+                                    Leaving is rare and hard to undo, so it sits
+                                    behind the overflow rather than beside
+                                    Connect where a mis-click would find it.
+                                -->
+                                <Button
+                                    Grid.Column="2"
+                                    Width="32"
+                                    Height="32"
+                                    Padding="0"
+                                    AutomationProperties.Name="More options"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    ToolTipService.ToolTip="More options">
+                                    <FontIcon FontSize="14" Glyph="&#xE712;" />
+                                    <Button.Flyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem
+                                                Click="OnStartLeaving"
+                                                Tag="{x:Bind}"
+                                                Text="Leave group">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xE89B;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyout>
+                                    </Button.Flyout>
+                                </Button>
+                            </Grid>
 
                             <!--
-                                Leaving is rare and hard to undo, so it sits
-                                behind the overflow rather than beside Connect
-                                where a mis-click would find it.
+                                The question is asked in the row so that the
+                                group being left stays in view, which a dialog
+                                over a window this narrow would cover.
                             -->
-                            <Button
-                                Grid.Column="2"
-                                Width="32"
-                                Height="32"
-                                Padding="0"
-                                AutomationProperties.Name="More options"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                ToolTipService.ToolTip="More options">
-                                <FontIcon FontSize="14" Glyph="&#xE712;" />
-                                <Button.Flyout>
-                                    <MenuFlyout>
-                                        <MenuFlyoutItem
-                                            Click="OnLeave"
-                                            Tag="{x:Bind}"
-                                            Text="Leave group">
-                                            <MenuFlyoutItem.Icon>
-                                                <FontIcon Glyph="&#xE89B;" />
-                                            </MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
-                                    </MenuFlyout>
-                                </Button.Flyout>
-                            </Button>
+                            <StackPanel Spacing="8" Visibility="{x:Bind IsConfirmingLeave, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock
+                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    Text="{x:Bind LeavePrompt, Mode=OneWay}"
+                                    TextWrapping="Wrap" />
+                                <StackPanel
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal"
+                                    Spacing="8">
+                                    <Button Click="OnCancelLeaving" Tag="{x:Bind}" Content="Cancel" />
+                                    <Button Click="OnLeave" Tag="{x:Bind}" Content="Leave" />
+                                </StackPanel>
+                            </StackPanel>
                         </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>
@@ -299,40 +387,51 @@
             </StackPanel>
         </Grid>
 
+        <!--
+            Failures get the width of the window and as many lines as they need.
+            Sharing a row with the buttons cut most of them off after four words.
+        -->
+        <InfoBar
+            Grid.Row="4"
+            Margin="12,0,12,8"
+            CloseButtonClick="OnDismissMessage"
+            IsOpen="{x:Bind ViewModel.Message, Mode=OneWay, Converter={StaticResource NotNullToBoolean}}"
+            Message="{x:Bind ViewModel.Message, Mode=OneWay}"
+            Severity="Error" />
+
         <Grid
-            Grid.Row="2"
+            Grid.Row="5"
             Padding="16,12"
             ColumnSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock
+            <Button
                 Grid.Column="0"
-                VerticalAlignment="Center"
-                Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                Style="{StaticResource CaptionTextBlockStyle}"
-                Text="{x:Bind ViewModel.Message, Mode=OneWay}"
-                TextTrimming="CharacterEllipsis"
-                TextWrapping="NoWrap" />
-
-            <StackPanel
-                Grid.Column="1"
-                Orientation="Horizontal"
-                Spacing="8"
-                Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}">
-                <Button Click="OnJoin" Content="Join" />
-                <Button
-                    Click="OnCreate"
-                    Content="Create group"
-                    Style="{StaticResource AccentButtonStyle}" />
-            </StackPanel>
+                HorizontalAlignment="Stretch"
+                Click="OnJoin"
+                Content="Join"
+                IsEnabled="{x:Bind ViewModel.CanAct, Mode=OneWay}"
+                Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}" />
 
             <Button
                 Grid.Column="1"
+                HorizontalAlignment="Stretch"
+                Click="OnCreate"
+                Content="Create group"
+                IsEnabled="{x:Bind ViewModel.CanAct, Mode=OneWay}"
+                Style="{StaticResource AccentButtonStyle}"
+                Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}" />
+
+            <Button
+                Grid.Column="0"
+                Grid.ColumnSpan="2"
+                HorizontalAlignment="Stretch"
                 Command="{x:Bind ViewModel.DisconnectCommand}"
                 Content="Disconnect"
+                IsEnabled="{x:Bind ViewModel.CanAct, Mode=OneWay}"
                 Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
         </Grid>
     </Grid>

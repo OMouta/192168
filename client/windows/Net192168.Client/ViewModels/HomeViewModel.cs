@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.UI.Dispatching;
 using Net192168.Client.Ipc;
 using Windows.ApplicationModel.DataTransfer;
 
@@ -10,12 +11,41 @@ namespace Net192168.Client.ViewModels;
 public sealed partial class GroupListItem : ObservableObject
 {
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LeavePrompt))]
     public partial string? Name { get; set; }
 
     [ObservableProperty]
     public partial string? Nickname { get; set; }
 
+    /// <summary>
+    /// True while this is the group being brought up. Connecting takes seconds
+    /// and involves a server, so the row it was started from is where the wait
+    /// has to show.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConnectLabel))]
+    public partial bool IsConnecting { get; set; }
+
+    /// <summary>
+    /// False while something else is in flight. Only one group can be active, so
+    /// a second Connect would be turned down by the daemon as busy anyway.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool CanConnect { get; set; } = true;
+
+    /// <summary>
+    /// True while this row is asking whether to leave. The question is asked in
+    /// the row rather than over the window, which in a window this narrow would
+    /// cover the group being left.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsConfirmingLeave { get; set; }
+
     public string GroupId { get; init; } = "";
+
+    public string ConnectLabel => IsConnecting ? "Connecting" : "Connect";
+
+    public string LeavePrompt => $"Leave {Name}? You will need the password to join again.";
 }
 
 /// <summary>One connected peer.</summary>
@@ -29,9 +59,25 @@ public sealed partial class HomeViewModel : ObservableObject
 {
     private readonly Daemon _daemon;
 
+    /// <summary>
+    /// Takes the tick off the copy button again. Copying an address has no
+    /// visible result of its own, and the alternative to a moment of feedback is
+    /// a line of text that then sits on the screen forever.
+    /// </summary>
+    private readonly DispatcherQueueTimer? _copyFeedback;
+
     public HomeViewModel(Daemon daemon)
     {
         _daemon = daemon;
+
+        _copyFeedback = DispatcherQueue.GetForCurrentThread()?.CreateTimer();
+        if (_copyFeedback is not null)
+        {
+            _copyFeedback.Interval = TimeSpan.FromSeconds(1.5);
+            _copyFeedback.IsRepeating = false;
+            _copyFeedback.Tick += (_, _) => JustCopied = false;
+        }
+
         _daemon.StateChanged += Update;
         Update();
     }
@@ -45,7 +91,26 @@ public sealed partial class HomeViewModel : ObservableObject
     public partial bool IsConnected { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWorking))]
+    [NotifyPropertyChangedFor(nameof(CanAct))]
     public partial bool IsBusy { get; set; }
+
+    /// <summary>
+    /// What the daemon is doing. Connect is answered as soon as the attempt
+    /// starts rather than when it finishes, so this, and not
+    /// <see cref="IsBusy"/>, is what says the app is still waiting.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWorking))]
+    [NotifyPropertyChangedFor(nameof(CanAct))]
+    public partial ConnectionState Connection { get; set; }
+
+    /// <summary>True whenever something is in flight, whoever started it.</summary>
+    public bool IsWorking =>
+        IsBusy || Connection is ConnectionState.Connecting or ConnectionState.Disconnecting;
+
+    /// <summary>Whether the buttons on the screen would do anything if pressed.</summary>
+    public bool CanAct => IsReady && !IsWorking;
 
     /// <summary>The active group name, shown above the address.</summary>
     [ObservableProperty]
@@ -77,16 +142,21 @@ public sealed partial class HomeViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowEmptyGroups { get; set; }
 
+    /// <summary>
+    /// What went wrong, if anything. Only failures land here: everything that
+    /// worked is already visible in what the screen now says.
+    /// </summary>
     [ObservableProperty]
     public partial string? Message { get; set; }
 
     /// <summary>False when the daemon is not answering, which disables everything.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanAct))]
     public partial bool IsReady { get; set; }
 
     /// <summary>
     /// True while the nickname is being edited in place. A name is one word and
-    /// changing it is common, so it is not worth a dialog.
+    /// changing it is common, so it is not worth a screen of its own.
     /// </summary>
     [ObservableProperty]
     public partial bool IsEditingNickname { get; set; }
@@ -94,6 +164,13 @@ public sealed partial class HomeViewModel : ObservableObject
     /// <summary>What is in the edit box, kept apart so cancelling is possible.</summary>
     [ObservableProperty]
     public partial string? NicknameDraft { get; set; }
+
+    /// <summary>
+    /// True for a moment after the address was put on the clipboard, which the
+    /// copy button shows as a tick.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool JustCopied { get; set; }
 
     private string _groupId = "";
 
@@ -131,6 +208,7 @@ public sealed partial class HomeViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            ApplyGroupStates();
         }
     }
 
@@ -141,11 +219,37 @@ public sealed partial class HomeViewModel : ObservableObject
         {
             return;
         }
+
         await Run(() => _daemon.ConnectGroupAsync(item.GroupId));
     }
 
     [RelayCommand]
     public Task DisconnectAsync() => Run(_daemon.DisconnectAsync);
+
+    /// <summary>
+    /// Asks whether to leave, in the row itself.
+    ///
+    /// The daemon never stores a group password, so getting back in means having
+    /// it to hand again. That is worth a question, and the answer names the
+    /// group so it is clear which one is going.
+    /// </summary>
+    [RelayCommand]
+    public void StartLeaving(GroupListItem? item)
+    {
+        foreach (var group in Groups)
+        {
+            group.IsConfirmingLeave = ReferenceEquals(group, item);
+        }
+    }
+
+    [RelayCommand]
+    public void CancelLeaving(GroupListItem? item)
+    {
+        if (item is not null)
+        {
+            item.IsConfirmingLeave = false;
+        }
+    }
 
     [RelayCommand]
     public async Task LeaveAsync(GroupListItem? item)
@@ -154,6 +258,7 @@ public sealed partial class HomeViewModel : ObservableObject
         {
             return;
         }
+        item.IsConfirmingLeave = false;
         await Run(() => _daemon.LeaveGroupAsync(item.GroupId));
         await RefreshAsync();
     }
@@ -170,7 +275,9 @@ public sealed partial class HomeViewModel : ObservableObject
         var package = new DataPackage();
         package.SetText(VirtualIp);
         Clipboard.SetContent(package);
-        Message = $"Copied {VirtualIp}";
+
+        JustCopied = true;
+        _copyFeedback?.Start();
     }
 
     [RelayCommand]
@@ -217,6 +324,7 @@ public sealed partial class HomeViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            ApplyGroupStates();
         }
     }
 
@@ -229,6 +337,7 @@ public sealed partial class HomeViewModel : ObservableObject
         // is where that gets picked up.
         var justBecameReady = !IsReady && _daemon.IsAvailable;
         IsReady = _daemon.IsAvailable;
+        Connection = state.Connection;
         IsConnected = state.Connection == ConnectionState.Connected;
         _groupId = state.GroupId ?? "";
         Nickname = state.Nickname;
@@ -260,9 +369,35 @@ public sealed partial class HomeViewModel : ObservableObject
         ShowEmptyPeers = IsConnected && !HasPeers;
         ShowEmptyGroups = !IsConnected && !HasGroups;
 
+        ApplyGroupStates();
+
         if (justBecameReady)
         {
             _ = RefreshAsync();
+        }
+    }
+
+    /// <summary>
+    /// Tells each row what it may do. A row cannot see the state of the screen
+    /// from inside its template, so it is pushed down to it.
+    /// </summary>
+    private void ApplyGroupStates()
+    {
+        OnPropertyChanged(nameof(IsWorking));
+        OnPropertyChanged(nameof(CanAct));
+
+        var connecting = Connection == ConnectionState.Connecting ? _groupId : null;
+
+        foreach (var group in Groups)
+        {
+            group.IsConnecting = connecting is not null && group.GroupId == connecting;
+            group.CanConnect = CanAct;
+
+            // Nothing can be answered while the answer would be refused.
+            if (!CanAct)
+            {
+                group.IsConfirmingLeave = false;
+            }
         }
     }
 

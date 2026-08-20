@@ -4,6 +4,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
 using Net192168.Client.Ipc;
 using Net192168.Client.Views;
 using Windows.Foundation;
@@ -18,6 +19,11 @@ public sealed partial class MainWindow : Window
     // game.
     private const int Width = 400;
     private const int Height = 560;
+
+    // What the window buttons take up on the right at 100% scale, used only if
+    // the window has not reported its own inset yet. Putting the gear under the
+    // close button is worse than leaving a gap.
+    private const double CaptionButtonsFallback = 144;
 
     public MainWindow()
     {
@@ -45,15 +51,10 @@ public sealed partial class MainWindow : Window
             presenter.PreferredMinimumHeight = 420;
         }
 
-        SettingsButton.Loaded += (_, _) => CutSettingsButtonOutOfDragRegion();
-        SettingsButton.SizeChanged += (_, _) => CutSettingsButtonOutOfDragRegion();
+        TitleBarRow.Loaded += (_, _) => LayOutTitleBar();
+        TitleBarRow.SizeChanged += (_, _) => LayOutTitleBar();
 
-        // The gear belongs to the home screen. On any other screen it would
-        // either do nothing or stack a second settings page on the first.
-        ContentFrame.Navigated += (_, _) =>
-            SettingsButton.Visibility = ContentFrame.CurrentSourcePageType == typeof(HomePage)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+        ContentFrame.Navigated += OnNavigated;
 
         // Closing hides rather than quits. The daemon holds the tunnels open on
         // its own, so ending the app on a close would leave a live connection
@@ -140,14 +141,40 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Marks the settings button as somewhere the window should not treat as a
-    /// title bar.
+    /// Puts the header in the state the screen that just arrived needs: its
+    /// name instead of the wordmark, back once there is somewhere to go back
+    /// to, and the gear only on home, where it is the way forward.
+    /// </summary>
+    private void OnNavigated(object sender, NavigationEventArgs e)
+    {
+        var title = e.Content switch
+        {
+            SettingsPage => "Settings",
+            AboutPage => "About",
+            GroupPage page => page.ViewModel.Title,
+            _ => null,
+        };
+
+        PageTitle.Text = title ?? "";
+        PageTitle.Visibility = Show(title is not null);
+        Wordmark.Visibility = Show(title is null);
+        SettingsButton.Visibility = Show(title is null);
+        BackButton.Visibility = Show(ContentFrame.CanGoBack);
+
+        LayOutTitleBar();
+    }
+
+    private static Visibility Show(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// Keeps the gear clear of the window buttons, and marks both header
+    /// buttons as places the window should not treat as a title bar.
     ///
     /// Everything inside the element given to SetTitleBar is a drag handle, and
     /// a button in there receives input it should not: the first version of this
     /// opened the settings dialog by itself when the window was activated.
     /// </summary>
-    private void CutSettingsButtonOutOfDragRegion()
+    private void LayOutTitleBar()
     {
         if (Content?.XamlRoot is null)
         {
@@ -155,19 +182,50 @@ public sealed partial class MainWindow : Window
         }
 
         var scale = Content.XamlRoot.RasterizationScale;
-        var bounds = SettingsButton
-            .TransformToVisual(Content)
-            .TransformBounds(new Rect(0, 0, SettingsButton.ActualWidth, SettingsButton.ActualHeight));
+        var inset = AppWindow.TitleBar.RightInset / scale;
+        var margin = new Thickness(0, 0, (inset > 0 ? inset : CaptionButtonsFallback) + 4, 0);
+        if (SettingsButton.Margin != margin)
+        {
+            SettingsButton.Margin = margin;
+        }
 
-        var rect = new RectInt32(
-            (int)(bounds.X * scale),
-            (int)(bounds.Y * scale),
-            (int)(bounds.Width * scale),
-            (int)(bounds.Height * scale));
+        // The rectangles below are read off the laid-out positions, so the
+        // margin above has to have taken effect first.
+        TitleBarRow.UpdateLayout();
+
+        List<RectInt32> passthrough = [];
+        Cut(BackButton);
+        Cut(SettingsButton);
 
         InputNonClientPointerSource
             .GetForWindowId(AppWindow.Id)
-            .SetRegionRects(NonClientRegionKind.Passthrough, [rect]);
+            .SetRegionRects(NonClientRegionKind.Passthrough, [.. passthrough]);
+
+        void Cut(FrameworkElement element)
+        {
+            if (element.Visibility != Visibility.Visible || element.ActualWidth == 0)
+            {
+                return;
+            }
+
+            var bounds = element
+                .TransformToVisual(Content)
+                .TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+
+            passthrough.Add(new RectInt32(
+                (int)(bounds.X * scale),
+                (int)(bounds.Y * scale),
+                (int)(bounds.Width * scale),
+                (int)(bounds.Height * scale)));
+        }
+    }
+
+    private void OnBack(object sender, RoutedEventArgs e)
+    {
+        if (ContentFrame.CanGoBack)
+        {
+            ContentFrame.GoBack();
+        }
     }
 
     private void OnSettings(object sender, RoutedEventArgs e)
