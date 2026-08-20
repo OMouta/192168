@@ -13,10 +13,17 @@ in a host address works from there.
 Traffic goes straight between players, encrypted. The server hands out the
 addresses and says who is online. Game packets never reach it.
 
+## Download
+
+The installer is on the [releases page](https://github.com/OMouta/192168/releases).
+
+It is not signed, so Windows may warn before running it: choose More info, then
+Run anyway.
+
 ## What you need
 
-Windows. Connecting installs a virtual network adapter, so the app asks for
-administrator rights.
+Windows 10 or newer, 64-bit. Installing asks for administrator rights once, to
+set up the virtual network adapter. Nothing after that does.
 
 A game that can connect to a host by IP. Games that only find servers by
 scanning the local network do not see anyone in your group.
