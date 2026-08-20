@@ -34,6 +34,13 @@ type PeerOfflineData struct {
 	DeviceID string `json:"deviceId"`
 }
 
+// GroupUpdatedData accompanies EventGroupUpdated. Only the owner can cause one,
+// and everybody in the group needs to hear it.
+type GroupUpdatedData struct {
+	GroupID string `json:"groupId"`
+	Name    string `json:"name"`
+}
+
 // PeerRenamedData accompanies EventPeerRenamed. A nickname is what everyone
 // else sees, so a change to it has to reach them without a reconnect.
 type PeerRenamedData struct {

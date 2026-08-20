@@ -543,3 +543,162 @@ func TestMembersNeedsMembership(t *testing.T) {
 		t.Fatalf("stranger listing members: status %d, want 404", code)
 	}
 }
+
+// setUpGroup makes a group with an owner and one other member.
+func setUpGroup(t *testing.T, h *Server) (owner, member device, groupID, proof string) {
+	t.Helper()
+
+	owner = register(t, h, "dev_owner")
+	member = register(t, h, "dev_member")
+	proof = auth.DeriveGroupProof("hunter2", "Friday Night")
+
+	var created papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups", owner.token, papi.CreateGroupRequest{
+		Name: "Friday Night", PasswordProof: proof, Nickname: "Tiago",
+	}, &created); code != http.StatusCreated {
+		t.Fatalf("create group: status %d", code)
+	}
+	if created.Role != "owner" {
+		t.Fatalf("creator role = %q, want owner", created.Role)
+	}
+
+	if code := call(t, h, http.MethodPost, "/api/groups/join", member.token, papi.JoinGroupRequest{
+		Group: "Friday Night", PasswordProof: proof, Nickname: "Joao",
+	}, nil); code != http.StatusOK {
+		t.Fatalf("join: status %d", code)
+	}
+	return owner, member, created.GroupID, proof
+}
+
+// Removing somebody has to keep them out. They still know the name and the
+// password, so if joining again undid it then removing anybody would mean
+// nothing at all.
+func TestARemovedMemberCannotJoinAgain(t *testing.T) {
+	h := newTestServer(t)
+	owner, member, groupID, proof := setUpGroup(t, h)
+
+	if code := call(t, h, http.MethodDelete, "/api/groups/"+groupID+"/members/dev_member", owner.token, nil, nil); code != http.StatusNoContent {
+		t.Fatalf("remove member: status %d", code)
+	}
+	_ = member
+
+	var members papi.MembersResponse
+	if code := call(t, h, http.MethodGet, "/api/groups/"+groupID+"/members", owner.token, nil, &members); code != http.StatusOK {
+		t.Fatalf("list members: status %d", code)
+	}
+	if len(members.Members) != 1 {
+		t.Fatalf("members = %+v, want only the owner", members.Members)
+	}
+
+	// And the answer is the one a wrong password gets, so being removed cannot
+	// be told apart from never having been let in.
+	var removed papi.Error
+	code := call(t, h, http.MethodPost, "/api/groups/join", member.token, papi.JoinGroupRequest{
+		Group: "Friday Night", PasswordProof: proof, Nickname: "Joao",
+	}, &removed)
+	if code != http.StatusForbidden || removed.Code != papi.ErrInvalidPassword {
+		t.Fatalf("rejoin after removal: status %d code %q, want 403 %s", code, removed.Code, papi.ErrInvalidPassword)
+	}
+
+	// Leaving is a different thing and does come back.
+	other := register(t, h, "dev_other")
+	if code := call(t, h, http.MethodPost, "/api/groups/join", other.token, papi.JoinGroupRequest{
+		Group: "Friday Night", PasswordProof: proof, Nickname: "Pedro",
+	}, nil); code != http.StatusOK {
+		t.Fatalf("join: status %d", code)
+	}
+	if code := call(t, h, http.MethodDelete, "/api/groups/"+groupID+"/membership", other.token, nil, nil); code != http.StatusNoContent {
+		t.Fatalf("leave: status %d", code)
+	}
+	if code := call(t, h, http.MethodPost, "/api/groups/join", other.token, papi.JoinGroupRequest{
+		Group: "Friday Night", PasswordProof: proof, Nickname: "Pedro",
+	}, nil); code != http.StatusOK {
+		t.Fatalf("rejoin after leaving: status %d, want 200", code)
+	}
+}
+
+// Everything that changes a group is the owner's alone.
+func TestOnlyTheOwnerCanManageAGroup(t *testing.T) {
+	h := newTestServer(t)
+	owner, member, groupID, _ := setUpGroup(t, h)
+
+	for _, attempt := range []struct {
+		what   string
+		method string
+		path   string
+		body   any
+	}{
+		{"remove a member", http.MethodDelete, "/api/groups/" + groupID + "/members/dev_owner", nil},
+		{"rename", http.MethodPut, "/api/groups/" + groupID + "/name", map[string]string{"name": "Theirs Now"}},
+		{"change the password", http.MethodPut, "/api/groups/" + groupID + "/password", map[string]string{"passwordProof": auth.DeriveGroupProof("x", "y")}},
+		{"take ownership", http.MethodPut, "/api/groups/" + groupID + "/owner/dev_member", nil},
+	} {
+		if code := call(t, h, attempt.method, attempt.path, member.token, attempt.body, nil); code != http.StatusForbidden {
+			t.Errorf("member tried to %s: status %d, want 403", attempt.what, code)
+		}
+	}
+
+	// The owner can, and the group is called something else afterwards.
+	if code := call(t, h, http.MethodPut, "/api/groups/"+groupID+"/name", owner.token,
+		map[string]string{"name": "Saturday Night"}, nil); code != http.StatusNoContent {
+		t.Fatalf("owner rename: status %d", code)
+	}
+	var groups []papi.Membership
+	if code := call(t, h, http.MethodGet, "/api/groups", owner.token, nil, &groups); code != http.StatusOK {
+		t.Fatalf("list groups: status %d", code)
+	}
+	if len(groups) != 1 || groups[0].GroupName != "Saturday Night" {
+		t.Fatalf("groups = %+v", groups)
+	}
+}
+
+// A group whose owner loses their machine would otherwise be unmanageable for
+// good, because a device identity does not survive a reinstall.
+func TestOwnershipCanBeHandedOver(t *testing.T) {
+	h := newTestServer(t)
+	owner, member, groupID, _ := setUpGroup(t, h)
+
+	if code := call(t, h, http.MethodPut, "/api/groups/"+groupID+"/owner/dev_member", owner.token, nil, nil); code != http.StatusNoContent {
+		t.Fatalf("transfer: status %d", code)
+	}
+
+	// The new owner can manage it, and the old one cannot.
+	if code := call(t, h, http.MethodPut, "/api/groups/"+groupID+"/name", member.token,
+		map[string]string{"name": "Mine Now"}, nil); code != http.StatusNoContent {
+		t.Fatalf("new owner rename: status %d", code)
+	}
+	if code := call(t, h, http.MethodPut, "/api/groups/"+groupID+"/name", owner.token,
+		map[string]string{"name": "No"}, nil); code != http.StatusForbidden {
+		t.Fatalf("old owner rename: status %d, want 403", code)
+	}
+}
+
+// The password is checked at the door and nowhere else, so changing it stops
+// the next person joining and removes nobody already inside.
+func TestChangingThePasswordKeepsEveryoneAndStopsTheOldOne(t *testing.T) {
+	h := newTestServer(t)
+	owner, member, groupID, oldProof := setUpGroup(t, h)
+
+	newProof := auth.DeriveGroupProof("correcthorse", "Friday Night")
+	if code := call(t, h, http.MethodPut, "/api/groups/"+groupID+"/password", owner.token,
+		map[string]string{"passwordProof": newProof}, nil); code != http.StatusNoContent {
+		t.Fatalf("change password: status %d", code)
+	}
+
+	// Still a member, and can still connect.
+	if code := call(t, h, http.MethodPost, "/api/groups/"+groupID+"/sessions", member.token, nil, nil); code != http.StatusCreated {
+		t.Fatalf("member connect after password change: status %d", code)
+	}
+
+	stranger := register(t, h, "dev_stranger")
+	if code := call(t, h, http.MethodPost, "/api/groups/join", stranger.token, papi.JoinGroupRequest{
+		Group: "Friday Night", PasswordProof: oldProof, Nickname: "Nope",
+	}, nil); code != http.StatusForbidden {
+		t.Fatalf("join with the old password: status %d, want 403", code)
+	}
+	if code := call(t, h, http.MethodPost, "/api/groups/join", stranger.token, papi.JoinGroupRequest{
+		Group: "Friday Night", PasswordProof: newProof, Nickname: "Yes",
+	}, nil); code != http.StatusOK {
+		t.Fatalf("join with the new password: status %d", code)
+	}
+}

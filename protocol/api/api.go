@@ -78,6 +78,7 @@ type Membership struct {
 	GroupName    string `json:"groupName"`
 	Nickname     string `json:"nickname"`
 	Subnet       string `json:"subnet"`
+	Role         string `json:"role"`
 }
 
 // CreateSessionResponse is returned when a device connects to a group. The
@@ -107,6 +108,7 @@ type Peer struct {
 type Member struct {
 	DeviceID string `json:"deviceId"`
 	Nickname string `json:"nickname"`
+	Role     string `json:"role"`
 	Online   bool   `json:"online"`
 }
 
@@ -142,5 +144,7 @@ const (
 	ErrGroupFull          = "group_full"
 	ErrRateLimited        = "rate_limited"
 	ErrVersionUnsupported = "version_unsupported"
+	ErrForbidden          = "forbidden"
+	ErrBanned             = "banned"
 	ErrInternal           = "internal"
 )

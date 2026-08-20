@@ -27,6 +27,14 @@ var ErrNotFound = errors.New("storage: not found")
 // devices creating the same group name at once.
 var ErrConflict = errors.New("storage: conflict")
 
+// ErrBanned is returned when a device that was removed from a group tries to
+// join it again. It knows the name and the password; that is the point.
+var ErrBanned = errors.New("storage: removed from this group")
+
+// ErrForbidden is returned when a caller is a member but not allowed to do this
+// to the group.
+var ErrForbidden = errors.New("storage: not allowed")
+
 // Store owns the database handle.
 type Store struct {
 	db *sql.DB
@@ -135,6 +143,24 @@ var migrations = []string{
 		last_seen_at     INTEGER NOT NULL,
 		UNIQUE (group_id, virtual_ip)
 	)`,
+
+	// Who may manage a group. On the membership rather than the group, so it
+	// generalises to more than one person and survives being handed over
+	// without touching the group itself.
+	`ALTER TABLE memberships ADD COLUMN role TEXT NOT NULL DEFAULT 'member'`,
+
+	// Set apart from revoked_at, which only means not currently a member.
+	// Leaving is revoked and can be undone by joining again; being removed is
+	// both, and joining again does not undo it. Without the difference,
+	// removing somebody who knows the password does nothing at all.
+	`ALTER TABLE memberships ADD COLUMN banned_at INTEGER`,
+
+	// Groups that existed before roles did. Whoever made one owns it.
+	`UPDATE memberships SET role = 'owner'
+	 WHERE EXISTS (
+		SELECT 1 FROM groups g
+		WHERE g.id = memberships.group_id AND g.created_by_device_id = memberships.device_id
+	 )`,
 }
 
 func (s *Store) migrate(ctx context.Context) error {

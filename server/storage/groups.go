@@ -17,6 +17,16 @@ type Group struct {
 	CreatedAt        time.Time
 }
 
+// Role is what a member may do to the group itself.
+type Role string
+
+const (
+	// RoleMember can use the group and change nothing about it.
+	RoleMember Role = "member"
+	// RoleOwner can rename it, change its password, and remove people.
+	RoleOwner Role = "owner"
+)
+
 // Membership is one device's place in one group.
 type Membership struct {
 	ID        string
@@ -25,6 +35,7 @@ type Membership struct {
 	DeviceID  string
 	Nickname  string
 	Subnet    string
+	Role      Role
 	CreatedAt time.Time
 }
 
@@ -53,6 +64,13 @@ func (s *Store) CreateGroup(ctx context.Context, g Group, normalizedName, device
 	if err != nil {
 		return Membership{}, err
 	}
+	// Whoever makes a group runs it.
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE memberships SET role = 'owner' WHERE id = ?`, m.ID); err != nil {
+		return Membership{}, fmt.Errorf("storage: set owner: %w", err)
+	}
+	m.Role = RoleOwner
+
 	if err := tx.Commit(); err != nil {
 		return Membership{}, fmt.Errorf("storage: commit: %w", err)
 	}
@@ -90,15 +108,30 @@ func (s *Store) scanGroup(row *sql.Row) (Group, error) {
 	return g, nil
 }
 
-// AddMembership joins a device to a group. Joining a group the device is
-// already in updates the nickname and clears any revocation, so rejoining after
-// being removed works without a stale row in the way.
+// AddMembership joins a device to a group. Joining one the device already left
+// picks the old membership back up, so leaving and coming back does not leave a
+// stale row in the way.
+//
+// Being removed is different from leaving, and does not come back: a removed
+// device still knows the name and the password, so if joining undid it then
+// removing anybody would mean nothing.
 func (s *Store) AddMembership(ctx context.Context, g Group, deviceID, nickname string) (Membership, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Membership{}, fmt.Errorf("storage: begin: %w", err)
 	}
 	defer tx.Rollback()
+
+	var banned sql.NullInt64
+	err = tx.QueryRowContext(ctx,
+		`SELECT banned_at FROM memberships WHERE group_id = ? AND device_id = ?`,
+		g.ID, deviceID).Scan(&banned)
+	switch {
+	case err == nil && banned.Valid:
+		return Membership{}, ErrBanned
+	case err != nil && !errors.Is(err, sql.ErrNoRows):
+		return Membership{}, fmt.Errorf("storage: check removal: %w", err)
+	}
 
 	m, err := insertMembership(ctx, tx, g, deviceID, nickname, time.Now())
 	if err != nil {
@@ -153,7 +186,7 @@ func insertMembership(ctx context.Context, tx *sql.Tx, g Group, deviceID, nickna
 // it reconnect without the group password.
 func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Membership, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.id, m.group_id, g.name, m.nickname, g.subnet, m.created_at
+		SELECT m.id, m.group_id, g.name, m.nickname, g.subnet, m.role, m.created_at
 		FROM memberships m
 		JOIN groups g ON g.id = m.group_id
 		WHERE m.device_id = ? AND m.revoked_at IS NULL
@@ -169,7 +202,7 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 			m       Membership
 			created int64
 		)
-		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.Nickname, &m.Subnet, &created); err != nil {
+		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.Nickname, &m.Subnet, &m.Role, &created); err != nil {
 			return nil, fmt.Errorf("storage: scan membership: %w", err)
 		}
 		m.DeviceID = deviceID
@@ -183,6 +216,7 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 type Member struct {
 	DeviceID string
 	Nickname string
+	Role     Role
 	Online   bool
 }
 
@@ -193,7 +227,7 @@ type Member struct {
 // is in the group rather than only who is here right now.
 func (s *Store) Members(ctx context.Context, groupID string) ([]Member, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.device_id, m.nickname, s.id IS NOT NULL
+		SELECT m.device_id, m.nickname, m.role, s.id IS NOT NULL
 		FROM memberships m
 		LEFT JOIN sessions s ON s.membership_id = m.id
 		WHERE m.group_id = ? AND m.revoked_at IS NULL
@@ -206,7 +240,7 @@ func (s *Store) Members(ctx context.Context, groupID string) ([]Member, error) {
 	var out []Member
 	for rows.Next() {
 		var member Member
-		if err := rows.Scan(&member.DeviceID, &member.Nickname, &member.Online); err != nil {
+		if err := rows.Scan(&member.DeviceID, &member.Nickname, &member.Role, &member.Online); err != nil {
 			return nil, fmt.Errorf("storage: read member: %w", err)
 		}
 		out = append(out, member)
@@ -221,12 +255,12 @@ func (s *Store) Membership(ctx context.Context, groupID, deviceID string) (Membe
 		created int64
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT m.id, g.name, m.nickname, g.subnet, m.created_at
+		SELECT m.id, g.name, m.nickname, g.subnet, m.role, m.created_at
 		FROM memberships m
 		JOIN groups g ON g.id = m.group_id
 		WHERE m.group_id = ? AND m.device_id = ? AND m.revoked_at IS NULL`,
 		groupID, deviceID,
-	).Scan(&m.ID, &m.GroupName, &m.Nickname, &m.Subnet, &created)
+	).Scan(&m.ID, &m.GroupName, &m.Nickname, &m.Subnet, &m.Role, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Membership{}, ErrNotFound
 	}
@@ -279,6 +313,149 @@ func (s *Store) SetNickname(ctx context.Context, groupID, deviceID, nickname str
 	}
 	if affected == 0 {
 		return ErrNotFound
+	}
+	return nil
+}
+
+// ownerOnly fails unless this device runs the group. Every management call goes
+// through it, so the rule lives in one place rather than in each of them.
+func ownerOnly(ctx context.Context, tx *sql.Tx, groupID, deviceID string) error {
+	var role Role
+	err := tx.QueryRowContext(ctx,
+		`SELECT role FROM memberships WHERE group_id = ? AND device_id = ? AND revoked_at IS NULL`,
+		groupID, deviceID).Scan(&role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("storage: read role: %w", err)
+	}
+	if role != RoleOwner {
+		return ErrForbidden
+	}
+	return nil
+}
+
+// RemoveMember takes someone out of a group and keeps them out.
+//
+// Their session goes with the membership, so they are disconnected rather than
+// left on a network they no longer belong to.
+func (s *Store) RemoveMember(ctx context.Context, groupID, ownerDeviceID, targetDeviceID string) error {
+	if ownerDeviceID == targetDeviceID {
+		// A group with no owner cannot be managed again by anybody. Leaving is
+		// the way out, and it is a different thing.
+		return ErrForbidden
+	}
+
+	return s.write(ctx, func(tx *sql.Tx) error {
+		if err := ownerOnly(ctx, tx, groupID, ownerDeviceID); err != nil {
+			return err
+		}
+
+		now := time.Now().Unix()
+		result, err := tx.ExecContext(ctx, `
+			UPDATE memberships SET revoked_at = ?, banned_at = ?
+			WHERE group_id = ? AND device_id = ? AND revoked_at IS NULL`,
+			now, now, groupID, targetDeviceID)
+		if err != nil {
+			return fmt.Errorf("storage: remove member: %w", err)
+		}
+		if affected, _ := result.RowsAffected(); affected == 0 {
+			return ErrNotFound
+		}
+
+		if _, err := tx.ExecContext(ctx, `
+			DELETE FROM sessions WHERE group_id = ? AND membership_id IN (
+				SELECT id FROM memberships WHERE group_id = ? AND device_id = ?
+			)`, groupID, groupID, targetDeviceID); err != nil {
+			return fmt.Errorf("storage: end removed member's session: %w", err)
+		}
+		return nil
+	})
+}
+
+// RenameGroup changes what the group is called.
+func (s *Store) RenameGroup(ctx context.Context, groupID, ownerDeviceID, name, normalizedName string) error {
+	return s.write(ctx, func(tx *sql.Tx) error {
+		if err := ownerOnly(ctx, tx, groupID, ownerDeviceID); err != nil {
+			return err
+		}
+
+		_, err := tx.ExecContext(ctx,
+			`UPDATE groups SET name = ?, name_normalized = ? WHERE id = ?`,
+			name, normalizedName, groupID)
+		if isUniqueViolation(err) {
+			return ErrConflict
+		}
+		if err != nil {
+			return fmt.Errorf("storage: rename group: %w", err)
+		}
+		return nil
+	})
+}
+
+// SetGroupPassword changes the password a new member joins with.
+//
+// It removes nobody. Membership is proved by the device token from then on, and
+// the password is only ever checked at the door, so this closes the door rather
+// than emptying the room.
+func (s *Store) SetGroupPassword(ctx context.Context, groupID, ownerDeviceID, verifier string) error {
+	return s.write(ctx, func(tx *sql.Tx) error {
+		if err := ownerOnly(ctx, tx, groupID, ownerDeviceID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE groups SET password_verifier = ? WHERE id = ?`, verifier, groupID); err != nil {
+			return fmt.Errorf("storage: set group password: %w", err)
+		}
+		return nil
+	})
+}
+
+// TransferOwnership hands the group to another member.
+//
+// A device identity lives on one machine and does not survive it being rebuilt,
+// so without this a group whose owner reinstalls Windows can never be managed
+// again.
+func (s *Store) TransferOwnership(ctx context.Context, groupID, ownerDeviceID, targetDeviceID string) error {
+	return s.write(ctx, func(tx *sql.Tx) error {
+		if err := ownerOnly(ctx, tx, groupID, ownerDeviceID); err != nil {
+			return err
+		}
+
+		result, err := tx.ExecContext(ctx, `
+			UPDATE memberships SET role = 'owner'
+			WHERE group_id = ? AND device_id = ? AND revoked_at IS NULL`,
+			groupID, targetDeviceID)
+		if err != nil {
+			return fmt.Errorf("storage: promote member: %w", err)
+		}
+		if affected, _ := result.RowsAffected(); affected == 0 {
+			return ErrNotFound
+		}
+
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE memberships SET role = 'member' WHERE group_id = ? AND device_id = ?`,
+			groupID, ownerDeviceID); err != nil {
+			return fmt.Errorf("storage: step down: %w", err)
+		}
+		return nil
+	})
+}
+
+// write runs one transaction and commits it if the work succeeds.
+func (s *Store) write(ctx context.Context, work func(tx *sql.Tx) error) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("storage: begin: %w", err)
+	}
+	defer tx.Rollback()
+
+	if err := work(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("storage: commit: %w", err)
 	}
 	return nil
 }
