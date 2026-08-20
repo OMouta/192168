@@ -191,6 +191,9 @@ func (c *Core) watchGroup(ctx context.Context, session *activeSession) {
 				links.SetPeerEndpoint(deviceID, addr)
 			}
 		},
+		PeerRenamed: func(deviceID, nickname string) {
+			c.renamePeer(deviceID, nickname)
+		},
 		MembershipRevoked: func() {
 			c.log.Warn("membership revoked while connected")
 			go c.dropSession("You were removed from that group.")
@@ -251,6 +254,22 @@ func (c *Core) linkPeer(peer api.Peer) {
 	if err := links.AddPeer(peer.DeviceID, peer.Nickname, virtualIP, key, endpoint); err != nil {
 		c.log.Warn("cannot add a peer", "deviceId", peer.DeviceID, "error", err)
 	}
+}
+
+// renamePeer changes the name shown for someone who is already here.
+func (c *Core) renamePeer(deviceID, nickname string) {
+	c.mu.Lock()
+	peer, ok := c.peers[deviceID]
+	if ok {
+		peer.Nickname = nickname
+	}
+	state := c.snapshot()
+	c.mu.Unlock()
+	if !ok {
+		return
+	}
+
+	c.emit(ipc.EventStateChanged, state)
 }
 
 func (c *Core) removePeer(deviceID string) {

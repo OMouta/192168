@@ -159,10 +159,20 @@ func (s *Server) handleSetNickname(w http.ResponseWriter, r *http.Request, devic
 		return
 	}
 
-	if err := s.store.SetNickname(r.Context(), r.PathValue("groupId"), device.ID, nickname); err != nil {
+	groupID := r.PathValue("groupId")
+	if err := s.store.SetNickname(r.Context(), groupID, device.ID, nickname); err != nil {
 		s.fail(w, r, err, api.ErrGroupNotFound, "You are not a member of that group.")
 		return
 	}
+
+	// A nickname is what the rest of the group sees, so it has to reach them
+	// now. Without this it only arrived with the next peer list, which meant
+	// everyone else kept the old name until they reconnected.
+	s.hub.Broadcast(groupID, device.ID, api.EventPeerRenamed, api.PeerRenamedData{
+		DeviceID: device.ID,
+		Nickname: nickname,
+	})
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
