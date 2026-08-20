@@ -22,7 +22,7 @@
                 Margin="0,12,0,0"
                 HorizontalAlignment="Center"
                 Spacing="8">
-                <Image Height="26" Source="ms-appx:///Assets/wordmark.png" />
+                <Image Height="56" Source="ms-appx:///Assets/wordmark.png" />
                 <TextBlock
                     HorizontalAlignment="Center"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -87,14 +87,10 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Style="{StaticResource RowLabel}" Text="Log" />
-                            <TextBlock
-                                Margin="12,0,8,0"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Style="{StaticResource CaptionTextBlockStyle}"
-                                Text="What to send if something goes wrong" />
-                        </StackPanel>
+                        <TextBlock
+                            Grid.Column="0"
+                            Style="{StaticResource RowLabel}"
+                            Text="Log" />
                         <Button
                             Grid.Column="1"
                             Margin="0,4"
