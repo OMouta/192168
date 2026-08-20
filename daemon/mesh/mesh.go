@@ -244,6 +244,21 @@ func (m *Mesh) SetPeerEndpoint(deviceID string, endpoint netip.AddrPort) {
 	}
 }
 
+// RestartLinks throws away every session and punches again, for when this
+// machine's own address changed rather than a peer's.
+//
+// The mapping peers were sending to no longer exists, so their packets reach
+// nobody and the keys on both sides are useless. Peers that had already been
+// given up on are retried too: they were unreachable from an address this
+// device no longer has, which says nothing about the new one.
+func (m *Mesh) RestartLinks() {
+	for _, peer := range m.Peers() {
+		peer.restart()
+		m.report(peer)
+		m.punch(peer)
+	}
+}
+
 // RemovePeer forgets a device and everything about its link.
 func (m *Mesh) RemovePeer(deviceID string) {
 	m.mu.Lock()

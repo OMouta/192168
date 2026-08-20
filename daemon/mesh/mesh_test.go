@@ -245,3 +245,59 @@ func TestRemovingAPeerStopsRouting(t *testing.T) {
 		t.Error("a removed peer still had a route")
 	}
 }
+
+// What happens after a laptop changes network. The old session is useless to
+// both sides, so the link has to be rebuilt rather than carried over.
+func TestRestartLinksRebuildsAnOpenSession(t *testing.T) {
+	a := newNode(t, "dev_aaa")
+	b := newNode(t, "dev_bbb")
+	introduce(t, a, b, "10.69.0.1", "10.69.0.2")
+
+	waitForState(t, a, b.deviceID, ipc.PeerDirect)
+	waitForState(t, b, a.deviceID, ipc.PeerDirect)
+
+	a.mesh.RestartLinks()
+
+	// Sending on keys that were just thrown away has to fail rather than
+	// produce a packet the other side would drop as a replay.
+	if err := a.mesh.Send(netip.MustParseAddr("10.69.0.2"), []byte("too early")); err == nil {
+		t.Error("Send succeeded on a link that was just restarted")
+	}
+
+	// And the link comes back on its own, because the peers still know each
+	// other and the punch runs again.
+	waitForState(t, a, b.deviceID, ipc.PeerDirect)
+
+	payload := []byte("after the move")
+	if err := a.mesh.Send(netip.MustParseAddr("10.69.0.2"), payload); err != nil {
+		t.Fatalf("Send after restart: %v", err)
+	}
+	select {
+	case got := <-b.mesh.Inbound():
+		if !bytes.Equal(got, payload) {
+			t.Errorf("received %q, want %q", got, payload)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("nothing arrived after the link was rebuilt")
+	}
+}
+
+// A peer already given up on is retried, because it was unreachable from an
+// address this device no longer has.
+func TestRestartLinksRetriesAFailedPeer(t *testing.T) {
+	a := newNode(t, "dev_aaa")
+
+	// Nothing is listening at this address, so the link runs out of attempts.
+	dead := netip.MustParseAddr("10.69.0.9")
+	var key [32]byte
+	if err := a.mesh.AddPeer("dev_zzz", "z", dead, key[:], netip.MustParseAddrPort("127.0.0.1:9")); err != nil {
+		t.Fatalf("AddPeer: %v", err)
+	}
+	waitForState(t, a, "dev_zzz", ipc.PeerFailed)
+
+	a.mesh.RestartLinks()
+
+	if got := a.states.get("dev_zzz"); got != ipc.PeerConnecting {
+		t.Errorf("a failed peer stayed %s after a restart, want %s", got, ipc.PeerConnecting)
+	}
+}

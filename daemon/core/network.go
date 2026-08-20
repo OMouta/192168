@@ -3,7 +3,10 @@ package core
 import (
 	"context"
 	"encoding/base64"
+	"net"
 	"net/netip"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/OMouta/192168/daemon/control"
@@ -43,9 +46,28 @@ func (c *Core) startNetwork(ctx context.Context, session *activeSession, peers [
 	go c.startAdapter(ctx, links, session.virtualIP, session.subnet)
 }
 
-// publishEndpoint asks STUN where this socket appears from the outside and
-// tells the group. Until this lands, peers know a device is online but have
-// nowhere to send.
+const (
+	// endpointRecheckInterval is the slow path. A NAT can rebind without
+	// anything on this machine changing, and the only way to find out is to ask
+	// again.
+	endpointRecheckInterval = 60 * time.Second
+
+	// interfaceCheckInterval is the fast path. Moving between networks changes
+	// a local address at once, and waiting out a slow cycle to notice would
+	// leave a game dead for a minute for no reason. Reading the local
+	// interfaces costs nothing, so it can be checked often.
+	interfaceCheckInterval = 3 * time.Second
+)
+
+// publishEndpoint asks STUN where this socket appears from the outside, tells
+// the group, and keeps watching for that answer to change.
+//
+// Until the first publish lands, peers know a device is online but have nowhere
+// to send. After it, the address is still not permanent: switching from Wi-Fi
+// to a hotspot, or a NAT rebinding on its own, leaves every peer sending to a
+// mapping that reaches nobody. Nothing recovers from that on its own, because
+// both sides keep punching at addresses that stopped being real, so this is
+// what notices and republishes.
 func (c *Core) publishEndpoint(ctx context.Context, links *mesh.Mesh, sessionID string) {
 	servers := c.stunServers()
 	if len(servers) == 0 {
@@ -53,9 +75,48 @@ func (c *Core) publishEndpoint(ctx context.Context, links *mesh.Mesh, sessionID 
 		return
 	}
 
-	endpoint, err := links.PublicEndpoint(ctx, servers)
+	var (
+		published  netip.AddrPort
+		interfaces = localAddresses()
+		lastCheck  time.Time
+	)
+
+	ticker := time.NewTicker(interfaceCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		current := localAddresses()
+		moved := current != interfaces
+		interfaces = current
+
+		if moved || time.Since(lastCheck) >= endpointRecheckInterval {
+			lastCheck = time.Now()
+			if moved && published.IsValid() {
+				c.log.Info("local addresses changed, re-checking our public address")
+			}
+			c.republishEndpoint(ctx, links, sessionID, &published)
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+// republishEndpoint runs one STUN round and tells the group only when the
+// answer is new, so a stable address costs one query and no writes.
+//
+// A changed address also means every existing link is pointed at a mapping that
+// is gone, so they start over from the new one.
+func (c *Core) republishEndpoint(ctx context.Context, links *mesh.Mesh, sessionID string, published *netip.AddrPort) {
+	endpoint, err := links.PublicEndpoint(ctx, c.stunServers())
 	if err != nil {
 		c.log.Error("cannot find our public address", "error", err)
+		return
+	}
+	if endpoint == *published {
 		return
 	}
 
@@ -66,7 +127,39 @@ func (c *Core) publishEndpoint(ctx context.Context, links *mesh.Mesh, sessionID 
 		})
 	}); err != nil {
 		c.log.Error("cannot publish our endpoint", "error", err)
+		return
 	}
+
+	// Only after the group has been told. Restarting first would leave peers
+	// punching toward the old address with no way to learn the new one.
+	if published.IsValid() {
+		c.log.Info("public address changed, restarting links", "was", published.String(), "now", endpoint.String())
+		links.RestartLinks()
+	}
+	*published = endpoint
+}
+
+// localAddresses fingerprints this machine's own addresses. It is compared for
+// equality rather than read, so the cheapest stable form will do.
+//
+// Loopback is left out because it is there on every network and never says
+// anything about which one this is.
+func localAddresses() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+
+	found := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		prefix, ok := addr.(*net.IPNet)
+		if !ok || prefix.IP.IsLoopback() {
+			continue
+		}
+		found = append(found, prefix.String())
+	}
+	slices.Sort(found)
+	return strings.Join(found, ",")
 }
 
 // watchGroup follows the group while it is connected, so a peer who joins after
