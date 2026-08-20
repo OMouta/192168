@@ -5,6 +5,28 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Net192168.Client">
 
+    <Page.Resources>
+        <!--  The row shape the About screen uses, so settings reads as lists rather than loose controls.  -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style x:Key="RowDivider" TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Background" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        </Style>
+        <Style x:Key="RowText" TargetType="StackPanel">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Spacing" Value="2" />
+        </Style>
+        <Style x:Key="RowCaption" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </Page.Resources>
+
     <!--  Back and the title of this screen are in the window header.  -->
     <Grid>
         <Grid.RowDefinitions>
@@ -12,131 +34,189 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel
-            Grid.Row="0"
-            Margin="16,8,16,0"
-            Spacing="8">
-            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Server" />
+        <ScrollViewer Grid.Row="0">
+            <StackPanel Margin="16,8,16,16" Spacing="20">
 
-            <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+                <!--  The one thing a user ever sets.  -->
+                <StackPanel Spacing="8">
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Server" />
 
-                <TextBox
-                    x:Name="ServerBox"
-                    Grid.Column="0"
-                    PlaceholderText="https://api.192168.lol"
-                    Text="{x:Bind ViewModel.ServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-                <!--  Beside the field it belongs to, since it tests what is in it.  -->
-                <Button
-                    Grid.Column="1"
-                    MinWidth="72"
-                    Command="{x:Bind ViewModel.TestCommand}"
-                    IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource NotBoolean}}">
-                    <StackPanel
-                        HorizontalAlignment="Center"
-                        Orientation="Horizontal"
-                        Spacing="8">
-                        <ProgressRing
-                            Width="14"
-                            Height="14"
-                            IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
-                            Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
-                        <TextBlock Text="Test" />
-                    </StackPanel>
-                </Button>
-            </Grid>
+                        <TextBox
+                            x:Name="ServerBox"
+                            Grid.Column="0"
+                            PlaceholderText="https://api.192168.lol"
+                            Text="{x:Bind ViewModel.ServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-            <!--  Status only, and only once there is any. No standing paragraph.  -->
-            <TextBlock
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                Style="{StaticResource CaptionTextBlockStyle}"
-                Text="{x:Bind ViewModel.Status, Mode=OneWay}"
-                TextWrapping="Wrap"
-                Visibility="{x:Bind ViewModel.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
+                        <!--  Beside the field it belongs to, since it tests what is in it.  -->
+                        <Button
+                            Grid.Column="1"
+                            MinWidth="72"
+                            Command="{x:Bind ViewModel.TestCommand}"
+                            IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource NotBoolean}}">
+                            <StackPanel
+                                HorizontalAlignment="Center"
+                                Orientation="Horizontal"
+                                Spacing="8">
+                                <ProgressRing
+                                    Width="14"
+                                    Height="14"
+                                    IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
+                                    Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                                <TextBlock Text="Test" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
 
-            <!--
-                The background service, and how to stop or remove it.
-            -->
-            <StackPanel
-                Margin="0,12,0,0"
-                Spacing="8"
-                Visibility="{x:Bind ViewModel.CanManageService, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Background service" />
-
-                <TextBlock
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Style="{StaticResource CaptionTextBlockStyle}"
-                    Text="{x:Bind ViewModel.ServiceStatus, Mode=OneWay}"
-                    TextWrapping="Wrap" />
-
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button
-                        Command="{x:Bind ViewModel.StopServiceCommand}"
-                        Content="Stop"
-                        IsEnabled="{x:Bind ViewModel.IsServiceRunning, Mode=OneWay}" />
-                    <Button
-                        Command="{x:Bind ViewModel.InstallServiceCommand}"
-                        Content="Install"
-                        Visibility="{x:Bind ViewModel.IsServiceMissing, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
-                    <Button
-                        Command="{x:Bind ViewModel.RemoveServiceCommand}"
-                        Content="Remove"
-                        Visibility="{x:Bind ViewModel.IsServiceInstalled, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                    <!--  Status only, and only once there is any. No standing paragraph.  -->
+                    <TextBlock
+                        Style="{StaticResource RowCaption}"
+                        Text="{x:Bind ViewModel.Status, Mode=OneWay}"
+                        Visibility="{x:Bind ViewModel.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
                 </StackPanel>
 
-                <CheckBox
-                    Content="Open 192168 when I sign in"
-                    IsChecked="{x:Bind ViewModel.StartsWithWindows, Mode=TwoWay}" />
+                <!--
+                    What the service is doing, and the two things that can be done
+                    about it. Gone entirely in a development build, where the
+                    daemon runs in a console and none of it applies.
+                -->
+                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.CanManageService, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Background service" />
 
-                <HyperlinkButton
-                    Padding="0,4"
-                    Command="{x:Bind ViewModel.UninstallAppCommand}"
-                    Content="Uninstall 192168" />
+                    <Border Style="{StaticResource Card}">
+                        <Grid Padding="12,10" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Style="{StaticResource RowText}">
+                                <TextBlock Text="{x:Bind ViewModel.ServiceHeadline, Mode=OneWay}" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="{x:Bind ViewModel.ServiceDetail, Mode=OneWay}" />
+                            </StackPanel>
+
+                            <StackPanel
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal"
+                                Spacing="8">
+                                <Button
+                                    Command="{x:Bind ViewModel.StopServiceCommand}"
+                                    Content="Stop"
+                                    IsEnabled="{x:Bind ViewModel.IsServiceRunning, Mode=OneWay}" />
+                                <Button
+                                    Command="{x:Bind ViewModel.InstallServiceCommand}"
+                                    Content="Install"
+                                    Visibility="{x:Bind ViewModel.IsServiceMissing, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                                <Button
+                                    Command="{x:Bind ViewModel.RemoveServiceCommand}"
+                                    Content="Remove"
+                                    Visibility="{x:Bind ViewModel.IsServiceInstalled, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!--
+                    The app itself: when it opens, what it is, and how to get rid
+                    of it. None of it depends on the service, so it stays put
+                    even when there is no service to manage.
+                -->
+                <StackPanel Spacing="8">
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="App" />
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <Grid Padding="12,6" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="Open 192168 when I sign in" />
+
+                                <!--  No On or Off label beside it: the row already says what it does.  -->
+                                <ToggleSwitch
+                                    Grid.Column="1"
+                                    MinWidth="0"
+                                    IsOn="{x:Bind ViewModel.StartsWithWindows, Mode=TwoWay}"
+                                    OffContent=""
+                                    OnContent="" />
+                            </Grid>
+
+                            <Border Style="{StaticResource RowDivider}" />
+
+                            <!--
+                                Where the version and the links live. It is on
+                                the only screen that is not about connecting,
+                                which is where somebody looks for it.
+                            -->
+                            <Button
+                                Padding="12,10"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Stretch"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="OnAbout"
+                                CornerRadius="0">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        Text="About 192168" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                        Text="{x:Bind local:AppInfo.Version}" />
+                                    <FontIcon
+                                        Grid.Column="2"
+                                        VerticalAlignment="Center"
+                                        FontSize="12"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Glyph="&#xE76C;" />
+                                </Grid>
+                            </Button>
+
+                            <Border Style="{StaticResource RowDivider}" />
+
+                            <Grid Padding="12,10" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" Style="{StaticResource RowText}">
+                                    <TextBlock Text="Uninstall 192168" />
+                                    <TextBlock Style="{StaticResource RowCaption}" Text="Opens the Windows list of installed apps." />
+                                </StackPanel>
+
+                                <Button
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Command="{x:Bind ViewModel.UninstallAppCommand}"
+                                    Content="Uninstall" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
             </StackPanel>
-
-            <!--
-                Where the version and the links live. It is the last thing on
-                the only screen that is not about connecting, which is where
-                somebody looks for it.
-            -->
-            <Button
-                Margin="0,12,0,0"
-                Padding="4,10"
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Stretch"
-                Background="Transparent"
-                BorderThickness="0"
-                Click="OnAbout">
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock
-                        Grid.Column="0"
-                        VerticalAlignment="Center"
-                        Text="About 192168" />
-                    <TextBlock
-                        Grid.Column="1"
-                        VerticalAlignment="Center"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Style="{StaticResource CaptionTextBlockStyle}"
-                        Text="{x:Bind local:AppInfo.Version}" />
-                    <FontIcon
-                        Grid.Column="2"
-                        VerticalAlignment="Center"
-                        FontSize="12"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Glyph="&#xE76C;" />
-                </Grid>
-            </Button>
-        </StackPanel>
+        </ScrollViewer>
 
         <Grid Grid.Row="1" Padding="16,12">
             <Grid.ColumnDefinitions>

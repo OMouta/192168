@@ -32,9 +32,17 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsBusy { get; set; }
 
-    /// <summary>What the service is doing, in a sentence.</summary>
+    /// <summary>What the service is doing, in a word.</summary>
     [ObservableProperty]
-    public partial string ServiceStatus { get; set; } = "";
+    public partial string ServiceHeadline { get; set; } = "";
+
+    /// <summary>
+    /// What that means for the user, under the headline. It also carries the
+    /// reason when an action fails, so a service problem is explained where the
+    /// service is rather than under the server address.
+    /// </summary>
+    [ObservableProperty]
+    public partial string ServiceDetail { get; set; } = "";
 
     /// <summary>
     /// Whether the service is registered at all. It decides which of the two
@@ -102,7 +110,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         CanManageService = DaemonService.IsAvailable;
         if (!CanManageService)
         {
-            ServiceStatus = "Running from a development build.";
             IsServiceInstalled = false;
             IsServiceRunning = false;
             return;
@@ -111,13 +118,13 @@ public sealed partial class SettingsViewModel : ObservableObject
         var state = await DaemonService.QueryAsync();
         IsServiceInstalled = state is ServiceState.Stopped or ServiceState.Running or ServiceState.Pending;
         IsServiceRunning = state == ServiceState.Running;
-        ServiceStatus = state switch
+        (ServiceHeadline, ServiceDetail) = state switch
         {
-            ServiceState.Running => "Running. Stopping it disconnects you.",
-            ServiceState.Stopped => "Stopped. It starts again when you connect.",
-            ServiceState.Pending => "Starting or stopping.",
-            ServiceState.Absent => "Not installed, so this machine cannot join a network.",
-            _ => "Could not be checked.",
+            ServiceState.Running => ("Running", "Stopping it disconnects you."),
+            ServiceState.Stopped => ("Stopped", "It starts again when you connect."),
+            ServiceState.Pending => ("Starting or stopping", "This takes a moment."),
+            ServiceState.Absent => ("Not installed", "This machine cannot join a network without it."),
+            _ => ("Unknown", "Its state could not be checked."),
         };
     }
 
@@ -128,10 +135,13 @@ public sealed partial class SettingsViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            Status = await DaemonService.StopAsync()
-                ? "The background service is stopped."
-                : "The background service could not be stopped.";
+            // Success shows itself in the headline, so only a failure needs words.
+            var stopped = await DaemonService.StopAsync();
             await RefreshServiceAsync();
+            if (!stopped)
+            {
+                ServiceDetail = "It could not be stopped.";
+            }
         }
         finally
         {
@@ -148,10 +158,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            Status = await DaemonService.InstallAsync()
-                ? "The background service is installed."
-                : "The background service was not installed.";
+            var installed = await DaemonService.InstallAsync();
             await RefreshServiceAsync();
+            if (!installed)
+            {
+                ServiceDetail = "It could not be installed.";
+            }
         }
         finally
         {
@@ -169,10 +181,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            Status = await DaemonService.RemoveAsync()
-                ? "The background service and its network adapter are gone."
-                : "The background service was not removed.";
+            var removed = await DaemonService.RemoveAsync();
             await RefreshServiceAsync();
+            if (!removed)
+            {
+                ServiceDetail = "It could not be removed.";
+            }
         }
         finally
         {
