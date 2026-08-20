@@ -143,7 +143,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	writer.Go(func() {
 		defer cancel()
 		for payload := range writes {
-			if _, err := conn.Write(append(payload, '\n')); err != nil {
+			if _, err := conn.Write(payload); err != nil {
 				return
 			}
 		}
@@ -188,6 +188,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 			s.log.Error("cannot encode response", "method", req.Method, "error", err)
 			continue
 		}
+		payload = append(payload, '\n')
 		select {
 		case writes <- payload:
 		case <-ctx.Done():
@@ -369,10 +370,17 @@ func (c *client) close() {
 	}
 }
 
+// encodeEvent returns a complete line, terminator included. Broadcast hands the
+// same payload to every connected client, so the newline has to be baked in
+// here rather than appended by each writer to a slice it does not own.
 func encodeEvent(name ipc.EventName, data any) ([]byte, error) {
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(ipc.Event{Event: name, Data: raw})
+	line, err := json.Marshal(ipc.Event{Event: name, Data: raw})
+	if err != nil {
+		return nil, err
+	}
+	return append(line, '\n'), nil
 }
