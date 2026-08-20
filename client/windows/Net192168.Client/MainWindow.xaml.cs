@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using Net192168.Client.Ipc;
+using Net192168.Client.Services;
 using Net192168.Client.Views;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -136,10 +137,19 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void OnTrayExit(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Quits, and takes the background service with it. Leaving it up would
+    /// leave an adapter and live tunnels with no icon left to stop them from.
+    /// </summary>
+    private async void OnTrayExit(object sender, RoutedEventArgs e)
     {
         _exiting = true;
         App.Daemon.StateChanged -= UpdateTray;
+
+        if (DaemonService.IsAvailable)
+        {
+            await DaemonService.StopAsync();
+        }
 
         // The icon outlives the process unless it is taken down by hand, which
         // leaves a dead entry in the tray until something hovers over it.

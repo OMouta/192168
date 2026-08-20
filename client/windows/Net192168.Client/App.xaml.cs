@@ -2,6 +2,7 @@ using System.IO;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Net192168.Client.Ipc;
+using Net192168.Client.Services;
 
 namespace Net192168.Client;
 
@@ -40,14 +41,44 @@ public partial class App : Application
         "192168",
         "client-crash.log");
 
+    /// <summary>
+    /// Whether Windows started this at sign-in, in which case the app stays in
+    /// the tray.
+    /// </summary>
+    public static bool StartedHidden { get; private set; }
+
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        StartedHidden = Environment.GetCommandLineArgs()
+            .Contains(StartWithWindows.TrayArgument, StringComparer.OrdinalIgnoreCase);
+
         Daemon = new Daemon(DispatcherQueue.GetForCurrentThread());
         _ = Daemon.RunAsync();
 
+        // The service starts on demand, and opening the app is that demand. Does
+        // nothing if it was never installed, which is the development case.
+        _ = EnsureServiceRunningAsync();
+
         _window = new MainWindow();
         _window.Closed += (_, _) => Daemon.Shutdown();
-        _window.Activate();
+
+        // Started at sign-in, the tray icon is the whole UI until asked for more.
+        if (!StartedHidden)
+        {
+            _window.Activate();
+        }
+    }
+
+    private static async Task EnsureServiceRunningAsync()
+    {
+        if (!DaemonService.IsAvailable)
+        {
+            return;
+        }
+        if (await DaemonService.QueryAsync() == ServiceState.Stopped)
+        {
+            await DaemonService.StartAsync();
+        }
     }
 
     /// <summary>Writes a diagnostic line to the same file as crashes.</summary>

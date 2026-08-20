@@ -59,6 +59,46 @@
                 Visibility="{x:Bind ViewModel.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
 
             <!--
+                The background service, and how to stop or remove it.
+            -->
+            <StackPanel
+                Margin="0,12,0,0"
+                Spacing="8"
+                Visibility="{x:Bind ViewModel.CanManageService, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Background service" />
+
+                <TextBlock
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Text="{x:Bind ViewModel.ServiceStatus, Mode=OneWay}"
+                    TextWrapping="Wrap" />
+
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button
+                        Command="{x:Bind ViewModel.StopServiceCommand}"
+                        Content="Stop"
+                        IsEnabled="{x:Bind ViewModel.IsServiceRunning, Mode=OneWay}" />
+                    <Button
+                        Command="{x:Bind ViewModel.InstallServiceCommand}"
+                        Content="Install"
+                        Visibility="{x:Bind ViewModel.IsServiceMissing, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                    <Button
+                        Command="{x:Bind ViewModel.RemoveServiceCommand}"
+                        Content="Remove"
+                        Visibility="{x:Bind ViewModel.IsServiceInstalled, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                </StackPanel>
+
+                <CheckBox
+                    Content="Open 192168 when I sign in"
+                    IsChecked="{x:Bind ViewModel.StartsWithWindows, Mode=TwoWay}" />
+
+                <HyperlinkButton
+                    Padding="0,4"
+                    Command="{x:Bind ViewModel.UninstallAppCommand}"
+                    Content="Uninstall 192168" />
+            </StackPanel>
+
+            <!--
                 Where the version and the links live. It is the last thing on
                 the only screen that is not about connecting, which is where
                 somebody looks for it.
