@@ -158,6 +158,7 @@ func (c *Core) GetGroups(ctx context.Context) ([]ipc.Group, error) {
 			Name:     m.GroupName,
 			Nickname: m.Nickname,
 			Active:   c.session != nil && c.session.groupID == m.GroupID,
+			IsOwner:  m.Role == api.RoleOwner,
 		})
 	}
 	return groups, nil
@@ -339,6 +340,7 @@ func toGroup(m api.Membership, active bool) ipc.Group {
 		Name:     m.GroupName,
 		Nickname: m.Nickname,
 		Active:   active,
+		IsOwner:  m.Role == api.RoleOwner,
 	}
 }
 
@@ -457,6 +459,10 @@ func (c *Core) TransferOwnership(ctx context.Context, params ipc.MemberParams) e
 
 	c.log.Info("group ownership transferred", "groupId", params.GroupID, "to", params.DeviceID)
 	c.emit(ipc.EventStateChanged, state)
+
+	// Who owns it is on the member list, and the list is what says which row
+	// wears the mark.
+	go c.loadMembers(c.ctx, params.GroupID)
 	return nil
 }
 

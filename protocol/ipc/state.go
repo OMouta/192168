@@ -53,6 +53,8 @@ type PeerView struct {
 	VirtualIP string    `json:"virtualIp"`
 	State     PeerState `json:"state"`
 	LatencyMS *int      `json:"latencyMs,omitempty"`
+	// IsOwner marks whoever runs the group, so the list says who to ask.
+	IsOwner bool `json:"isOwner,omitempty"`
 }
 
 // Group is one saved membership as shown on the groups screen.
@@ -62,4 +64,7 @@ type Group struct {
 	Nickname      string `json:"nickname"`
 	Active        bool   `json:"active"`
 	OnlineMembers *int   `json:"onlineMembers,omitempty"`
+	// IsOwner marks the groups this device runs, so the list says which are
+	// yours to change and which you are only in.
+	IsOwner bool `json:"isOwner,omitempty"`
 }

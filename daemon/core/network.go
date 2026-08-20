@@ -310,14 +310,17 @@ func (c *Core) loadMembers(ctx context.Context, groupID string) {
 		}
 		belongs[member.DeviceID] = struct{}{}
 
+		owner := member.Role == api.RoleOwner
 		if peer, known := c.peers[member.DeviceID]; known {
 			peer.Nickname = member.Nickname
+			peer.IsOwner = owner
 			continue
 		}
 		c.peers[member.DeviceID] = &ipc.PeerView{
 			DeviceID: member.DeviceID,
 			Nickname: member.Nickname,
 			State:    ipc.PeerOffline,
+			IsOwner:  owner,
 		}
 	}
 
