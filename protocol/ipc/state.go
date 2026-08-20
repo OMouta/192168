@@ -39,8 +39,11 @@ type State struct {
 	GroupName    string          `json:"groupName,omitempty"`
 	Nickname     string          `json:"nickname,omitempty"`
 	VirtualIP    string          `json:"virtualIp,omitempty"`
-	Peers        []PeerView      `json:"peers"`
-	Message      string          `json:"message,omitempty"`
+	// IsOwner says whether this device runs the connected group, which is what
+	// decides whether the managing parts of the screen are there at all.
+	IsOwner bool       `json:"isOwner,omitempty"`
+	Peers   []PeerView `json:"peers"`
+	Message string     `json:"message,omitempty"`
 }
 
 // PeerView is one row of the active group screen.

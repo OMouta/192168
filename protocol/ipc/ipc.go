@@ -31,9 +31,17 @@ const (
 	MethodConnect     Method = "ConnectGroup"
 	MethodDisconnect  Method = "Disconnect"
 	MethodSetNickname Method = "SetNickname"
-	MethodGetServer   Method = "GetServer"
-	MethodSetServer   Method = "SetServer"
-	MethodTestServer  Method = "TestServer"
+
+	// Managing a group. All four are the owner's alone, and the server is what
+	// says so: the app hides them from everyone else, and hiding is not
+	// enforcing.
+	MethodRemoveMember      Method = "RemoveMember"
+	MethodRenameGroup       Method = "RenameGroup"
+	MethodSetGroupPassword  Method = "SetGroupPassword"
+	MethodTransferOwnership Method = "TransferOwnership"
+	MethodGetServer         Method = "GetServer"
+	MethodSetServer         Method = "SetServer"
+	MethodTestServer        Method = "TestServer"
 	// MethodResetSettings puts local settings back to their defaults. The
 	// daemon owns those defaults, so the client asks rather than assuming.
 	MethodResetSettings Method = "ResetSettings"

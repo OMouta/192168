@@ -140,3 +140,23 @@ func (e Event) UnmarshalData(v any) error {
 	}
 	return json.Unmarshal(e.Data, v)
 }
+
+// MemberParams names one person in one group, for removing them or handing the
+// group over to them.
+type MemberParams struct {
+	GroupID  string `json:"groupId"`
+	DeviceID string `json:"deviceId"`
+}
+
+// RenameGroupParams changes what a group is called, for everyone in it.
+type RenameGroupParams struct {
+	GroupID string `json:"groupId"`
+	Name    string `json:"name"`
+}
+
+// SetGroupPasswordParams changes the password a new member joins with. It
+// removes nobody: the password is only ever checked at the door.
+type SetGroupPasswordParams struct {
+	GroupID  string `json:"groupId"`
+	Password string `json:"password"`
+}

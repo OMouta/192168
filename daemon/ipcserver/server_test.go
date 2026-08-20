@@ -81,6 +81,26 @@ func (h *fakeHandler) SetNickname(_ context.Context, p ipc.SetNicknameParams) er
 	return h.failWith
 }
 
+func (h *fakeHandler) RemoveMember(_ context.Context, p ipc.MemberParams) error {
+	h.record("RemoveMember:" + p.GroupID + ":" + p.DeviceID)
+	return h.failWith
+}
+
+func (h *fakeHandler) RenameGroup(_ context.Context, p ipc.RenameGroupParams) error {
+	h.record("RenameGroup:" + p.GroupID + ":" + p.Name)
+	return h.failWith
+}
+
+func (h *fakeHandler) SetGroupPassword(_ context.Context, p ipc.SetGroupPasswordParams) error {
+	h.record("SetGroupPassword:" + p.GroupID)
+	return h.failWith
+}
+
+func (h *fakeHandler) TransferOwnership(_ context.Context, p ipc.MemberParams) error {
+	h.record("TransferOwnership:" + p.GroupID + ":" + p.DeviceID)
+	return h.failWith
+}
+
 func (h *fakeHandler) GetServer(context.Context) (string, error) {
 	h.record("GetServer")
 	return h.server, h.failWith

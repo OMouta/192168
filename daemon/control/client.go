@@ -276,3 +276,33 @@ func newNonce() (string, error) {
 	}
 	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
+
+// RemoveMember takes someone out of a group and keeps them out.
+func (c *Client) RemoveMember(ctx context.Context, groupID, deviceID string) error {
+	return c.do(ctx, http.MethodDelete, c.discovery.API+"/groups/"+groupID+"/members/"+deviceID, nil, nil)
+}
+
+// RenameGroup changes what a group is called.
+func (c *Client) RenameGroup(ctx context.Context, groupID, name string) error {
+	body := struct {
+		Name string `json:"name"`
+	}{Name: name}
+	return c.do(ctx, http.MethodPut, c.discovery.API+"/groups/"+groupID+"/name", body, nil)
+}
+
+// SetGroupPassword changes the password a new member joins with.
+//
+// The password never leaves this machine. What goes to the server is the proof
+// derived from it, the same as when creating or joining, so the server can
+// check a password it has never seen.
+func (c *Client) SetGroupPassword(ctx context.Context, groupID, groupName, password string) error {
+	body := struct {
+		PasswordProof string `json:"passwordProof"`
+	}{PasswordProof: auth.DeriveGroupProof(password, groupName)}
+	return c.do(ctx, http.MethodPut, c.discovery.API+"/groups/"+groupID+"/password", body, nil)
+}
+
+// TransferOwnership hands a group to another member.
+func (c *Client) TransferOwnership(ctx context.Context, groupID, deviceID string) error {
+	return c.do(ctx, http.MethodPut, c.discovery.API+"/groups/"+groupID+"/owner/"+deviceID, nil, nil)
+}

@@ -74,7 +74,7 @@ func (c *Core) runConnect(groupID string) {
 		return
 	}
 
-	groupName, nickname, subnet := c.describeGroup(ctx, groupID)
+	groupName, nickname, subnet, owner := c.describeGroup(ctx, groupID)
 
 	c.mu.Lock()
 	c.session = &activeSession{
@@ -93,6 +93,7 @@ func (c *Core) runConnect(groupID string) {
 	c.state.Nickname = nickname
 	c.state.VirtualIP = session.VirtualIP
 	c.state.Message = ""
+	c.state.IsOwner = owner
 
 	// Peers start as connecting and are in the state before it is announced, so
 	// the first thing the UI draws already has the rows. The mesh moves each one
@@ -145,6 +146,7 @@ func (c *Core) failConnect(groupID string, err error) {
 	c.state.GroupName = ""
 	c.state.VirtualIP = ""
 	c.state.Message = message
+	c.state.IsOwner = false
 	c.peers = map[string]*ipc.PeerView{}
 	state := c.snapshot()
 	c.mu.Unlock()
@@ -247,6 +249,7 @@ func (c *Core) finishDisconnect(session *activeSession, reason string) {
 	c.state.GroupName = ""
 	c.state.VirtualIP = ""
 	c.state.Message = reason
+	c.state.IsOwner = false
 	c.peers = map[string]*ipc.PeerView{}
 	state := c.snapshot()
 	c.mu.Unlock()
@@ -275,19 +278,19 @@ func (c *Core) finishDisconnect(session *activeSession, reason string) {
 // describeGroup finds the name, nickname, and subnet for a group. The session
 // response carries none of them: the UI needs the first two for its title, and
 // the adapter needs the third to route the whole range rather than one address.
-func (c *Core) describeGroup(ctx context.Context, groupID string) (name, nickname, subnet string) {
+func (c *Core) describeGroup(ctx context.Context, groupID string) (name, nickname, subnet string, owner bool) {
 	memberships, err := withClient(c, ctx, func(client *control.Client) ([]api.Membership, error) {
 		return client.Groups(ctx)
 	})
 	if err != nil {
-		return groupID, "", ""
+		return groupID, "", "", false
 	}
 	for _, m := range memberships {
 		if m.GroupID == groupID {
-			return m.GroupName, m.Nickname, m.Subnet
+			return m.GroupName, m.Nickname, m.Subnet, m.Role == api.RoleOwner
 		}
 	}
-	return groupID, "", ""
+	return groupID, "", "", false
 }
 
 // sortPeers keeps the list in a stable order, so a UI redraw does not shuffle

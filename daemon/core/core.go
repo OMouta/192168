@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/OMouta/192168/daemon/control"
@@ -358,4 +359,103 @@ func (c *Core) ResetSettings(ctx context.Context) (string, error) {
 	}
 	c.log.Info("settings reset", "serverUrl", fallback)
 	return fallback, nil
+}
+
+// RemoveMember takes someone out of a group and keeps them out. The owner's
+// alone, which the server decides.
+func (c *Core) RemoveMember(ctx context.Context, params ipc.MemberParams) error {
+	if params.GroupID == "" || params.DeviceID == "" {
+		return &ipcserver.Failure{Code: "bad_request", Message: "Choose who to remove."}
+	}
+
+	_, err := withClient(c, ctx, func(client *control.Client) (struct{}, error) {
+		return struct{}{}, client.RemoveMember(ctx, params.GroupID, params.DeviceID)
+	})
+	if err != nil {
+		return err
+	}
+
+	// They are gone from the group, so they are gone from the list. The peer
+	// event says they went offline, which on its own would leave them showing
+	// as somebody who is merely away.
+	c.removePeer(params.DeviceID)
+	c.log.Info("member removed", "groupId", params.GroupID, "deviceId", params.DeviceID)
+	return nil
+}
+
+// RenameGroup changes what a group is called, for everyone in it.
+func (c *Core) RenameGroup(ctx context.Context, params ipc.RenameGroupParams) error {
+	name := strings.TrimSpace(params.Name)
+	if params.GroupID == "" || name == "" {
+		return &ipcserver.Failure{Code: "bad_request", Message: "A group needs a name."}
+	}
+
+	_, err := withClient(c, ctx, func(client *control.Client) (struct{}, error) {
+		return struct{}{}, client.RenameGroup(ctx, params.GroupID, name)
+	})
+	if err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	if c.session != nil && c.session.groupID == params.GroupID {
+		c.session.groupName = name
+		c.state.GroupName = name
+	}
+	state := c.snapshot()
+	c.mu.Unlock()
+
+	c.log.Info("group renamed", "groupId", params.GroupID, "name", name)
+	c.emit(ipc.EventStateChanged, state)
+	return nil
+}
+
+// SetGroupPassword changes the password a new member joins with.
+//
+// It removes nobody, and is not meant to. Once somebody is in, the device token
+// is what proves it, and the password is only ever checked at the door.
+func (c *Core) SetGroupPassword(ctx context.Context, params ipc.SetGroupPasswordParams) error {
+	if params.GroupID == "" || params.Password == "" {
+		return &ipcserver.Failure{Code: "bad_request", Message: "That password will not work."}
+	}
+
+	// The proof is derived from the group's name, so the name has to be the one
+	// the server has rather than whatever the screen last showed.
+	name, _, _, _ := c.describeGroup(ctx, params.GroupID)
+
+	_, err := withClient(c, ctx, func(client *control.Client) (struct{}, error) {
+		return struct{}{}, client.SetGroupPassword(ctx, params.GroupID, name, params.Password)
+	})
+	if err != nil {
+		return err
+	}
+
+	c.log.Info("group password changed", "groupId", params.GroupID)
+	return nil
+}
+
+// TransferOwnership hands a group to another member. The device that does it
+// stops being the owner, so it is not undone without the other one agreeing.
+func (c *Core) TransferOwnership(ctx context.Context, params ipc.MemberParams) error {
+	if params.GroupID == "" || params.DeviceID == "" {
+		return &ipcserver.Failure{Code: "bad_request", Message: "Choose who to hand the group to."}
+	}
+
+	_, err := withClient(c, ctx, func(client *control.Client) (struct{}, error) {
+		return struct{}{}, client.TransferOwnership(ctx, params.GroupID, params.DeviceID)
+	})
+	if err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	if c.session != nil && c.session.groupID == params.GroupID {
+		c.state.IsOwner = false
+	}
+	state := c.snapshot()
+	c.mu.Unlock()
+
+	c.log.Info("group ownership transferred", "groupId", params.GroupID, "to", params.DeviceID)
+	c.emit(ipc.EventStateChanged, state)
+	return nil
 }

@@ -40,6 +40,10 @@ type Handler interface {
 	Connect(ctx context.Context, groupID string) error
 	Disconnect(ctx context.Context) error
 	SetNickname(ctx context.Context, params ipc.SetNicknameParams) error
+	RemoveMember(ctx context.Context, params ipc.MemberParams) error
+	RenameGroup(ctx context.Context, params ipc.RenameGroupParams) error
+	SetGroupPassword(ctx context.Context, params ipc.SetGroupPasswordParams) error
+	TransferOwnership(ctx context.Context, params ipc.MemberParams) error
 	GetServer(ctx context.Context) (string, error)
 	SetServer(ctx context.Context, url string) error
 	TestServer(ctx context.Context, url string) (ipc.TestServerResult, error)
@@ -299,6 +303,34 @@ func (s *Server) call(ctx context.Context, req ipc.Request) (any, error) {
 			return nil, badParams(err)
 		}
 		return nil, s.handler.SetNickname(ctx, params)
+
+	case ipc.MethodRemoveMember:
+		var params ipc.MemberParams
+		if err := req.UnmarshalParams(&params); err != nil {
+			return nil, badParams(err)
+		}
+		return nil, s.handler.RemoveMember(ctx, params)
+
+	case ipc.MethodRenameGroup:
+		var params ipc.RenameGroupParams
+		if err := req.UnmarshalParams(&params); err != nil {
+			return nil, badParams(err)
+		}
+		return nil, s.handler.RenameGroup(ctx, params)
+
+	case ipc.MethodSetGroupPassword:
+		var params ipc.SetGroupPasswordParams
+		if err := req.UnmarshalParams(&params); err != nil {
+			return nil, badParams(err)
+		}
+		return nil, s.handler.SetGroupPassword(ctx, params)
+
+	case ipc.MethodTransferOwnership:
+		var params ipc.MemberParams
+		if err := req.UnmarshalParams(&params); err != nil {
+			return nil, badParams(err)
+		}
+		return nil, s.handler.TransferOwnership(ctx, params)
 
 	case ipc.MethodGetServer:
 		url, err := s.handler.GetServer(ctx)
