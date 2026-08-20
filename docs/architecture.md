@@ -2,9 +2,8 @@
 
 ## The one rule
 
-The coordination server introduces peers to each other. It never carries game
-traffic. Once two daemons have found each other, their session survives the
-server going down.
+The coordination server introduces peers. It never carries game traffic. Once
+two daemons have found each other, their session survives the server going down.
 
 A game packet takes this path and touches nothing else:
 
@@ -16,49 +15,44 @@ Game -> Windows IP stack -> Wintun adapter -> daemon
 
 ## Concepts
 
-Three things stay separate on purpose.
+Three things stay separate.
 
-**Device identity.** One per installation. A random device ID and a persistent
-key pair. The private key never leaves the machine.
+**Device identity.** One per installation. A random device ID and two key pairs.
+The private halves never leave the machine.
 
-**Membership.** The relationship between a device and a group. You create it by
-joining with the group password, and from then on a long-lived credential stands
-in for the password. Nicknames are per-group display labels and carry no
-identity.
+**Membership.** A device's place in a group. You create it by joining with the
+group password. After that the device token gets you back in.
 
-**Session.** Exists only while connected. Carries the assigned virtual IP, the
+**Session.** Exists only while connected. Holds the assigned virtual IP, the
 current endpoint candidates, and the peer list.
 
-One group session is active at a time. Switching groups means disconnecting the
-first one completely.
+One session at a time. Switching groups disconnects the first one first.
 
 ## Identity and passwords
 
-A device registers once by signing its own registration with the key it is
-registering, which proves it holds that key. The server hands back a bearer
-token, and every later request carries it. That signature is the only
-unauthenticated write in the API, so it also carries a timestamp and a nonce and
-the server rejects stale or repeated ones.
+A device has two keys. Ed25519 signs its registration, which proves it holds the
+key it is registering. Curve25519 is the static key peers run the Noise
+handshake against. The registration signature covers both.
 
-The group password never leaves the machine. The daemon runs Argon2id over it
-and sends the result, which the code calls the proof. The salt is the group
-name, because two people typing the same password have to arrive at the same
-proof or only the creator could ever get in. The server hashes that proof again
-with a random salt and stores the verifier.
+Registration is the only unauthenticated write in the API, so it carries a
+timestamp and a nonce. The server rejects anything stale or repeated and hands
+back a bearer token. Every later request carries that token.
 
-So a stolen database gives an attacker an offline guessing problem rather than
-group access, and a server operator reading their own logs never sees a
-password. What the proof does not survive is being intercepted, since anyone
-holding it can join. That is why TLS is not optional on the control plane.
+The group password stays on the machine. The daemon runs Argon2id over it and
+sends the result, called the proof. The salt is the group name, so two people
+typing the same password produce the same proof. The server runs Argon2id over
+the proof with a random salt and stores that.
 
-There is no separate membership credential. The device token says who is
-calling, and the server knows which groups that device belongs to, which is
-enough to reconnect without the password. Revoking a membership is a change on
-the server, so it applies whether or not the device is online.
+Steal the database and you get an offline guessing problem. Intercept a proof and
+you are in the group, so the control plane refuses anything but TLS.
 
-The password reaches the daemon in the clear over the named pipe, because the
-daemon owns all cryptography and the UI never implements a KDF. The pipe has to
-be restricted to the current user for that to be safe.
+There is no membership credential. The token identifies the device and the
+server knows its groups. Revoking a membership is a row on the server, so it
+takes effect while the device is online.
+
+The password crosses the named pipe in the clear. The daemon owns all
+cryptography and the UI never implements a KDF, so the pipe is ACLed to the
+current user.
 
 ## Processes
 
@@ -80,88 +74,78 @@ be restricted to the current user for that to be safe.
             internet
 ```
 
-The client sends intents like `ConnectGroup`, `Disconnect`, and `JoinGroup`,
-then draws whatever state comes back. It never opens a socket, punches a NAT, or
-tracks peer state. The daemon is a separate process, so closing the window
-leaves the tunnel up.
+The client sends intents like `ConnectGroup` and draws whatever state comes
+back. It never opens a socket, punches a NAT, or tracks peer state. The daemon
+is its own process, so closing the window leaves the tunnel up.
 
 ## Connecting
 
 1. Client sends `ConnectGroup`.
-2. Daemon validates the stored membership credential and creates a session on
-   the server.
-3. Server assigns a virtual IP within the group's subnet (`10.69.0.0/24`).
+2. Daemon opens a session on the server with its device token.
+3. Server assigns a virtual IP in the group's subnet, `10.69.0.0/24`.
 4. Daemon brings up the Wintun adapter and local routes.
 5. Daemon opens its UDP socket and finds its public endpoint through STUN.
-6. Daemon publishes the endpoint and receives the peer list.
-7. Daemon and each peer hole-punch at the same time, then run an authenticated
-   handshake.
-8. Established sessions become routes for the virtual adapter.
+6. Daemon publishes that endpoint and reads the peer list.
+7. Daemon and each peer punch at the same time, then run the handshake.
+8. Open sessions become routes for the adapter.
 
-Every pairwise link stands alone. Failing to reach one peer must never affect
-the others.
+Links are independent. One peer failing says nothing about the rest.
 
 ## Routing
 
-Connected members form a full mesh. That is fine under ten peers and keeps
-packet forwarding out of the middle.
+Members form a full mesh. Under ten peers that is cheap, and nothing in the
+middle forwards packets.
 
-The daemon maps each peer's virtual IP to a route, and a route is not the same
-thing as a socket. Only `Direct` exists today. `Via(peer)` and `Relay` already
-have a place in the protocol, so adding them later will not mean a rewrite.
-Anything forwarded carries a hop limit.
+The daemon maps each peer's virtual IP to a route. A route is not a socket. Only
+`Direct` exists. `Via(peer)` and `Relay` have places in the protocol and hop
+limits reserved, and neither is implemented.
 
 ## Transport
 
-Binary and versioned from day one. See `protocol/transport`. A fixed 20-byte
-envelope of magic, version, type, sender, and counter sits in front of the
-payload. The AEAD authenticates it as additional data, so a daemon can read it
-for routing and an attacker still cannot change it.
+Binary and versioned. See `protocol/transport`. A 20-byte envelope of magic,
+version, type, sender, and counter sits in front of the payload. The AEAD signs
+the envelope as additional data, so a daemon reads it for routing and an
+attacker cannot change it.
 
-The counter feeds the AEAD nonce and the replay check. Peer traffic is encrypted
-end to end with an established construction. We do not write our own crypto.
+The magic keeps its top two bits set. STUN shares the socket and its messages
+start with two zero bits, so the two can be told apart without parsing.
 
-An endpoint learned from the server proves nothing on its own. A peer accepts
-only packets that verify against the session keys.
+Noise IK over Curve25519, ChaCha20-Poly1305, and BLAKE2s. The header counter is
+the AEAD nonce and the replay window's input, so a receiver can tell a replay
+from a reordered packet. We do not write our own crypto.
+
+An endpoint from the server proves nothing. A peer accepts only what verifies
+against the session keys.
 
 ## Coordination
 
-The control plane is HTTPS plus a WebSocket that carries presence and endpoint
-changes, so the daemon never polls. Losing the WebSocket leaves established
-tunnels alone. Games in progress keep working. What stops is discovering new
-peers and learning about endpoint changes.
+HTTPS plus a WebSocket carrying presence and endpoint changes. The daemon never
+polls. Losing the WebSocket leaves tunnels alone and games running. What stops is
+hearing about new peers and endpoint changes.
 
-A client reaches any deployment from a base URL alone by fetching
-`/.well-known/192168`, which advertises the API URL, realtime URL, STUN servers,
-and optional features. Those addresses never appear as separate settings a user
-has to fill in.
-
-The client points at the hosted deployment out of the box and reaches any other
-by URL, so a self-hosted server runs the same code path as the default one.
+A client reaches any deployment from a base URL by fetching
+`/.well-known/192168`, which returns the API URL, realtime URL, STUN servers, and
+feature flags. A user never types those separately.
 
 ## Network changes
 
-Wi-Fi switches, sleep and resume, and public IP changes all invalidate NAT
-mappings. When the daemon detects one it revalidates its socket, re-runs STUN,
-publishes the new endpoint, and punches again. Membership and UI state stay
-where they are.
+Wi-Fi switches, sleep and resume, and a new public IP all break NAT mappings. The
+daemon revalidates its socket, re-runs STUN, publishes the new endpoint, and
+punches again. Membership and UI state are untouched.
 
 ## Broadcast discovery
 
-The overlay is Layer 3, so UDP broadcast, multicast, and mDNS do not cross it.
-Games where you type in the host's IP work today. Automatic server-browser
-discovery may need selective broadcast replication later, and that can wait
-until the first version works.
+The overlay is Layer 3. UDP broadcast, multicast, and mDNS do not cross it. Games
+where you type the host's IP work. Server browsers that scan the LAN find
+nothing, and fixing that means replicating broadcast packets to every peer.
 
 ## Versioning
 
 Discovery, transport, IPC, and realtime carry separate version numbers in
-`protocol`, because a self-hosted server, a shipped client, and a peer's daemon
-all update on their own schedules. When they disagree the user should get a
-clear message rather than a mysterious failure.
+`protocol`. A self-hosted server, a shipped client, and a peer's daemon update on
+their own schedules. When they disagree the user gets a clear message.
 
 ## Logging
 
 Structured logs with component, group, peer, session, endpoint, and state
-transitions. Never log passwords, private keys, membership credentials, or
-decrypted packet contents.
+transitions. Never log passwords, private keys, tokens, or decrypted packets.

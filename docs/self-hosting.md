@@ -1,8 +1,6 @@
 # Self-hosting
 
-The Windows app talks to the hosted server by default, and a user reaches any
-other one by typing its URL into Settings. Nobody rebuilds anything to point a
-client at yours.
+Users type your server's URL into Settings. The app is not rebuilt for it.
 
 ## Requirements
 
@@ -11,13 +9,9 @@ client at yours.
 
 ## Railway
 
-The least work of any host, and it needs one variable set. See
-[deploy/railway](../deploy/railway/README.md).
+One variable and a volume. See [deploy/railway](../deploy/railway/README.md).
 
-One thing to know before choosing it: Railway has no UDP, so it cannot host the
-relay if one is ever built. That costs nothing today, because peers talk
-straight to each other and the coordination server only speaks HTTP and
-WebSocket.
+Railway has no UDP. If a relay is ever built it will not run there.
 
 ## Docker anywhere else
 
@@ -27,8 +21,7 @@ cp .env.example .env      # set NET192168_PUBLIC_URL
 docker compose up -d
 ```
 
-Point your reverse proxy at port 8080, then check that the discovery document
-comes back:
+Point your reverse proxy at port 8080. Then check the discovery document:
 
 ```sh
 curl https://lan.example.com/.well-known/192168
@@ -45,8 +38,7 @@ curl https://lan.example.com/.well-known/192168
 }
 ```
 
-Now open the app, enter `https://lan.example.com` as the server, test the
-connection, and save.
+Open the app, enter `https://lan.example.com` as the server, press Test, save.
 
 ## Configuration
 
@@ -55,15 +47,17 @@ connection, and save.
 | `NET192168_PUBLIC_URL` | yes | Public base URL. Must match what users type in. HTTPS unless localhost. |
 | `NET192168_ADDR` | no | Listen address. Falls back to `PORT`, then `:8080`. |
 | `NET192168_STUN` | no | Comma-separated STUN servers to advertise. Defaults to a public one. |
-| `NET192168_DATABASE_URL` | no | Storage DSN. Defaults to local SQLite. |
+| `NET192168_DATABASE_URL` | no | Storage path or DSN. Defaults to SQLite in the working directory. |
 
-The server builds the API and realtime URLs from `NET192168_PUBLIC_URL`, so you
-have one address to get right, and it is the same one your users type in.
+The API and realtime URLs come from `NET192168_PUBLIC_URL`. Set that one wrong
+and clients will be sent to an address that does not answer.
 
-## Notes
+## What running this signs you up for
 
-- The server never forwards game traffic. It stays small and idle even with
-  several groups connected.
-- The server stores a verifier for each group password, never the password.
-- Peers connect straight to each other, so the server going down does not drop
-  a game already in progress.
+Game traffic never touches it. The server hands out addresses and says who is
+online, so a group of six is a few requests an hour and one WebSocket each.
+
+It stores an Argon2id verifier per group password, never the password.
+
+If it goes down, games already running keep going. Nobody new can connect until
+it is back.
