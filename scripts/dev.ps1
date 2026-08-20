@@ -7,6 +7,9 @@
     client. The three pieces normally live on different machines, so running
     them together is the only way to click through anything.
 
+    The server and the daemon each get their own console with a header saying
+    which is which, and their logs go to the window as well as to a file.
+
     Server data and binaries go under %LOCALAPPDATA%\192168-dev. The daemon
     keeps its identity in its real location, %APPDATA%\192168, so a device stays
     the same device between runs.
@@ -44,12 +47,24 @@ $repo = Split-Path -Parent $PSScriptRoot
 $devRoot = Join-Path $env:LOCALAPPDATA '192168-dev'
 $binDir = Join-Path $devRoot 'bin'
 $logDir = Join-Path $devRoot 'logs'
+$pidFile = Join-Path $devRoot 'consoles.txt'
 $identityDir = Join-Path $env:APPDATA '192168'
 $clientExe = Join-Path $repo 'client\windows\Net192168.Client\bin\Debug\net10.0-windows10.0.26100.0\win-x64\Net192168.Client.exe'
+
+# pwsh where it exists, since Windows PowerShell renders the log colours worse.
+$shell = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' }
 
 function Stop-Stack {
     foreach ($name in '192168-server', '192168-daemon', 'Net192168.Client') {
         Get-Process -Name $name -ErrorAction SilentlyContinue | Stop-Process -Force
+    }
+    # The consoles outlive the process they were hosting, so they are tracked
+    # by id and closed here rather than left as dead prompts.
+    if (Test-Path $pidFile) {
+        foreach ($id in Get-Content $pidFile) {
+            Get-Process -Id $id -ErrorAction SilentlyContinue | Stop-Process -Force
+        }
+        Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -91,47 +106,79 @@ if (-not $NoClient) {
 
 $serverUrl = "http://localhost:$Port"
 
+<#
+.SYNOPSIS
+    Opens a console that announces what it is and then runs one process.
+#>
+function Start-Console {
+    param(
+        [string]$Title,
+        [string]$Colour,
+        [string]$Exe,
+        [string]$LogFile,
+        [hashtable]$Environment,
+        [string[]]$Notes
+    )
+
+    $lines = @(
+        "`$Host.UI.RawUI.WindowTitle = '$Title'"
+        "Write-Host ''"
+        "Write-Host '  $Title  ' -ForegroundColor Black -BackgroundColor $Colour"
+    )
+    foreach ($note in $Notes) {
+        $lines += "Write-Host '  $note' -ForegroundColor DarkGray"
+    }
+    $lines += "Write-Host ''"
+    foreach ($pair in $Environment.GetEnumerator()) {
+        $lines += "`$env:$($pair.Key) = '$($pair.Value)'"
+    }
+    # Tee so the window shows the log live and the file still has it afterwards.
+    $lines += "& '$Exe' 2>&1 | Tee-Object -FilePath '$LogFile'"
+    $lines += "Write-Host ''"
+    $lines += "Write-Host '  $Title exited.' -ForegroundColor Red"
+
+    $console = Start-Process $shell -PassThru -ArgumentList @(
+        '-NoLogo', '-NoExit', '-Command', ($lines -join '; ')
+    )
+    Add-Content -Path $pidFile -Value $console.Id
+    return $console
+}
+
 Write-Host "Starting the server on $serverUrl" -ForegroundColor Cyan
-$serverEnv = @{
-    NET192168_PUBLIC_URL   = $serverUrl
-    NET192168_ADDR         = ":$Port"
-    NET192168_DATABASE_URL = Join-Path $devRoot 'server.db'
-}
-foreach ($pair in $serverEnv.GetEnumerator()) {
-    Set-Item -Path "env:$($pair.Key)" -Value $pair.Value
-}
-$server = Start-Process -FilePath (Join-Path $binDir '192168-server.exe') -PassThru `
-    -RedirectStandardOutput (Join-Path $logDir 'server.log') `
-    -RedirectStandardError (Join-Path $logDir 'server.err.log')
+Start-Console -Title '192168 SERVER' -Colour 'Green' `
+    -Exe (Join-Path $binDir '192168-server.exe') `
+    -LogFile (Join-Path $logDir 'server.log') `
+    -Notes @("coordination server  $serverUrl", 'introduces peers, carries no game traffic') `
+    -Environment @{
+        NET192168_PUBLIC_URL   = $serverUrl
+        NET192168_ADDR         = ":$Port"
+        NET192168_DATABASE_URL = Join-Path $devRoot 'server.db'
+    } | Out-Null
 
 # The daemon registers with the server on its first call, so the server has to
 # be answering before it is worth starting.
 $ready = $false
-foreach ($attempt in 1..25) {
+foreach ($attempt in 1..30) {
     Start-Sleep -Milliseconds 200
     try {
         Invoke-RestMethod "$serverUrl/api/health" -TimeoutSec 2 | Out-Null
         $ready = $true
         break
     }
-    catch {
-        if ($server.HasExited) {
-            Get-Content (Join-Path $logDir 'server.err.log') -ErrorAction SilentlyContinue
-            throw "The server exited with code $($server.ExitCode)."
-        }
-    }
+    catch { }
 }
-if (-not $ready) { throw 'The server never answered.' }
+if (-not $ready) { throw "The server never answered on $serverUrl. Its console will say why." }
 
 Write-Host 'Starting the daemon' -ForegroundColor Cyan
-$env:NET192168_SERVER_URL = $serverUrl
-$daemon = Start-Process -FilePath (Join-Path $binDir '192168-daemon.exe') -PassThru `
-    -RedirectStandardOutput (Join-Path $logDir 'daemon.log') `
-    -RedirectStandardError (Join-Path $logDir 'daemon.err.log')
-Start-Sleep -Milliseconds 800
-if ($daemon.HasExited) {
-    Get-Content (Join-Path $logDir 'daemon.err.log') -ErrorAction SilentlyContinue
-    throw "The daemon exited with code $($daemon.ExitCode)."
+Start-Console -Title '192168 DAEMON' -Colour 'Cyan' `
+    -Exe (Join-Path $binDir '192168-daemon.exe') `
+    -LogFile (Join-Path $logDir 'daemon.log') `
+    -Notes @('networking daemon    pipe \\.\pipe\192168', "talking to  $serverUrl") `
+    -Environment @{ NET192168_SERVER_URL = $serverUrl } | Out-Null
+
+Start-Sleep -Seconds 1
+if (-not (Get-Process -Name '192168-daemon' -ErrorAction SilentlyContinue)) {
+    throw 'The daemon exited. Its console will say why.'
 }
 
 if (-not $NoClient) {
@@ -142,8 +189,7 @@ if (-not $NoClient) {
 
 Write-Host ''
 Write-Host 'Running.' -ForegroundColor Green
-Write-Host "  server    $serverUrl (pid $($server.Id))"
-Write-Host "  daemon    pid $($daemon.Id)"
+Write-Host "  server    $serverUrl"
 Write-Host "  logs      $logDir"
 Write-Host "  crashes   $(Join-Path $identityDir 'client-crash.log')"
 Write-Host ''

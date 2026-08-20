@@ -34,6 +34,9 @@ const (
 	MethodGetServer   Method = "GetServer"
 	MethodSetServer   Method = "SetServer"
 	MethodTestServer  Method = "TestServer"
+	// MethodResetSettings puts local settings back to their defaults. The
+	// daemon owns those defaults, so the client asks rather than assuming.
+	MethodResetSettings Method = "ResetSettings"
 )
 
 // Request is one client call. ID correlates the response; it is opaque to the

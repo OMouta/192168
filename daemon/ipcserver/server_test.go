@@ -96,6 +96,11 @@ func (h *fakeHandler) TestServer(_ context.Context, url string) (ipc.TestServerR
 	return h.testRes, h.failWith
 }
 
+func (h *fakeHandler) ResetSettings(context.Context) (string, error) {
+	h.record("ResetSettings")
+	return h.server, h.failWith
+}
+
 // session is a client connected to a server over an in-memory pipe.
 type session struct {
 	t      *testing.T
@@ -255,6 +260,7 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 		{ipc.MethodGetServer, nil},
 		{ipc.MethodSetServer, ipc.ServerParams{URL: "https://lan.example.com"}},
 		{ipc.MethodTestServer, ipc.ServerParams{URL: "https://lan.example.com"}},
+		{ipc.MethodResetSettings, nil},
 	} {
 		if res := s.call(call.method, call.params); !res.OK {
 			t.Errorf("%s failed: %+v", call.method, res.Err)
@@ -273,6 +279,7 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 		"GetServer",
 		"SetServer:https://lan.example.com",
 		"TestServer:https://lan.example.com",
+		"ResetSettings",
 	}
 	got := h.recorded()
 	if len(got) != len(want) {

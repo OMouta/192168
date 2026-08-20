@@ -16,6 +16,25 @@
             <views:NotNullToBoolean x:Key="NotNullToBoolean" />
             <views:TextToVisibility x:Key="TextToVisibility" />
             <views:ConnectionBrush x:Key="ConnectionBrush" />
+            <views:NotBoolean x:Key="NotBoolean" />
+
+            <!--
+                A ContentDialog stretches its buttons and drops the corner
+                radius the rest of the app uses, which reads as two different
+                button shapes in one window. These put it back.
+            -->
+            <Style
+                x:Key="DialogButton"
+                BasedOn="{StaticResource DefaultButtonStyle}"
+                TargetType="Button">
+                <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+            </Style>
+            <Style
+                x:Key="DialogAccentButton"
+                BasedOn="{StaticResource AccentButtonStyle}"
+                TargetType="Button">
+                <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+            </Style>
 
             <!--
                 Dark always, rather than following the system. This sits open

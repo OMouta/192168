@@ -21,20 +21,22 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? ServerUrl { get; set; }
 
+    /// <summary>
+    /// One line under the field, reporting what happened. It is empty until
+    /// something does, and a test result is not worth a second dialog.
+    /// </summary>
     [ObservableProperty]
-    public partial string? Result { get; set; }
+    public partial string? Status { get; set; }
 
     [ObservableProperty]
     public partial bool IsBusy { get; set; }
-
-    [ObservableProperty]
-    public partial bool IsFailure { get; set; }
 
     [RelayCommand]
     public async Task LoadAsync()
     {
         if (!_daemon.IsAvailable)
         {
+            Status = "The background service is not running.";
             return;
         }
         try
@@ -44,7 +46,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
         catch (DaemonException e)
         {
-            Report(e.Message, failure: true);
+            Status = e.Message;
         }
     }
 
@@ -59,18 +61,13 @@ public sealed partial class SettingsViewModel : ObservableObject
         try
         {
             var result = await _daemon.TestServerAsync((ServerUrl ?? "").Trim());
-            if (result.Reachable)
-            {
-                Report("That server works.", failure: false);
-            }
-            else
-            {
-                Report(result.Message ?? "That server could not be reached.", failure: true);
-            }
+            Status = result.Reachable
+                ? "That server works."
+                : result.Message ?? "That server could not be reached.";
         }
         catch (DaemonException e)
         {
-            Report(e.Message, failure: true);
+            Status = e.Message;
         }
         finally
         {
@@ -82,18 +79,20 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// Saves the address. Switching servers disconnects and registers again,
     /// because a device credential is only good where it was issued.
     /// </summary>
+    /// <returns>Whether the dialog should close.</returns>
     [RelayCommand]
-    public async Task SaveAsync()
+    public async Task<bool> SaveAsync()
     {
         IsBusy = true;
         try
         {
             await _daemon.SetServerAsync((ServerUrl ?? "").Trim());
-            Report("Saved.", failure: false);
+            return true;
         }
         catch (DaemonException e)
         {
-            Report(e.Message, failure: true);
+            Status = e.Message;
+            return false;
         }
         finally
         {
@@ -101,9 +100,27 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    private void Report(string message, bool failure)
+    /// <summary>
+    /// Puts settings back to how the app shipped. The daemon owns the defaults,
+    /// so it decides what that means rather than the client guessing.
+    /// </summary>
+    [RelayCommand]
+    public async Task ResetAsync()
     {
-        Result = message;
-        IsFailure = failure;
+        IsBusy = true;
+        try
+        {
+            var server = await _daemon.ResetSettingsAsync();
+            ServerUrl = server.Url;
+            Status = "Settings are back to their defaults.";
+        }
+        catch (DaemonException e)
+        {
+            Status = e.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 }

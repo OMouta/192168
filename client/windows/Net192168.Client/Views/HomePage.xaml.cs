@@ -1,6 +1,8 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
+using Windows.System;
 using Net192168.Client.Ipc;
 using Net192168.Client.ViewModels;
 
@@ -21,6 +23,30 @@ public sealed partial class HomePage : Page
         base.OnNavigatedTo(e);
         await ViewModel.RefreshAsync();
     }
+
+    private void OnEditNickname(object sender, RoutedEventArgs e)
+    {
+        ViewModel.StartEditingNicknameCommand.Execute(null);
+        NicknameBox.Focus(FocusState.Programmatic);
+        NicknameBox.SelectAll();
+    }
+
+    private async void OnNicknameKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Enter)
+        {
+            e.Handled = true;
+            await ViewModel.CommitNicknameAsync();
+        }
+        else if (e.Key == VirtualKey.Escape)
+        {
+            e.Handled = true;
+            ViewModel.CancelEditingNicknameCommand.Execute(null);
+        }
+    }
+
+    private async void OnNicknameLostFocus(object sender, RoutedEventArgs e)
+        => await ViewModel.CommitNicknameAsync();
 
     private async void OnConnect(object sender, RoutedEventArgs e)
     {

@@ -178,6 +178,9 @@ public sealed class Daemon
     public Task<TestServerResult> TestServerAsync(string url)
         => _client.CallAsync<TestServerResult>("TestServer", new ServerParams(url), _lifetime.Token);
 
+    public Task<GetServerResult> ResetSettingsAsync()
+        => _client.CallAsync<GetServerResult>("ResetSettings", null, _lifetime.Token);
+
     public void Shutdown() => _lifetime.Cancel();
 
     private void SetAvailable(bool available) => Post(() =>

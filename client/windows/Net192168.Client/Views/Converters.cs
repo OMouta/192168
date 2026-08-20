@@ -63,3 +63,13 @@ public sealed class TextToVisibility : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, string language)
         => throw new NotSupportedException();
 }
+
+/// <summary>Inverts a flag, for enabling something while nothing is in flight.</summary>
+public sealed class NotBoolean : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+        => value is not true;
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+        => value is not true;
+}

@@ -32,6 +32,10 @@ type Core struct {
 	settings *settings
 	events   Events
 
+	// defaultServer is what the app shipped with, kept so settings can be put
+	// back to it.
+	defaultServer string
+
 	// ctx is the daemon's lifetime. Work started by a request outlives the
 	// request, so it hangs off this rather than off a caller's context.
 	ctx    context.Context
@@ -69,13 +73,14 @@ func New(ctx context.Context, id *identity.Identity, dataDir, defaultServer stri
 
 	ctx, cancel := context.WithCancel(ctx)
 	return &Core{
-		log:      log,
-		identity: id,
-		settings: set,
-		events:   nopEvents{},
-		ctx:      ctx,
-		cancel:   cancel,
-		peers:    map[string]*ipc.PeerView{},
+		log:           log,
+		identity:      id,
+		settings:      set,
+		events:        nopEvents{},
+		defaultServer: defaultServer,
+		ctx:           ctx,
+		cancel:        cancel,
+		peers:         map[string]*ipc.PeerView{},
 		state: ipc.State{
 			Connection: ipc.StateDisconnected,
 			ServerURL:  set.ServerURL,
@@ -322,3 +327,18 @@ func toGroup(m api.Membership, active bool) ipc.Group {
 // Core has to satisfy the IPC server's handler, and a missing method should
 // fail the build rather than at the first click.
 var _ ipcserver.Handler = (*Core)(nil)
+
+// ResetSettings puts the daemon back to how it shipped: the default server,
+// and no active connection. The device keeps its identity, since forgetting
+// that would drop every group this machine belongs to.
+func (c *Core) ResetSettings(ctx context.Context) (string, error) {
+	c.mu.Lock()
+	fallback := c.defaultServer
+	c.mu.Unlock()
+
+	if err := c.SetServer(ctx, fallback); err != nil {
+		return "", err
+	}
+	c.log.Info("settings reset", "serverUrl", fallback)
+	return fallback, nil
+}

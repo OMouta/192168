@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Net192168.Client.Ipc;
+using Windows.ApplicationModel.DataTransfer;
 
 namespace Net192168.Client.ViewModels;
 
@@ -83,6 +84,19 @@ public sealed partial class HomeViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsReady { get; set; }
 
+    /// <summary>
+    /// True while the nickname is being edited in place. A name is one word and
+    /// changing it is common, so it is not worth a dialog.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsEditingNickname { get; set; }
+
+    /// <summary>What is in the edit box, kept apart so cancelling is possible.</summary>
+    [ObservableProperty]
+    public partial string? NicknameDraft { get; set; }
+
+    private string _groupId = "";
+
     [RelayCommand]
     public async Task RefreshAsync()
     {
@@ -144,6 +158,50 @@ public sealed partial class HomeViewModel : ObservableObject
         await RefreshAsync();
     }
 
+    /// <summary>Puts the address on the clipboard, which is where it is going anyway.</summary>
+    [RelayCommand]
+    public void CopyAddress()
+    {
+        if (string.IsNullOrEmpty(VirtualIp))
+        {
+            return;
+        }
+
+        var package = new DataPackage();
+        package.SetText(VirtualIp);
+        Clipboard.SetContent(package);
+        Message = $"Copied {VirtualIp}";
+    }
+
+    [RelayCommand]
+    public void StartEditingNickname()
+    {
+        NicknameDraft = Nickname;
+        IsEditingNickname = true;
+    }
+
+    [RelayCommand]
+    public void CancelEditingNickname() => IsEditingNickname = false;
+
+    /// <summary>Saves the edited nickname, unless it did not change.</summary>
+    [RelayCommand]
+    public async Task CommitNicknameAsync()
+    {
+        if (!IsEditingNickname)
+        {
+            return;
+        }
+        IsEditingNickname = false;
+
+        var name = (NicknameDraft ?? "").Trim();
+        if (name.Length == 0 || name == Nickname || _groupId.Length == 0)
+        {
+            return;
+        }
+
+        await Run(() => _daemon.SetNicknameAsync(_groupId, name));
+    }
+
     public async Task CreateAsync(string name, string password, string nickname)
     {
         await _daemon.CreateGroupAsync(name, password, nickname);
@@ -184,11 +242,17 @@ public sealed partial class HomeViewModel : ObservableObject
         var justBecameReady = !IsReady && _daemon.IsAvailable;
         IsReady = _daemon.IsAvailable;
         IsConnected = state.Connection == ConnectionState.Connected;
+        _groupId = state.GroupId ?? "";
         Nickname = state.Nickname;
         VirtualIp = state.VirtualIp;
         GroupLabel = IsConnected ? state.GroupName : "No group connected";
         ListLabel = IsConnected ? "On this network" : "Your groups";
         Status = Describe(state);
+
+        if (!IsConnected)
+        {
+            IsEditingNickname = false;
+        }
 
         if (!string.IsNullOrEmpty(state.Message))
         {

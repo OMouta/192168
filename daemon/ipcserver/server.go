@@ -43,6 +43,7 @@ type Handler interface {
 	GetServer(ctx context.Context) (string, error)
 	SetServer(ctx context.Context, url string) error
 	TestServer(ctx context.Context, url string) (ipc.TestServerResult, error)
+	ResetSettings(ctx context.Context) (string, error)
 }
 
 // Failure is an error with a code and a message fit to show a user. Anything
@@ -310,6 +311,13 @@ func (s *Server) call(ctx context.Context, req ipc.Request) (any, error) {
 			return nil, badParams(err)
 		}
 		return s.handler.TestServer(ctx, params.URL)
+
+	case ipc.MethodResetSettings:
+		url, err := s.handler.ResetSettings(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return ipc.GetServerResult{URL: url}, nil
 
 	default:
 		// A newer client against an older daemon lands here, so it has to be a
