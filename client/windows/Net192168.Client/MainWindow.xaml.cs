@@ -121,9 +121,8 @@ public sealed partial class MainWindow : Window
         Activate();
     }
 
-    private void OnTrayOpen(object sender, RoutedEventArgs e) => ShowWindow();
-
-    private async void OnTrayDisconnect(object sender, RoutedEventArgs e)
+    [RelayCommand]
+    private async Task TrayDisconnectAsync()
     {
         try
         {
@@ -140,8 +139,14 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// Quits, and takes the background service with it. Leaving it up would
     /// leave an adapter and live tunnels with no icon left to stop them from.
+    ///
+    /// A command rather than a Click handler. The tray's flyout lives in its own
+    /// window, and a Click on an item in there never reached this code, so the
+    /// menu did nothing at all. The left-click binding always worked, which is
+    /// what says commands are the way across that boundary.
     /// </summary>
-    private async void OnTrayExit(object sender, RoutedEventArgs e)
+    [RelayCommand]
+    private async Task ExitAppAsync()
     {
         _exiting = true;
         App.Daemon.StateChanged -= UpdateTray;

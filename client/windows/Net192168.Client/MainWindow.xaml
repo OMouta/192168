@@ -106,14 +106,19 @@
             NoLeftClickDelay="True"
             ToolTipText="192168">
             <tb:TaskbarIcon.ContextFlyout>
+                <!--
+                    Commands, not Click. The flyout is shown from the tray's own
+                    window and a Click on an item here never reached the code
+                    behind, so the menu did nothing.
+                -->
                 <MenuFlyout>
-                    <MenuFlyoutItem Click="OnTrayOpen" Text="Open" />
+                    <MenuFlyoutItem Command="{x:Bind ShowWindowCommand}" Text="Open" />
                     <MenuFlyoutItem
                         x:Name="TrayDisconnect"
-                        Click="OnTrayDisconnect"
+                        Command="{x:Bind TrayDisconnectCommand}"
                         Text="Disconnect" />
                     <MenuFlyoutSeparator />
-                    <MenuFlyoutItem Click="OnTrayExit" Text="Exit" />
+                    <MenuFlyoutItem Command="{x:Bind ExitAppCommand}" Text="Exit" />
                 </MenuFlyout>
             </tb:TaskbarIcon.ContextFlyout>
         </tb:TaskbarIcon>
