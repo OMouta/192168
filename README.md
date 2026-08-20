@@ -1,6 +1,6 @@
 <p align="center">
   <img src="assets/github_banner.png" alt="192168.lol" width="400">
-  <h1 align="center">Fake LANs for real friends.</h1>
+  <h2 align="center">Fake LANs for real friends.</h2>
 </p>
 
 192168 is a Windows app that puts you and your friends on the same LAN from
