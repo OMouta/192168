@@ -87,9 +87,9 @@ func (p *Peer) Endpoint() netip.AddrPort {
 
 // setEndpoint points the link at a new address and starts over.
 //
-// A NAT mapping that changed means the old session's peer cannot answer at the
-// new address, so the handshake runs again rather than trying to reuse keys the
-// other side may have thrown away.
+// A NAT mapping that changed means the peer cannot answer at the old address,
+// so the handshake runs again rather than reusing keys the other side may have
+// thrown away.
 func (p *Peer) setEndpoint(endpoint netip.AddrPort) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -98,13 +98,28 @@ func (p *Peer) setEndpoint(endpoint netip.AddrPort) bool {
 		return false
 	}
 	p.endpoint = endpoint
+	p.resetLocked()
+	return true
+}
+
+// restart throws away a link and tries again at the same address, for when it
+// has gone quiet rather than moved.
+func (p *Peer) restart() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.resetLocked()
+}
+
+func (p *Peer) resetLocked() {
 	p.session = nil
 	p.handshake = nil
 	p.replay = session.ReplayWindow{}
 	p.counter = 0
 	p.state = ipc.PeerConnecting
 	p.lastProbe = time.Time{}
-	return true
+	p.lastHeard = time.Time{}
+	p.handshakes = 0
+	clear(p.pending)
 }
 
 // open records a finished handshake.

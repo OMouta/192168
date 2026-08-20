@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -68,6 +69,12 @@ func (r *recorder) waitFor(t *testing.T, name ipc.EventName) {
 
 // liveServer runs the real coordination server.
 func liveServer(t *testing.T) string {
+	return liveServerWithStun(t, "stun:stun.example.com:3478")
+}
+
+// liveServerWithStun runs the real coordination server, advertising whichever
+// STUN server the test wants daemons to use.
+func liveServerWithStun(t *testing.T, stunServer string) string {
 	t.Helper()
 
 	store, err := storage.Open(t.Context(), filepath.Join(t.TempDir(), "server.db"))
@@ -80,7 +87,7 @@ func liveServer(t *testing.T) string {
 	url := "http://" + srv.Listener.Addr().String()
 	srv.Config.Handler = serverapi.New(serverconfig.Config{
 		PublicURL: url,
-		STUN:      []string{"stun:stun.example.com:3478"},
+		STUN:      []string{stunServer},
 	}, store, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv.Start()
 	t.Cleanup(srv.Close)
@@ -99,7 +106,11 @@ func newCore(t *testing.T, serverURL string) (*Core, *recorder) {
 	}
 
 	events := &recorder{}
-	c, err := New(t.Context(), id, dir, serverURL, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if testing.Verbose() {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	}
+	c, err := New(t.Context(), id, dir, serverURL, logger)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

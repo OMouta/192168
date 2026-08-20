@@ -91,8 +91,9 @@ func (c *Core) runConnect(groupID string) {
 	c.state.VirtualIP = session.VirtualIP
 	c.state.Message = ""
 
-	// Peers arrive known but unreachable. Nothing has punched a NAT yet, so
-	// connecting is the honest state until a tunnel exists.
+	// Peers start as connecting and are in the state before it is announced, so
+	// the first thing the UI draws already has the rows. The mesh moves each one
+	// to direct or failed as its link resolves.
 	c.peers = map[string]*ipc.PeerView{}
 	for _, peer := range session.Peers {
 		c.peers[peer.DeviceID] = &ipc.PeerView{
@@ -102,6 +103,7 @@ func (c *Core) runConnect(groupID string) {
 			State:     ipc.PeerConnecting,
 		}
 	}
+	active := c.session
 	done := c.session.done
 	snapshot := c.snapshot()
 	c.mu.Unlock()
@@ -116,6 +118,10 @@ func (c *Core) runConnect(groupID string) {
 	c.emit(ipc.EventStateChanged, snapshot)
 
 	go c.keepAlive(ctx, session.SessionID, done)
+
+	// The socket, our public address, and a link attempt toward everyone who is
+	// already here. A group is joined whether or not any of that works.
+	c.startNetwork(ctx, active, session.Peers)
 }
 
 // failConnect reports a connect that did not happen and puts the state back.
@@ -225,6 +231,8 @@ func (c *Core) dropSession(reason string) {
 
 func (c *Core) finishDisconnect(session *activeSession, reason string) {
 	c.mu.Lock()
+	links := c.mesh
+	c.mesh = nil
 	c.state.Connection = ipc.StateDisconnected
 	c.state.GroupID = ""
 	c.state.GroupName = ""
@@ -233,6 +241,12 @@ func (c *Core) finishDisconnect(session *activeSession, reason string) {
 	c.peers = map[string]*ipc.PeerView{}
 	state := c.snapshot()
 	c.mu.Unlock()
+
+	// The socket goes with the session. Leaving it open would keep NAT
+	// mappings alive for a group this device has left.
+	if links != nil {
+		links.Close()
+	}
 
 	c.log.Info("disconnected", "groupId", session.groupID, "reason", reason)
 	c.emit(ipc.EventGroupDisconnected, ipc.GroupDisconnectedData{

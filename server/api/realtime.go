@@ -50,6 +50,12 @@ func (s *Server) handleRealtime(w http.ResponseWriter, r *http.Request, device s
 	sub := s.hub.Subscribe(session.GroupID, device.ID)
 	defer s.hub.Unsubscribe(sub)
 
+	// Anything that changed between the peer list this daemon was given at
+	// connect and this subscription would otherwise be lost, and a peer whose
+	// endpoint arrived in that gap is unreachable forever. Sending the current
+	// peers now closes it, and does the same for a reconnect.
+	s.sendCurrentPeers(r.Context(), session, device.ID)
+
 	s.log.Info("realtime connected", "deviceId", device.ID, "groupId", session.GroupID)
 
 	// The request context is done once the handler stops owning the connection,
@@ -136,5 +142,21 @@ func (s *Server) ExpireSessions(ctx context.Context, every, timeout time.Duratio
 				})
 			}
 		}
+	}
+}
+
+// sendCurrentPeers replays who is online to one subscriber.
+//
+// Peer online is idempotent on the daemon side, so a peer it already knows
+// about costs nothing and a peer it missed is picked up.
+func (s *Server) sendCurrentPeers(ctx context.Context, session storage.Session, deviceID string) {
+	peers, err := s.store.PeersInGroup(ctx, session.GroupID, deviceID)
+	if err != nil {
+		s.log.Error("cannot read peers for a new subscriber", "sessionId", session.ID, "error", err)
+		return
+	}
+
+	for _, peer := range toPeers(peers) {
+		s.hub.SendTo(session.GroupID, deviceID, api.EventPeerOnline, api.PeerOnlineData{Peer: peer})
 	}
 }

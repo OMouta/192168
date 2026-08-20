@@ -27,7 +27,7 @@ func liveServer(t *testing.T) (*httptest.Server, *Server) {
 
 // listen opens the realtime channel for a session and returns a function that
 // reads the next event, failing if none arrives in time.
-func listen(t *testing.T, srv *httptest.Server, token, sessionID string) func() papi.Event {
+func listen(t *testing.T, srv *httptest.Server, token, sessionID string) func(papi.EventType) papi.Event {
 	t.Helper()
 
 	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/realtime?session=" + sessionID
@@ -43,20 +43,26 @@ func listen(t *testing.T, srv *httptest.Server, token, sessionID string) func() 
 	}
 	t.Cleanup(func() { conn.CloseNow() })
 
-	return func() papi.Event {
+	// A subscriber is sent the peers already online before anything else, so a
+	// test reads until the event it is actually waiting for.
+	return func(want papi.EventType) papi.Event {
 		t.Helper()
-		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
-		_, payload, err := conn.Read(ctx)
-		if err != nil {
-			t.Fatalf("read event: %v", err)
+		for {
+			_, payload, err := conn.Read(ctx)
+			if err != nil {
+				t.Fatalf("waiting for %s: %v", want, err)
+			}
+			var event papi.Event
+			if err := json.Unmarshal(payload, &event); err != nil {
+				t.Fatalf("decode event %q: %v", payload, err)
+			}
+			if event.Type == want {
+				return event
+			}
 		}
-		var event papi.Event
-		if err := json.Unmarshal(payload, &event); err != nil {
-			t.Fatalf("decode event %q: %v", payload, err)
-		}
-		return event
 	}
 }
 
@@ -107,10 +113,7 @@ func TestAConnectedDeviceHearsAboutALaterArrival(t *testing.T) {
 
 	guestSession := connect(t, h, guest.token, group.GroupID)
 
-	event := next()
-	if event.Type != papi.EventPeerOnline {
-		t.Fatalf("type = %q, want %q", event.Type, papi.EventPeerOnline)
-	}
+	event := next(papi.EventPeerOnline)
 	var online papi.PeerOnlineData
 	if err := json.Unmarshal(event.Data, &online); err != nil {
 		t.Fatalf("decode: %v", err)
@@ -137,10 +140,7 @@ func TestEndpointChangesReachTheGroup(t *testing.T) {
 		t.Fatalf("publish endpoint: status %d", code)
 	}
 
-	event := next()
-	if event.Type != papi.EventPeerEndpointUpdated {
-		t.Fatalf("type = %q, want %q", event.Type, papi.EventPeerEndpointUpdated)
-	}
+	event := next(papi.EventPeerEndpointUpdated)
 	var updated papi.PeerEndpointUpdatedData
 	if err := json.Unmarshal(event.Data, &updated); err != nil {
 		t.Fatalf("decode: %v", err)
@@ -163,10 +163,7 @@ func TestDisconnectingAnnouncesItself(t *testing.T) {
 		t.Fatalf("disconnect: status %d", code)
 	}
 
-	event := next()
-	if event.Type != papi.EventPeerOffline {
-		t.Fatalf("type = %q, want %q", event.Type, papi.EventPeerOffline)
-	}
+	event := next(papi.EventPeerOffline)
 	var offline papi.PeerOfflineData
 	if err := json.Unmarshal(event.Data, &offline); err != nil {
 		t.Fatalf("decode: %v", err)
@@ -191,10 +188,9 @@ func TestExpiredSessionsAreAnnounced(t *testing.T) {
 	go h.ExpireSessions(ctx, 10*time.Millisecond, 0)
 	defer cancel()
 
-	event := next()
-	if event.Type != papi.EventPeerOffline {
-		t.Fatalf("type = %q, want %q", event.Type, papi.EventPeerOffline)
-	}
+	// Reaching this without a timeout is the assertion: an expired session is
+	// announced to the rest of the group.
+	next(papi.EventPeerOffline)
 }
 
 func TestRealtimeNeedsAValidSessionYouOwn(t *testing.T) {

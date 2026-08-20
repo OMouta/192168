@@ -250,18 +250,17 @@ func (m *Mesh) beginHandshake(peer *Peer) {
 	}
 
 	peer.mu.Lock()
-	if peer.session != nil || peer.handshake != nil || peer.handshakes >= maxHandshakes {
+	endpoint := peer.endpoint
+	sender := peer.sender
+	busy := peer.session != nil || peer.handshake != nil || peer.handshakes >= maxHandshakes
+	// A peer with no endpoint yet is waiting, not failing. Counting an attempt
+	// here would give up on somebody nobody has tried to reach.
+	if busy || !endpoint.IsValid() {
 		peer.mu.Unlock()
 		return
 	}
 	peer.handshakes++
-	endpoint := peer.endpoint
-	sender := peer.sender
 	peer.mu.Unlock()
-
-	if !endpoint.IsValid() {
-		return
-	}
 
 	initiator, err := session.NewInitiator(m.keys, peer.transportKey)
 	if err != nil {
@@ -358,7 +357,7 @@ func (m *Mesh) maintain(ctx context.Context) {
 					// Nothing authentic for long enough that the path is gone.
 					// Starting over is cheaper than guessing why.
 					m.log.Info("link went quiet, starting over", "deviceId", peer.DeviceID)
-					peer.setEndpoint(peer.Endpoint())
+					peer.restart()
 					m.report(peer)
 					m.punch(peer)
 

@@ -15,6 +15,7 @@ import (
 	"github.com/OMouta/192168/daemon/control"
 	"github.com/OMouta/192168/daemon/identity"
 	"github.com/OMouta/192168/daemon/ipcserver"
+	"github.com/OMouta/192168/daemon/mesh"
 	"github.com/OMouta/192168/protocol/api"
 	"github.com/OMouta/192168/protocol/ipc"
 )
@@ -46,6 +47,9 @@ type Core struct {
 	state   ipc.State
 	peers   map[string]*ipc.PeerView
 	session *activeSession
+
+	// mesh is the peer-to-peer socket, alive only while a group is connected.
+	mesh *mesh.Mesh
 }
 
 // activeSession is the group connection. There is at most one, because two
