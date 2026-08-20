@@ -11,6 +11,7 @@ import (
 	"github.com/OMouta/192168/protocol"
 	"github.com/OMouta/192168/protocol/api"
 	"github.com/OMouta/192168/server/config"
+	"github.com/OMouta/192168/server/realtime"
 	"github.com/OMouta/192168/server/storage"
 )
 
@@ -19,21 +20,34 @@ import (
 // everywhere means an address someone reads out loud is unambiguous.
 const DefaultSubnet = "10.69.0.0/24"
 
+// Default session timing. A daemon heartbeats well inside the timeout, so a
+// session only expires when the machine behind it has actually gone.
+const (
+	SessionTimeout  = 90 * time.Second
+	ExpiryFrequency = 30 * time.Second
+)
+
 // Server holds the dependencies shared by every handler.
 type Server struct {
 	cfg     config.Config
 	store   *storage.Store
 	log     *slog.Logger
+	hub     *realtime.Hub
+	mux     *http.ServeMux
 	joins   *rateLimiter
 	devices *rateLimiter
 }
 
-// New builds the HTTP handler for the coordination server.
-func New(cfg config.Config, store *storage.Store, log *slog.Logger) http.Handler {
+// ServeHTTP routes a request.
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
+
+// New builds the coordination server.
+func New(cfg config.Config, store *storage.Store, log *slog.Logger) *Server {
 	s := &Server{
 		cfg:   cfg,
 		store: store,
 		log:   log,
+		hub:   realtime.NewHub(log),
 		// Group passwords are the weakest secret in the system, so guessing at
 		// them has to be slow. Registration is limited too, since it is the one
 		// unauthenticated write.
@@ -58,7 +72,10 @@ func New(cfg config.Config, store *storage.Store, log *slog.Logger) http.Handler
 	mux.Handle("POST /api/sessions/{sessionId}/heartbeat", s.authenticated(s.handleHeartbeat))
 	mux.Handle("DELETE /api/sessions/{sessionId}", s.authenticated(s.handleDeleteSession))
 
-	return mux
+	mux.Handle("GET /realtime", s.authenticated(s.handleRealtime))
+
+	s.mux = mux
+	return s
 }
 
 // handleDiscovery tells a client where the API, realtime channel, and STUN

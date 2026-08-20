@@ -134,6 +134,12 @@ func (s *Server) handleLeaveGroup(w http.ResponseWriter, r *http.Request, device
 		return
 	}
 	s.log.Info("group left", "groupId", groupID, "deviceId", device.ID)
+
+	// Leaving ends the session too, so the group hears the same thing it would
+	// hear from a disconnect.
+	s.hub.Broadcast(groupID, device.ID, api.EventPeerOffline, api.PeerOfflineData{DeviceID: device.ID})
+	s.hub.SendTo(groupID, device.ID, api.EventMembershipRevoked, api.PeerOfflineData{DeviceID: device.ID})
+
 	w.WriteHeader(http.StatusNoContent)
 }
 

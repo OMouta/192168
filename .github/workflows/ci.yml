@@ -26,7 +26,14 @@ jobs:
             echo "gofmt needed on:"; echo "$unformatted"; exit 1
           fi
       - run: go vet ./...
-      - run: go test ./...
+      # The realtime hub is concurrent, so the race detector earns its keep. It
+      # needs cgo, which the Linux runner has and the Windows one does not.
+      - name: Test
+        run: go test ./...
+        if: matrix.os == 'windows-latest'
+      - name: Test with the race detector
+        run: go test -race ./...
+        if: matrix.os == 'ubuntu-latest'
 
   client:
     name: Windows client

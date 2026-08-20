@@ -20,7 +20,7 @@ import (
 	"github.com/OMouta/192168/server/storage"
 )
 
-func newTestServer(t *testing.T) http.Handler {
+func newTestServer(t *testing.T) *Server {
 	t.Helper()
 	store, err := storage.Open(t.Context(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {

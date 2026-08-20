@@ -35,6 +35,17 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request, dev
 	s.log.Info("session opened",
 		"sessionId", session.ID, "groupId", groupID, "deviceId", device.ID, "virtualIp", session.VirtualIP)
 
+	// The peers already online learn about this one. Their own list came from
+	// their connect call, which happened before this device existed to them.
+	s.hub.Broadcast(groupID, device.ID, api.EventPeerOnline, api.PeerOnlineData{
+		Peer: api.Peer{
+			DeviceID:     device.ID,
+			Nickname:     membership.Nickname,
+			VirtualIP:    session.VirtualIP,
+			TransportKey: device.TransportKey,
+		},
+	})
+
 	writeJSON(w, http.StatusCreated, api.CreateSessionResponse{
 		SessionID: session.ID,
 		VirtualIP: session.VirtualIP,
@@ -67,6 +78,14 @@ func (s *Server) handleSetEndpoint(w http.ResponseWriter, r *http.Request, devic
 		s.fail(w, r, err, api.ErrSessionInvalid, "That session is no longer active.")
 		return
 	}
+
+	// A changed mapping is why a peer stops being reachable, so this has to get
+	// to the group promptly or everyone keeps punching at a dead address.
+	s.hub.Broadcast(session.GroupID, device.ID, api.EventPeerEndpointUpdated, api.PeerEndpointUpdatedData{
+		DeviceID: device.ID,
+		Endpoint: api.Endpoint{Protocol: "udp", Address: req.Address, Port: req.Port},
+	})
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -95,6 +114,7 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request, dev
 		return
 	}
 	s.log.Info("session closed", "sessionId", session.ID, "deviceId", device.ID)
+	s.hub.Broadcast(session.GroupID, device.ID, api.EventPeerOffline, api.PeerOfflineData{DeviceID: device.ID})
 	w.WriteHeader(http.StatusNoContent)
 }
 

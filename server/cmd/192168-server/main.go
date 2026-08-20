@@ -36,10 +36,15 @@ func main() {
 	}
 	defer store.Close()
 
+	handler := api.New(cfg, store, log)
+	go handler.ExpireSessions(ctx, api.ExpiryFrequency, api.SessionTimeout)
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           api.New(cfg, store, log),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
+		// A realtime connection is held open for the life of a group session,
+		// so there is no write deadline to set here.
 	}
 
 	go func() {
