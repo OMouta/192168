@@ -103,6 +103,13 @@ type Peer struct {
 	Endpoint     *Endpoint `json:"endpoint,omitempty"`
 }
 
+// Roles a member can have in a group. Only the owner may change the group
+// itself, and the server is what enforces it.
+const (
+	RoleMember = "member"
+	RoleOwner  = "owner"
+)
+
 // Member is one person in a group, whether or not they are connected. A peer is
 // someone there is a link to; a member is someone who belongs.
 type Member struct {
