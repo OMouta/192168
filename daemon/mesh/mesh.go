@@ -250,6 +250,13 @@ func (m *Mesh) AddPeer(deviceID, nickname string, virtualIP netip.Addr, transpor
 	m.mu.Lock()
 	if existing, ok := m.peers[deviceID]; ok {
 		m.mu.Unlock()
+		// An open link knows the address it is actually talking to, because the
+		// handshake came from there. The address here is what the server was
+		// told, which can be older and moving to it throws away a session that
+		// works. A link that has genuinely moved arrives as an endpoint change.
+		if existing.State() == ipc.PeerDirect {
+			return nil
+		}
 		if endpoint.IsValid() && existing.setEndpoint(endpoint) {
 			m.reindex()
 			m.report(existing)

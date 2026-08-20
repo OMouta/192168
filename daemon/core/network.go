@@ -205,22 +205,35 @@ func (c *Core) watchGroup(ctx context.Context, session *activeSession) {
 	})
 }
 
-// addPeer puts someone who arrived after this device on screen, then starts
-// trying to reach them.
+// addPeer puts someone on screen, then starts trying to reach them.
+//
+// The same peer arrives twice: once in the snapshot handed to a new subscriber,
+// and again as an event when their session begins. Which order those land in is
+// a race, and the second one used to replace the row.
+//
+// That is how a link that was already open ended up reading Connecting and
+// staying there: the link had nothing further to report, so nothing ever put
+// the row right again. Whoever lost the race saw it, which is why swapping who
+// joined first swapped who saw it.
 func (c *Core) addPeer(peer api.Peer) {
-	view := ipc.PeerView{
-		DeviceID:  peer.DeviceID,
-		Nickname:  peer.Nickname,
-		VirtualIP: peer.VirtualIP,
-		State:     ipc.PeerConnecting,
-	}
-
 	c.mu.Lock()
-	c.peers[peer.DeviceID] = &view
+	view, known := c.peers[peer.DeviceID]
+	if !known {
+		view = &ipc.PeerView{DeviceID: peer.DeviceID, State: ipc.PeerConnecting}
+		c.peers[peer.DeviceID] = view
+	}
+	// What the server knows: a name and an address. The state and the latency
+	// belong to the link and are left alone.
+	view.Nickname = peer.Nickname
+	view.VirtualIP = peer.VirtualIP
+
+	added := *view
 	state := c.snapshot()
 	c.mu.Unlock()
 
-	c.emit(ipc.EventPeerAdded, ipc.PeerAddedData{Peer: view})
+	if !known {
+		c.emit(ipc.EventPeerAdded, ipc.PeerAddedData{Peer: added})
+	}
 	c.emit(ipc.EventStateChanged, state)
 
 	c.linkPeer(peer)
