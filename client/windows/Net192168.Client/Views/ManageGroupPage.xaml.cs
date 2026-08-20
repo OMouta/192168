@@ -17,6 +17,10 @@ public sealed partial class ManageGroupPage : Page
 
     public ManageGroupViewModel ViewModel { get; private set; } = null!;
 
+    /// <summary>What the window header says. The name rather than "Group": there
+    /// can be several, and this screen changes exactly one of them.</summary>
+    public string Title { get; private set; } = "Group";
+
     /// <summary>
     /// The group is passed in rather than read back, because this screen is
     /// reached from one that already knows which group is connected.
@@ -29,7 +33,20 @@ public sealed partial class ManageGroupPage : Page
 
         var target = e.Parameter as Target ?? new Target("", "");
         ViewModel = new ManageGroupViewModel(App.Daemon, target.GroupId, target.Name);
+        Title = target.Name == "" ? "Group" : target.Name + " settings";
         Bindings.Update();
+    }
+
+    /// <summary>
+    /// Deleting leaves nothing to come back to, so the screen goes with it. Home
+    /// is where the groups list is, and this group is no longer on it.
+    /// </summary>
+    private async void OnDelete(object sender, RoutedEventArgs e)
+    {
+        if (await ViewModel.DeleteAsync() && Frame.CanGoBack)
+        {
+            Frame.GoBack();
+        }
     }
 
     /// <summary>
