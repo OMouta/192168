@@ -82,7 +82,7 @@ $clientExe = Join-Path $repo 'client\windows\Net192168.Client\bin\Debug\net10.0-
 $shell = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' }
 
 function Stop-Stack {
-    foreach ($name in '192168-server', '192168-daemon', 'Net192168.Client') {
+    foreach ($name in '192168-server', '192168-service', 'Net192168.Client') {
         Get-Process -Name $name -ErrorAction SilentlyContinue | Stop-Process -Force
     }
     # The consoles outlive the process they were hosting, so they are tracked
@@ -131,10 +131,15 @@ if (-not (Test-Path (Join-Path $binDir 'wintun.dll'))) {
 }
 
 Write-Host 'Building Go...' -ForegroundColor Cyan
-$goTargets = @('./daemon/cmd/192168-daemon')
+$goTargets = @('./daemon/cmd/192168-service')
 if (-not $Hosted) { $goTargets += './server/cmd/192168-server' }
 Push-Location $repo
 try {
+    # The version resource is what a UAC prompt reads its name from, so -Elevated
+    # shows the app rather than a filename. Generated, not committed.
+    & go generate ./daemon/cmd/192168-service
+    if ($LASTEXITCODE -ne 0) { throw 'go generate failed' }
+
     & go build -o "$binDir\" @goTargets
     if ($LASTEXITCODE -ne 0) { throw 'go build failed' }
 }
@@ -254,7 +259,7 @@ $daemonEnvironment = @{ NET192168_LOG_LEVEL = $LogLevel }
 if (-not $Hosted) { $daemonEnvironment['NET192168_SERVER_URL'] = $serverUrl }
 
 Start-Console -Title '192168 DAEMON' -Colour 'Cyan' -AsAdmin:$Elevated `
-    -Exe (Join-Path $binDir '192168-daemon.exe') `
+    -Exe (Join-Path $binDir '192168-service.exe') `
     -LogFile (Join-Path $logDir 'daemon.log') `
     -Notes @('networking daemon    pipe \\.\pipe\192168', "talking to  $serverUrl", $adapterNote) `
     -Environment $daemonEnvironment | Out-Null
@@ -266,7 +271,7 @@ Start-Console -Title '192168 DAEMON' -Colour 'Cyan' -AsAdmin:$Elevated `
 $daemonUp = $false
 foreach ($attempt in 1..40) {
     Start-Sleep -Milliseconds 250
-    if (Get-Process -Name '192168-daemon' -ErrorAction SilentlyContinue) {
+    if (Get-Process -Name '192168-service' -ErrorAction SilentlyContinue) {
         $daemonUp = $true
         break
     }
@@ -276,7 +281,7 @@ if (-not $daemonUp) { throw 'The daemon never started. Its console will say why.
 # It can also come up and then fail on its first call to the server, which the
 # check above is too early to see.
 Start-Sleep -Milliseconds 750
-if (-not (Get-Process -Name '192168-daemon' -ErrorAction SilentlyContinue)) {
+if (-not (Get-Process -Name '192168-service' -ErrorAction SilentlyContinue)) {
     throw 'The daemon exited. Its console will say why.'
 }
 

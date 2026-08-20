@@ -24,7 +24,7 @@ evidence.
 
 ```sh
 go test ./...
-go build ./daemon/cmd/192168-daemon
+go build ./daemon/cmd/192168-service
 go build ./server/cmd/192168-server
 
 dotnet build client/windows/192168.slnx -p:Platform=x64

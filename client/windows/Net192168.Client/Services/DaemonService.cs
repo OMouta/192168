@@ -50,7 +50,7 @@ public static class DaemonService
             }
 
             var here = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
-            return Path.Combine(here, "192168-daemon.exe");
+            return Path.Combine(here, "192168-service.exe");
         }
     }
 

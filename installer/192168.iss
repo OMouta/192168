@@ -11,7 +11,7 @@
 #define AppPublisher "Tiago Mouta"
 #define AppUrl "https://192168.lol"
 #define ClientExe "Net192168.Client.exe"
-#define DaemonExe "192168-daemon.exe"
+#define ServiceExe "192168-service.exe"
 
 ; Passed in by package.ps1 so the version lives in one place.
 #ifndef AppVersion
@@ -61,7 +61,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 ; The client is published self-contained, so the whole directory goes.
 Source: "{#StageDir}\client\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#StageDir}\{#DaemonExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#StageDir}\{#ServiceExe}"; DestDir: "{app}"; Flags: ignoreversion
 ; Wintun, with the licence it ships under.
 Source: "{#StageDir}\wintun.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#StageDir}\wintun-LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
@@ -74,7 +74,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#ClientExe}"; Tasks: desktop
 
 [Run]
 ; The daemon registers itself, so there is one implementation of it.
-Filename: "{app}\{#DaemonExe}"; Parameters: "service install"; \
+Filename: "{app}\{#ServiceExe}"; Parameters: "service install"; \
   StatusMsg: "Registering the background service..."; Flags: runhidden waituntilterminated
 Filename: "{app}\{#ClientExe}"; Description: "Open {#AppName}"; \
   Flags: nowait postinstall skipifsilent
@@ -82,7 +82,7 @@ Filename: "{app}\{#ClientExe}"; Description: "Open {#AppName}"; \
 [UninstallRun]
 ; Stops the service, removes the adapter, deregisters it. Runs before the files
 ; go, since it is one of them.
-Filename: "{app}\{#DaemonExe}"; Parameters: "service uninstall"; \
+Filename: "{app}\{#ServiceExe}"; Parameters: "service uninstall"; \
   RunOnceId: "RemoveService"; Flags: runhidden waituntilterminated
 
 [UninstallDelete]
@@ -99,8 +99,8 @@ begin
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM {#ClientExe} /F', '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
   // Only meaningful on an upgrade, where a previous version is installed.
-  if FileExists(ExpandConstant('{app}\{#DaemonExe}')) then
-    Exec(ExpandConstant('{app}\{#DaemonExe}'), 'service stop', '',
+  if FileExists(ExpandConstant('{app}\{#ServiceExe}')) then
+    Exec(ExpandConstant('{app}\{#ServiceExe}'), 'service stop', '',
       SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
@@ -117,8 +117,8 @@ var
   ResultCode: Integer;
 begin
   if CurStep = ssInstall then
-    if FileExists(ExpandConstant('{app}\{#DaemonExe}')) then
-      Exec(ExpandConstant('{app}\{#DaemonExe}'), 'service uninstall', '',
+    if FileExists(ExpandConstant('{app}\{#ServiceExe}')) then
+      Exec(ExpandConstant('{app}\{#ServiceExe}'), 'service uninstall', '',
         SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 

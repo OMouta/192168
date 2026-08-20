@@ -69,9 +69,15 @@ if (-not $SkipBuild) {
     Write-Host 'Building the daemon...' -ForegroundColor Cyan
     Push-Location $repo
     try {
+        # Go emits no version resource, so without this the UAC prompt names the
+        # file instead of the app. It is generated rather than committed, so it
+        # has to happen before every build that ships.
+        & go generate ./daemon/cmd/192168-service
+        if ($LASTEXITCODE -ne 0) { throw 'go generate failed, so the binary would have no version resource' }
+
         $env:GOOS = 'windows'
         $env:GOARCH = 'amd64'
-        & go build -trimpath -ldflags '-s -w' -o (Join-Path $stage '192168-daemon.exe') ./daemon/cmd/192168-daemon
+        & go build -trimpath -ldflags '-s -w' -o (Join-Path $stage '192168-service.exe') ./daemon/cmd/192168-service
         if ($LASTEXITCODE -ne 0) { throw 'go build failed' }
     }
     finally {
@@ -90,7 +96,7 @@ else {
     Write-Host 'Skipping the build, staging what is already there.' -ForegroundColor Yellow
     Copy-Item (Join-Path $repo 'client\windows\Net192168.Client\bin\Release\net10.0-windows10.0.26100.0\win-x64\publish\*') `
         (Join-Path $stage 'client') -Recurse -Force -ErrorAction SilentlyContinue
-    Copy-Item (Join-Path $env:LOCALAPPDATA '192168-dev\bin\192168-daemon.exe') $stage -Force
+    Copy-Item (Join-Path $env:LOCALAPPDATA '192168-dev\bin\192168-service.exe') $stage -Force
 }
 
 # Wintun, signature-checked by the fetch script.
@@ -100,7 +106,7 @@ Write-Host 'Fetching Wintun...' -ForegroundColor Cyan
 Copy-Item (Join-Path $repo 'THIRD-PARTY-NOTICES.md') $stage -Force
 Copy-Item (Join-Path $repo 'LICENSE') (Join-Path $stage 'LICENSE.txt') -Force
 
-foreach ($required in @('192168-daemon.exe', 'wintun.dll', 'wintun-LICENSE.txt', 'LICENSE.txt')) {
+foreach ($required in @('192168-service.exe', 'wintun.dll', 'wintun-LICENSE.txt', 'LICENSE.txt')) {
     if (-not (Test-Path (Join-Path $stage $required))) { throw "Missing from the stage directory: $required" }
 }
 if (-not (Test-Path (Join-Path $stage 'client\Net192168.Client.exe'))) {

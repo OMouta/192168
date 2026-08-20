@@ -1,4 +1,4 @@
-// Command 192168-daemon is the networking daemon.
+// Command 192168-service is the networking daemon.
 //
 // It owns everything below the UI: device identity, the coordination server
 // connection, the virtual adapter, NAT traversal, and the encrypted peer
@@ -12,13 +12,15 @@
 //
 // Usage:
 //
-//	192168-daemon                    run in the foreground
-//	192168-daemon service install    register the service (needs admin)
-//	192168-daemon service uninstall  stop it, remove the adapter, deregister
-//	192168-daemon service start      start it
-//	192168-daemon service stop       stop it
-//	192168-daemon service status     print absent, stopped, running, or pending
+//	192168-service                    run in the foreground
+//	192168-service service install    register the service (needs admin)
+//	192168-service service uninstall  stop it, remove the adapter, deregister
+//	192168-service service start      start it
+//	192168-service service stop       stop it
+//	192168-service service status     print absent, stopped, running, or pending
 package main
+
+//go:generate go tool goversioninfo -o resource.syso
 
 import (
 	"context"
@@ -122,7 +124,7 @@ func run(ctx context.Context, asService bool, log *slog.Logger) error {
 // serviceCommand handles the service subcommands and returns the exit code.
 func serviceCommand(args []string) int {
 	if args[0] != "service" || len(args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: 192168-daemon service install|uninstall|start|stop|status")
+		fmt.Fprintln(os.Stderr, "usage: 192168-service service install|uninstall|start|stop|status")
 		return 2
 	}
 
@@ -154,7 +156,7 @@ func serviceCommand(args []string) int {
 			fmt.Println(state)
 		}
 	default:
-		fmt.Fprintln(os.Stderr, "usage: 192168-daemon service install|uninstall|start|stop|status")
+		fmt.Fprintln(os.Stderr, "usage: 192168-service service install|uninstall|start|stop|status")
 		return 2
 	}
 

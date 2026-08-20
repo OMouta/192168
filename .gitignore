@@ -43,3 +43,6 @@ desktop.ini
 
 # Installer output
 /build/
+
+# Generated Windows version resource for the service binary
+daemon/cmd/192168-service/resource.syso
