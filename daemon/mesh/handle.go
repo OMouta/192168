@@ -142,6 +142,7 @@ func (m *Mesh) handleHandshakeInit(payload []byte, from netip.AddrPort) {
 		peer.setEndpoint(from)
 		m.reindex()
 	}
+	m.forgetStranger(from)
 
 	body, err := transport.HandshakeResponse{KeyExchange: reply}.Encode(nil)
 	if err != nil {
@@ -194,6 +195,7 @@ func (m *Mesh) handleKeepalive(payload []byte, from netip.AddrPort) {
 	}
 	peer := m.peerAt(from)
 	if peer == nil {
+		m.noteStranger(from)
 		return
 	}
 
@@ -212,6 +214,7 @@ func (m *Mesh) handleKeepalive(payload []byte, from netip.AddrPort) {
 func (m *Mesh) handleData(packet, ciphertext []byte, counter uint64, from netip.AddrPort) {
 	peer := m.peerAt(from)
 	if peer == nil {
+		m.noteStranger(from)
 		return
 	}
 

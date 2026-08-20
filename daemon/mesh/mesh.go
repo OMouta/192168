@@ -68,6 +68,18 @@ type Mesh struct {
 	byIP  map[netip.Addr]*Peer     // by virtual ip, for outgoing packets
 	byUDP map[netip.AddrPort]*Peer // by source address, for incoming packets
 
+	// strangers are addresses packets arrived from that no peer is indexed
+	// under. Each is logged once.
+	//
+	// Incoming packets are matched by source address, so a NAT that moves a
+	// peer's mapping turns every packet from them into a stranger and the link
+	// dies of silence with nothing said. Logging the address the first time it
+	// appears says it. Logging every packet would not: this is the path game
+	// traffic takes, so it would be thousands a second, and the log would roll
+	// over and take the history worth reading with it.
+	strangerMu sync.Mutex
+	strangers  map[netip.AddrPort]struct{}
+
 	// stunWaiters routes replies back to whoever asked, since they arrive on
 	// the same socket as everything else.
 	stunMu      sync.Mutex
@@ -94,6 +106,7 @@ func New(deviceID string, keys session.Keypair, events Events, log *slog.Logger)
 		peers:       map[string]*Peer{},
 		byIP:        map[netip.Addr]*Peer{},
 		byUDP:       map[netip.AddrPort]*Peer{},
+		strangers:   map[netip.AddrPort]struct{}{},
 		stunWaiters: map[stun.TransactionID]chan netip.AddrPort{},
 		inbound:     make(chan []byte, 256),
 	}, nil
@@ -106,6 +119,32 @@ func (m *Mesh) LocalPort() int {
 
 // Inbound carries decrypted IP packets, ready to write to the adapter.
 func (m *Mesh) Inbound() <-chan []byte { return m.inbound }
+
+// noteStranger logs an address no peer is indexed under, the first time it is
+// seen. Bounded, so a machine being sprayed with rubbish cannot grow this or
+// fill the log with it.
+func (m *Mesh) noteStranger(from netip.AddrPort) {
+	const remember = 32
+
+	m.strangerMu.Lock()
+	_, seen := m.strangers[from]
+	if !seen && len(m.strangers) < remember {
+		m.strangers[from] = struct{}{}
+	}
+	m.strangerMu.Unlock()
+
+	if !seen {
+		m.log.Info("packet from an address no peer is at", "from", from.String())
+	}
+}
+
+// forgetStranger drops an address once a peer is known to be there, so a NAT
+// that moves again is reported again.
+func (m *Mesh) forgetStranger(from netip.AddrPort) {
+	m.strangerMu.Lock()
+	delete(m.strangers, from)
+	m.strangerMu.Unlock()
+}
 
 // Close drops the socket and every link on it.
 func (m *Mesh) Close() error { return m.conn.Close() }
