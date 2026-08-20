@@ -34,6 +34,9 @@ func Open(name string, address netip.Prefix, mtu int, log *slog.Logger) (*Device
 	return nil, ErrUnsupported
 }
 
+// Remove has nothing to remove, so it succeeds.
+func Remove(name string, log *slog.Logger) error { return nil }
+
 func (d *Device) Read(ctx context.Context) ([]byte, error) { return nil, ErrUnsupported }
 
 func (d *Device) Write(packet []byte) error { return ErrUnsupported }

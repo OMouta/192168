@@ -37,6 +37,23 @@ var ErrMissingDriver = errors.New("tun: wintun.dll is missing")
 // ErrClosed means the adapter is going away, or already has.
 var ErrClosed = errors.New("tun: adapter closed")
 
+// Remove deletes the adapter if there is one.
+//
+// Uninstalling has to take the adapter with it, and a daemon that was killed
+// rather than stopped leaves one behind.
+func Remove(name string, log *slog.Logger) error {
+	adapter, err := wintun.OpenAdapter(name)
+	if err != nil {
+		// Nothing to remove.
+		return nil
+	}
+	if err := adapter.Close(); err != nil {
+		return fmt.Errorf("tun: remove adapter %q: %w", name, err)
+	}
+	log.Info("adapter removed", "name", name)
+	return nil
+}
+
 // Device is an open adapter.
 type Device struct {
 	log     *slog.Logger
