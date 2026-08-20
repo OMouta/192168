@@ -83,14 +83,26 @@ public sealed partial class PeerItem(string deviceId, HomeViewModel owner) : Obs
     /// dimmed and has no address to copy, because they have not been given one.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowManageSeparator))]
     public partial bool IsHere { get; set; } = true;
 
     /// <summary>Whether this row may be removed or promoted, which only the
     /// group's owner may do, and never to themselves.</summary>
     public bool CanManage => Home.IsOwner;
 
+    /// <summary>
+    /// Whether the menu needs a line across it: only when there is something on
+    /// both sides of it. Somebody who is away has no address to copy, which
+    /// leaves the managing items alone at the top with a rule above them.
+    /// </summary>
+    public bool ShowManageSeparator => IsHere && CanManage;
+
     /// <summary>Called when the group changes hands, so the menu is redrawn.</summary>
-    public void OwnerChanged() => OnPropertyChanged(nameof(CanManage));
+    public void OwnerChanged()
+    {
+        OnPropertyChanged(nameof(CanManage));
+        OnPropertyChanged(nameof(ShowManageSeparator));
+    }
 
     /// <summary>Takes this person out of the group. The owner's alone.</summary>
     [RelayCommand]

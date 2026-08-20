@@ -297,7 +297,7 @@
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
 
-                                        <MenuFlyoutSeparator Visibility="{x:Bind CanManage, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                                        <MenuFlyoutSeparator Visibility="{x:Bind ShowManageSeparator, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
 
                                         <MenuFlyoutItem
                                             Command="{x:Bind MakeOwnerCommand}"
