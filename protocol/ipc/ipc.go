@@ -11,6 +11,14 @@ import "encoding/json"
 // PipeName is the named pipe the daemon listens on.
 const PipeName = `\\.\pipe\192168`
 
+// Messages are newline-delimited JSON, and responses and events share the one
+// stream. They do not take turns: an event can arrive between a request and its
+// response, so a client that reads the next line and calls it the answer will
+// get an event instead.
+//
+// Tell them apart by field. A response has "id", an event has "event". Match
+// responses to requests by that id rather than by arrival order.
+
 // Method is a client -> daemon request.
 type Method string
 

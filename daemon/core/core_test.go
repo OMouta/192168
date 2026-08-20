@@ -1,0 +1,440 @@
+package core
+
+import (
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"net/http/httptest"
+	"path/filepath"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/OMouta/192168/daemon/identity"
+	"github.com/OMouta/192168/daemon/ipcserver"
+	"github.com/OMouta/192168/protocol/api"
+	"github.com/OMouta/192168/protocol/ipc"
+	serverapi "github.com/OMouta/192168/server/api"
+	serverconfig "github.com/OMouta/192168/server/config"
+	"github.com/OMouta/192168/server/storage"
+)
+
+// recorder collects the events a core emits, so a test can wait for the one it
+// expects instead of sleeping.
+type recorder struct {
+	mu     sync.Mutex
+	events []ipc.Event
+	waits  []chan struct{}
+}
+
+func (r *recorder) Broadcast(name ipc.EventName, data any) {
+	r.mu.Lock()
+	r.events = append(r.events, ipc.Event{Event: name})
+	_ = data
+	waits := r.waits
+	r.waits = nil
+	r.mu.Unlock()
+
+	for _, ch := range waits {
+		close(ch)
+	}
+}
+
+// waitFor blocks until an event of this name has been seen.
+func (r *recorder) waitFor(t *testing.T, name ipc.EventName) {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+
+	for {
+		r.mu.Lock()
+		for _, e := range r.events {
+			if e.Event == name {
+				r.mu.Unlock()
+				return
+			}
+		}
+		ch := make(chan struct{})
+		r.waits = append(r.waits, ch)
+		r.mu.Unlock()
+
+		select {
+		case <-ch:
+		case <-deadline:
+			t.Fatalf("no %s event arrived", name)
+		}
+	}
+}
+
+// liveServer runs the real coordination server.
+func liveServer(t *testing.T) string {
+	t.Helper()
+
+	store, err := storage.Open(t.Context(), filepath.Join(t.TempDir(), "server.db"))
+	if err != nil {
+		t.Fatalf("storage.Open: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	srv := httptest.NewUnstartedServer(nil)
+	url := "http://" + srv.Listener.Addr().String()
+	srv.Config.Handler = serverapi.New(serverconfig.Config{
+		PublicURL: url,
+		STUN:      []string{"stun:stun.example.com:3478"},
+	}, store, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	return url
+}
+
+// newCore builds a core pointed at a server, with its own data directory.
+func newCore(t *testing.T, serverURL string) (*Core, *recorder) {
+	t.Helper()
+
+	dir := t.TempDir()
+	id, err := identity.Load(dir)
+	if err != nil {
+		t.Fatalf("identity.Load: %v", err)
+	}
+
+	events := &recorder{}
+	c, err := New(t.Context(), id, dir, serverURL, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	c.SetEvents(events)
+	t.Cleanup(c.Close)
+
+	return c, events
+}
+
+// The whole point of the core: a click on Connect ends with a virtual IP.
+func TestConnectingToAGroup(t *testing.T) {
+	url := liveServer(t)
+	c, events := newCore(t, url)
+	ctx := t.Context()
+
+	group, err := c.CreateGroup(ctx, ipc.CreateGroupParams{
+		Name: "Friday Night", Password: "hunter2", Nickname: "Tiago",
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+
+	if err := c.Connect(ctx, group.GroupID); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+
+	// Connect returns before the work is done, so the answer comes as an event.
+	events.waitFor(t, ipc.EventGroupConnected)
+
+	state, err := c.GetState(ctx)
+	if err != nil {
+		t.Fatalf("GetState: %v", err)
+	}
+	if state.Connection != ipc.StateConnected {
+		t.Fatalf("state = %+v", state)
+	}
+	if state.VirtualIP != "10.69.0.1" {
+		t.Errorf("virtual ip = %q, want 10.69.0.1", state.VirtualIP)
+	}
+	if state.GroupName != "Friday Night" || state.Nickname != "Tiago" {
+		t.Errorf("state = %+v", state)
+	}
+	if !state.ServerOnline {
+		t.Error("the server is answering but the state says otherwise")
+	}
+
+	groups, err := c.GetGroups(ctx)
+	if err != nil {
+		t.Fatalf("GetGroups: %v", err)
+	}
+	if len(groups) != 1 || !groups[0].Active {
+		t.Errorf("groups = %+v", groups)
+	}
+
+	if err := c.Disconnect(ctx); err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	events.waitFor(t, ipc.EventGroupDisconnected)
+
+	state, _ = c.GetState(ctx)
+	if state.Connection != ipc.StateDisconnected || state.VirtualIP != "" {
+		t.Errorf("state after disconnect = %+v", state)
+	}
+}
+
+func TestPeersArriveKnownButNotYetReachable(t *testing.T) {
+	url := liveServer(t)
+	host, hostEvents := newCore(t, url)
+	guest, guestEvents := newCore(t, url)
+	ctx := t.Context()
+
+	group, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
+		Name: "Friday Night", Password: "hunter2", Nickname: "Tiago",
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{
+		Group: "Friday Night", Password: "hunter2", Nickname: "João",
+	}); err != nil {
+		t.Fatalf("JoinGroup: %v", err)
+	}
+
+	if err := host.Connect(ctx, group.GroupID); err != nil {
+		t.Fatalf("host Connect: %v", err)
+	}
+	hostEvents.waitFor(t, ipc.EventGroupConnected)
+
+	if err := guest.Connect(ctx, group.GroupID); err != nil {
+		t.Fatalf("guest Connect: %v", err)
+	}
+	guestEvents.waitFor(t, ipc.EventGroupConnected)
+
+	state, _ := guest.GetState(ctx)
+	if len(state.Peers) != 1 {
+		t.Fatalf("peers = %+v", state.Peers)
+	}
+	peer := state.Peers[0]
+	if peer.Nickname != "Tiago" || peer.VirtualIP != "10.69.0.1" {
+		t.Errorf("peer = %+v", peer)
+	}
+	// No tunnel exists yet, and saying anything else here would be a lie the UI
+	// would repeat.
+	if peer.State != ipc.PeerConnecting {
+		t.Errorf("peer state = %q, want %q", peer.State, ipc.PeerConnecting)
+	}
+}
+
+func TestSwitchingGroupsDisconnectsTheFirst(t *testing.T) {
+	url := liveServer(t)
+	c, events := newCore(t, url)
+	ctx := t.Context()
+
+	first, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "Friday Night", Password: "a", Nickname: "Tiago"})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+	second, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "BeamNG", Password: "b", Nickname: "Tiago"})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+
+	if err := c.Connect(ctx, first.GroupID); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	events.waitFor(t, ipc.EventGroupConnected)
+
+	if err := c.Connect(ctx, second.GroupID); err != nil {
+		t.Fatalf("Connect to the second group: %v", err)
+	}
+	events.waitFor(t, ipc.EventGroupDisconnected)
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		state, _ := c.GetState(ctx)
+		if state.Connection == ipc.StateConnected && state.GroupID == second.GroupID {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	state, _ := c.GetState(ctx)
+	t.Fatalf("never landed on the second group: %+v", state)
+}
+
+func TestConnectingToAGroupYouAreNotInFails(t *testing.T) {
+	url := liveServer(t)
+	host, _ := newCore(t, url)
+	stranger, strangerEvents := newCore(t, url)
+	ctx := t.Context()
+
+	group, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
+		Name: "Friday Night", Password: "hunter2", Nickname: "Tiago",
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+
+	if err := stranger.Connect(ctx, group.GroupID); err != nil {
+		t.Fatalf("Connect returned an error before it started: %v", err)
+	}
+	strangerEvents.waitFor(t, ipc.EventStateChanged)
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		state, _ := stranger.GetState(ctx)
+		if state.Connection == ipc.StateDisconnected && state.Message != "" {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	state, _ := stranger.GetState(ctx)
+	t.Fatalf("the failure was never reported: %+v", state)
+}
+
+func TestWrongPasswordIsReportedToTheUser(t *testing.T) {
+	url := liveServer(t)
+	host, _ := newCore(t, url)
+	guest, _ := newCore(t, url)
+	ctx := t.Context()
+
+	if _, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
+		Name: "Friday Night", Password: "hunter2", Nickname: "Tiago",
+	}); err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+
+	_, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{
+		Group: "Friday Night", Password: "wrong", Nickname: "João",
+	})
+	var failure *ipcserver.Failure
+	if err == nil || !errors.As(err, &failure) {
+		t.Fatalf("err = %v, want a failure", err)
+	}
+	if failure.Code != api.ErrInvalidPassword {
+		t.Errorf("code = %q, want %q", failure.Code, api.ErrInvalidPassword)
+	}
+	if failure.Message == "" {
+		t.Error("the failure has nothing to show the user")
+	}
+}
+
+func TestServerSettings(t *testing.T) {
+	url := liveServer(t)
+	c, _ := newCore(t, url)
+	ctx := t.Context()
+
+	got, err := c.GetServer(ctx)
+	if err != nil {
+		t.Fatalf("GetServer: %v", err)
+	}
+	if got != url {
+		t.Errorf("server = %q, want %q", got, url)
+	}
+
+	result, err := c.TestServer(ctx, url)
+	if err != nil {
+		t.Fatalf("TestServer: %v", err)
+	}
+	if !result.Reachable || result.Version != 1 {
+		t.Errorf("result = %+v", result)
+	}
+
+	// A server that is not there is an answer, not an error. The user asked a
+	// question and deserves one back.
+	result, err = c.TestServer(ctx, "http://localhost:1")
+	if err != nil {
+		t.Fatalf("TestServer on a dead address: %v", err)
+	}
+	if result.Reachable || result.Message == "" {
+		t.Errorf("result = %+v", result)
+	}
+
+	// Addresses the daemon will not use are refused outright.
+	for _, bad := range []string{"", "http://example.com", "gopher://example.com"} {
+		if _, err := c.TestServer(ctx, bad); err == nil {
+			t.Errorf("TestServer(%q) was accepted", bad)
+		}
+	}
+}
+
+func TestChangingServerPersistsAndDisconnects(t *testing.T) {
+	first := liveServer(t)
+	second := liveServer(t)
+
+	dir := t.TempDir()
+	id, err := identity.Load(dir)
+	if err != nil {
+		t.Fatalf("identity.Load: %v", err)
+	}
+	events := &recorder{}
+	c, err := New(t.Context(), id, dir, first, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	c.SetEvents(events)
+	ctx := t.Context()
+
+	group, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "Friday Night", Password: "a", Nickname: "Tiago"})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+	if err := c.Connect(ctx, group.GroupID); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	events.waitFor(t, ipc.EventGroupConnected)
+
+	if err := c.SetServer(ctx, second); err != nil {
+		t.Fatalf("SetServer: %v", err)
+	}
+	state, _ := c.GetState(ctx)
+	if state.Connection != ipc.StateDisconnected {
+		t.Errorf("changing servers left a connection: %+v", state)
+	}
+	c.Close()
+
+	// The choice has to survive a restart, and the device has to register with
+	// the new server, since a token is only good where it was issued.
+	reloaded, err := identity.Load(dir)
+	if err != nil {
+		t.Fatalf("identity.Load: %v", err)
+	}
+	again, err := New(context.Background(), reloaded, dir, first, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer again.Close()
+
+	got, _ := again.GetServer(context.Background())
+	if got != second {
+		t.Errorf("server after restart = %q, want %q", got, second)
+	}
+	if _, err := again.GetGroups(context.Background()); err != nil {
+		t.Fatalf("GetGroups against the new server: %v", err)
+	}
+	if reloaded.ServerURL != second {
+		t.Errorf("the device registered with %q, want %q", reloaded.ServerURL, second)
+	}
+}
+
+func TestDisconnectIsIdempotent(t *testing.T) {
+	url := liveServer(t)
+	c, _ := newCore(t, url)
+	ctx := t.Context()
+
+	// It runs on the way into several other things, so calling it when nothing
+	// is connected has to be fine.
+	for range 3 {
+		if err := c.Disconnect(ctx); err != nil {
+			t.Fatalf("Disconnect: %v", err)
+		}
+	}
+}
+
+func TestARevokedTokenIsRecoveredFrom(t *testing.T) {
+	url := liveServer(t)
+	c, _ := newCore(t, url)
+	ctx := t.Context()
+
+	if _, err := c.GetGroups(ctx); err != nil {
+		t.Fatalf("GetGroups: %v", err)
+	}
+
+	// A self-hosted server whose database was reset looks exactly like this,
+	// and it should not take a reinstall to recover.
+	if err := c.identity.SetToken(url, "no-longer-valid"); err != nil {
+		t.Fatalf("SetToken: %v", err)
+	}
+	c.mu.Lock()
+	c.client.SetToken("no-longer-valid")
+	c.mu.Unlock()
+
+	if _, err := c.GetGroups(ctx); err != nil {
+		t.Fatalf("GetGroups after the token went bad: %v", err)
+	}
+	if c.identity.Token == "no-longer-valid" {
+		t.Error("the daemon kept using the dead token")
+	}
+}
