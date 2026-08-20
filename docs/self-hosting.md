@@ -9,7 +9,7 @@ Users type your server's URL into Settings. The app is not rebuilt for it.
 
 ## Railway
 
-One variable and a volume. See [deploy/railway](../deploy/railway/README.md).
+A couple of variables and a volume. See [deploy/railway](../deploy/railway/README.md).
 
 Railway has no UDP. If a relay is ever built it will not run there.
 

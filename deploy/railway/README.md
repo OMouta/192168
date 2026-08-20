@@ -1,7 +1,7 @@
 # Running the server on Railway
 
-Railway builds the Dockerfile and gives you HTTPS and a domain. Setup is one
-variable and a volume.
+Railway builds the Dockerfile and gives you HTTPS and a domain. Setup is a
+couple of variables and a volume.
 
 ## Setup
 
@@ -27,9 +27,18 @@ variable and a volume.
 
    ```
    NET192168_DATABASE_URL = /data/192168.db
+   RAILWAY_RUN_UID = 0
    ```
 
-   Skip this and every deploy wipes the groups.
+   Skip the volume and every deploy wipes the groups.
+
+   `RAILWAY_RUN_UID` is not optional here. The image runs as a non-root user and
+   Railway mounts the volume owned by root, so without it the server cannot
+   create the database and crash-loops at startup. Railway documents this
+   variable as the fix.
+
+6. Under Settings, Backups, pick a schedule. Railway backs up whatever is in the
+   volume, SQLite included, and restores it from the same tab.
 
 Leave the port alone. Railway sets `PORT` and the server listens on it.
 
@@ -57,5 +66,6 @@ UDP ports and the coordination server stays here.
 | --- | --- | --- |
 | `NET192168_PUBLIC_URL` | yes | Public base URL, normally `https://${{RAILWAY_PUBLIC_DOMAIN}}`. |
 | `NET192168_DATABASE_URL` | no | Storage path. Point it at a volume or lose data on deploy. |
+| `RAILWAY_RUN_UID` | with a volume | Set to `0`. Railway's own variable, not this server's. The image is non-root and could not otherwise write to the volume. |
 | `NET192168_STUN` | no | Comma-separated STUN servers to advertise instead of the default. |
 | `NET192168_ADDR` | no | Listen address. Leave unset so `PORT` is used. |
