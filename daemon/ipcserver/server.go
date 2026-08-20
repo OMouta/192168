@@ -136,6 +136,14 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// Cancelling the context does not interrupt a read already inside the pipe,
+	// so close the connection under it. Otherwise an idle client keeps Serve
+	// waiting on this handler and the service never stops.
+	go func() {
+		<-ctx.Done()
+		conn.Close()
+	}()
+
 	// One writer owns the connection, so a reply and an event cannot interleave
 	// halfway through a line.
 	writes := make(chan []byte, eventBuffer)
