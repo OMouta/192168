@@ -178,6 +178,18 @@ public sealed class Daemon
     public Task<TestServerResult> TestServerAsync(string url)
         => _client.CallAsync<TestServerResult>("TestServer", new ServerParams(url), _lifetime.Token);
 
+    public Task RemoveMemberAsync(string groupId, string deviceId)
+        => _client.CallAsync("RemoveMember", new MemberParams(groupId, deviceId), _lifetime.Token);
+
+    public Task RenameGroupAsync(string groupId, string name)
+        => _client.CallAsync("RenameGroup", new RenameGroupParams(groupId, name), _lifetime.Token);
+
+    public Task SetGroupPasswordAsync(string groupId, string password)
+        => _client.CallAsync("SetGroupPassword", new SetGroupPasswordParams(groupId, password), _lifetime.Token);
+
+    public Task TransferOwnershipAsync(string groupId, string deviceId)
+        => _client.CallAsync("TransferOwnership", new MemberParams(groupId, deviceId), _lifetime.Token);
+
     public Task<GetServerResult> ResetSettingsAsync()
         => _client.CallAsync<GetServerResult>("ResetSettings", null, _lifetime.Token);
 

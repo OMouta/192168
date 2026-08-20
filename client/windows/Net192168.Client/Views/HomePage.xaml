@@ -76,13 +76,37 @@
                 VerticalAlignment="Center"
                 Fill="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource ConnectionBrush}}" />
 
-            <TextBlock
+            <StackPanel
                 Grid.Row="0"
                 Grid.Column="1"
-                VerticalAlignment="Center"
-                Style="{StaticResource BodyStrongTextBlockStyle}"
-                Text="{x:Bind ViewModel.GroupLabel, Mode=OneWay}"
-                TextTrimming="CharacterEllipsis" />
+                Orientation="Horizontal"
+                Spacing="4">
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Style="{StaticResource BodyStrongTextBlockStyle}"
+                    Text="{x:Bind ViewModel.GroupLabel, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis" />
+
+                <!--
+                    Only the owner has anything to change, so only the owner is
+                    shown a way in.
+                -->
+                <Button
+                    Width="24"
+                    Height="24"
+                    Padding="0"
+                    AutomationProperties.Name="Group settings"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnManageGroup"
+                    ToolTipService.ToolTip="Group settings"
+                    Visibility="{x:Bind ViewModel.IsOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                    <FontIcon
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Glyph="&#xE713;" />
+                </Button>
+            </StackPanel>
 
             <TextBlock
                 Grid.Row="0"
@@ -245,22 +269,54 @@
                                 Text="{x:Bind VirtualIp, Mode=OneWay}" />
 
                             <!--
-                                The address is what people type into a game.
-                                Somebody who is away has not been given one, so
-                                there is nothing to copy.
+                                One button rather than several. Copying an
+                                address is the common thing, and removing
+                                somebody or handing them the group are rare and
+                                only there for the owner, which is more than a
+                                row this narrow can hold side by side.
                             -->
                             <Button
                                 Grid.Column="3"
                                 Width="28"
                                 Height="28"
                                 Padding="0"
-                                AutomationProperties.Name="Copy address"
+                                AutomationProperties.Name="Options"
                                 Background="Transparent"
                                 BorderThickness="0"
-                                Command="{x:Bind CopyAddressCommand}"
-                                ToolTipService.ToolTip="Copy address"
-                                Visibility="{x:Bind IsHere, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                                <FontIcon FontSize="13" Glyph="{x:Bind JustCopied, Mode=OneWay, Converter={StaticResource CopyGlyph}}" />
+                                ToolTipService.ToolTip="Options">
+                                <FontIcon FontSize="13" Glyph="&#xE712;" />
+                                <Button.Flyout>
+                                    <MenuFlyout>
+                                        <!--  Away, and so without an address to copy.  -->
+                                        <MenuFlyoutItem
+                                            Command="{x:Bind CopyAddressCommand}"
+                                            Text="Copy address"
+                                            Visibility="{x:Bind IsHere, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE8C8;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+
+                                        <MenuFlyoutSeparator Visibility="{x:Bind CanManage, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+                                        <MenuFlyoutItem
+                                            Command="{x:Bind MakeOwnerCommand}"
+                                            Text="Make owner"
+                                            Visibility="{x:Bind CanManage, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE7EF;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem
+                                            Command="{x:Bind RemoveCommand}"
+                                            Text="Remove from group"
+                                            Visibility="{x:Bind CanManage, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE74D;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Button.Flyout>
                             </Button>
 
                             <TextBlock

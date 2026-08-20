@@ -55,10 +55,16 @@ public sealed partial class GroupListItem : ObservableObject
 /// every few seconds, and rebuilding the list on every update made rows vanish
 /// and reappear instead of quietly changing their number.
 /// </summary>
-public sealed partial class PeerItem(string deviceId) : ObservableObject
+public sealed partial class PeerItem(string deviceId, HomeViewModel owner) : ObservableObject
 {
     /// <summary>Which peer this row is, so an update finds it again.</summary>
     public string DeviceId { get; } = deviceId;
+
+    /// <summary>
+    /// The screen this row is on. A row cannot reach the daemon by itself, and
+    /// what its menu offers depends on whether this device runs the group.
+    /// </summary>
+    public HomeViewModel Home { get; } = owner;
 
     [ObservableProperty]
     public partial string Nickname { get; set; } = "";
@@ -79,9 +85,20 @@ public sealed partial class PeerItem(string deviceId) : ObservableObject
     [ObservableProperty]
     public partial bool IsHere { get; set; } = true;
 
-    /// <summary>True for a moment after copying, so the button can say so.</summary>
-    [ObservableProperty]
-    public partial bool JustCopied { get; set; }
+    /// <summary>Whether this row may be removed or promoted, which only the
+    /// group's owner may do, and never to themselves.</summary>
+    public bool CanManage => Home.IsOwner;
+
+    /// <summary>Called when the group changes hands, so the menu is redrawn.</summary>
+    public void OwnerChanged() => OnPropertyChanged(nameof(CanManage));
+
+    /// <summary>Takes this person out of the group. The owner's alone.</summary>
+    [RelayCommand]
+    private Task RemoveAsync() => Home.RemoveMemberAsync(this);
+
+    /// <summary>Hands the group over to this person, and stops being its owner.</summary>
+    [RelayCommand]
+    private Task MakeOwnerAsync() => Home.TransferOwnershipAsync(this);
 
     /// <summary>
     /// Puts this peer's address on the clipboard. It is the thing people type
@@ -89,7 +106,7 @@ public sealed partial class PeerItem(string deviceId) : ObservableObject
     /// part of using this.
     /// </summary>
     [RelayCommand]
-    private async Task CopyAddressAsync()
+    private void CopyAddress()
     {
         if (string.IsNullOrEmpty(VirtualIp))
         {
@@ -99,10 +116,6 @@ public sealed partial class PeerItem(string deviceId) : ObservableObject
         var package = new DataPackage();
         package.SetText(VirtualIp);
         Clipboard.SetContent(package);
-
-        JustCopied = true;
-        await Task.Delay(TimeSpan.FromSeconds(1.5));
-        JustCopied = false;
     }
 }
 
@@ -167,6 +180,13 @@ public sealed partial class HomeViewModel : ObservableObject
     /// <summary>Whether the buttons on the screen would do anything if pressed.</summary>
     public bool CanAct => IsReady && !IsWorking;
 
+    /// <summary>
+    /// Whether this device runs the connected group. It decides what the screen
+    /// offers and nothing more: the server is what refuses the calls.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsOwner { get; set; }
+
     /// <summary>The active group name, shown above the address.</summary>
     [ObservableProperty]
     public partial string? GroupLabel { get; set; }
@@ -228,6 +248,9 @@ public sealed partial class HomeViewModel : ObservableObject
     public partial bool JustCopied { get; set; }
 
     private string _groupId = "";
+
+    /// <summary>The connected group, for the screens reached from this one.</summary>
+    public string ConnectedGroupId => _groupId;
 
     [RelayCommand]
     public async Task RefreshAsync()
@@ -395,6 +418,7 @@ public sealed partial class HomeViewModel : ObservableObject
         Connection = state.Connection;
         IsConnected = state.Connection == ConnectionState.Connected;
         _groupId = state.GroupId ?? "";
+        SetOwner(state.IsOwner);
         Nickname = state.Nickname;
         VirtualIp = state.VirtualIp;
         GroupLabel = IsConnected ? state.GroupName : "No group connected";
@@ -425,6 +449,35 @@ public sealed partial class HomeViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Records who runs the group, and tells the rows: what their menu offers
+    /// depends on it, and they cannot see it change from inside themselves.
+    /// </summary>
+    private void SetOwner(bool owner)
+    {
+        if (IsOwner == owner)
+        {
+            return;
+        }
+        IsOwner = owner;
+        foreach (var row in Peers)
+        {
+            row.OwnerChanged();
+        }
+    }
+
+    /// <summary>Takes someone out of the group, for good.</summary>
+    public async Task RemoveMemberAsync(PeerItem peer)
+    {
+        await Run(() => _daemon.RemoveMemberAsync(_groupId, peer.DeviceId));
+    }
+
+    /// <summary>Hands the group over. This device stops being its owner.</summary>
+    public async Task TransferOwnershipAsync(PeerItem peer)
+    {
+        await Run(() => _daemon.TransferOwnershipAsync(_groupId, peer.DeviceId));
+    }
+
+    /// <summary>
     /// Brings the peer list in line with what the daemon reports, changing the
     /// rows that are already there.
     ///
@@ -448,7 +501,7 @@ public sealed partial class HomeViewModel : ObservableObject
             var row = Peers.FirstOrDefault(p => p.DeviceId == peer.DeviceId);
             if (row is null)
             {
-                row = new PeerItem(peer.DeviceId);
+                row = new PeerItem(peer.DeviceId, this);
                 Peers.Add(row);
             }
 

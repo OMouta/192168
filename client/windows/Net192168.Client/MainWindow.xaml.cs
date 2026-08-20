@@ -189,6 +189,7 @@ public sealed partial class MainWindow : Window
         {
             SettingsPage => "Settings",
             AboutPage => "About",
+            ManageGroupPage => "Group",
             GroupPage page => page.ViewModel.Title,
             _ => null,
         };

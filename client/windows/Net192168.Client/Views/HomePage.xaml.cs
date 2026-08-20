@@ -95,4 +95,10 @@ public sealed partial class HomePage : Page
 
     private void OnJoin(object sender, RoutedEventArgs e)
         => Frame.Navigate(typeof(GroupPage), GroupPageMode.Join);
+
+    // Renaming and the join password. Who is in the group is managed from the
+    // rows themselves, where the people already are.
+    private void OnManageGroup(object sender, RoutedEventArgs e)
+        => Frame.Navigate(typeof(ManageGroupPage),
+            new ManageGroupPage.Target(ViewModel.ConnectedGroupId, ViewModel.GroupLabel ?? ""));
 }

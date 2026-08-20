@@ -55,6 +55,10 @@ public sealed record DaemonState
     public string? GroupName { get; init; }
     public string? Nickname { get; init; }
     public string? VirtualIp { get; init; }
+
+    /// <summary>Whether this device runs the connected group. The server is what
+    /// enforces that; this only decides what is on screen.</summary>
+    public bool IsOwner { get; init; }
     public IReadOnlyList<PeerView> Peers { get; init; } = [];
     public string? Message { get; init; }
 }
@@ -110,3 +114,12 @@ public sealed record GroupParams(string GroupId);
 public sealed record SetNicknameParams(string GroupId, string Nickname);
 
 public sealed record ServerParams(string Url);
+
+/// <summary>Names one person in one group.</summary>
+public sealed record MemberParams(string GroupId, string DeviceId);
+
+/// <summary>Changes what a group is called, for everyone in it.</summary>
+public sealed record RenameGroupParams(string GroupId, string Name);
+
+/// <summary>Changes the password a new member joins with.</summary>
+public sealed record SetGroupPasswordParams(string GroupId, string Password);
