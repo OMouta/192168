@@ -61,6 +61,8 @@ public static class ErrorCopy
 
         "no_server" => "No server is set. Add one under Settings.",
 
+        "disconnected" => "The background service is not running. Start it under Settings.",
+
         "busy" => "Still working on the last thing. Give it a moment.",
 
         // bad_request is the daemon checking its own input, and those messages

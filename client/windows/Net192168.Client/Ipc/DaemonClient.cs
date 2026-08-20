@@ -74,7 +74,12 @@ public sealed class DaemonClient : IAsyncDisposable
 
     private async Task<JsonNode?> InvokeAsync(string method, object? parameters, CancellationToken cancellationToken)
     {
-        var writer = _writer ?? throw new InvalidOperationException("Not connected to the daemon.");
+        // Every way of reaching the daemon leaves through here, so this is where
+        // a missing connection has to become a DaemonException. Callers catch
+        // that and nothing else, and the service can be stopped or uninstalled
+        // from inside the app, so an unreachable daemon is ordinary rather than
+        // exceptional.
+        var writer = _writer ?? throw NotConnected();
 
         var id = $"req_{Interlocked.Increment(ref _nextId)}";
         var completion = new TaskCompletionSource<JsonNode?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -98,6 +103,12 @@ public sealed class DaemonClient : IAsyncDisposable
                 await writer.WriteLineAsync(request.ToJsonString(Protocol.Json));
                 await writer.FlushAsync(cancellationToken);
             }
+            catch (Exception error) when (error is ObjectDisposedException or IOException)
+            {
+                // The pipe went away between the check above and the write,
+                // which is what happens when the service stops mid-click.
+                throw NotConnected();
+            }
             finally
             {
                 _writeLock.Release();
@@ -113,6 +124,9 @@ public sealed class DaemonClient : IAsyncDisposable
             _pending.TryRemove(id, out _);
         }
     }
+
+    private static DaemonException NotConnected() =>
+        new("disconnected", "Lost the connection to the background service.");
 
     private async Task ReadLoopAsync(NamedPipeClientStream pipe, CancellationToken cancellationToken)
     {
