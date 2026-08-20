@@ -48,6 +48,7 @@
                 VerticalAlignment="Center"
                 Background="Transparent"
                 BorderThickness="0"
+                AutomationProperties.Name="Settings"
                 Click="OnSettings"
                 ToolTipService.ToolTip="Settings">
                 <FontIcon FontSize="14" Glyph="&#xE713;" />

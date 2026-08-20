@@ -2,6 +2,7 @@ using Microsoft.UI;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Net192168.Client.Views;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -15,6 +16,9 @@ public sealed partial class MainWindow : Window
     // game.
     private const int Width = 400;
     private const int Height = 560;
+
+    /// <summary>The dialog on screen, if any. Windows allows only one.</summary>
+    private ContentDialog? _openDialog;
 
     public MainWindow()
     {
@@ -81,7 +85,24 @@ public sealed partial class MainWindow : Window
 
     private async void OnSettings(object sender, RoutedEventArgs e)
     {
+        App.Trace("OnSettings" + Environment.NewLine + Environment.StackTrace);
+
+        // Windows allows one ContentDialog at a time and throws on the second,
+        // which takes the app down. A double click on the gear is enough.
+        if (_openDialog is not null)
+        {
+            return;
+        }
+
         var dialog = new SettingsDialog { XamlRoot = Content.XamlRoot };
-        await dialog.ShowAsync();
+        _openDialog = dialog;
+        try
+        {
+            await dialog.ShowAsync();
+        }
+        finally
+        {
+            _openDialog = null;
+        }
     }
 }

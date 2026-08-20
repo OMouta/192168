@@ -3,9 +3,10 @@
     x:Class="Net192168.Client.Views.SettingsDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Settings"
     CloseButtonText="Close"
-    PrimaryButtonText="Save"
-    Title="Settings">
+    DefaultButton="Primary"
+    PrimaryButtonText="Save">
 
     <StackPanel Width="300" Spacing="10">
         <TextBox
@@ -13,17 +14,13 @@
             PlaceholderText="https://api.192168.lol"
             Text="{x:Bind ViewModel.ServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
         <TextBlock
-            FontSize="11"
-            Foreground="{ThemeResource TextDim}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Style="{StaticResource CaptionTextBlockStyle}"
             Text="Where your friends are introduced to you. Leave it alone unless you were given another address."
             TextWrapping="Wrap" />
 
         <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button
-                Padding="14,5"
-                Command="{x:Bind ViewModel.TestCommand}"
-                Content="Test"
-                FontSize="12" />
+            <Button Command="{x:Bind ViewModel.TestCommand}" Content="Test" />
             <ProgressRing
                 Width="16"
                 Height="16"
@@ -32,8 +29,8 @@
         </StackPanel>
 
         <TextBlock
-            FontSize="11"
-            Foreground="{ThemeResource TextDim}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Style="{StaticResource CaptionTextBlockStyle}"
             Text="{x:Bind ViewModel.Result, Mode=OneWay}"
             TextWrapping="Wrap"
             Visibility="{x:Bind ViewModel.Result, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
