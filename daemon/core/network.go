@@ -177,7 +177,7 @@ func (c *Core) watchGroup(ctx context.Context, session *activeSession) {
 		},
 		PeerOffline: func(deviceID string) {
 			c.log.Info("peer went offline", "deviceId", deviceID)
-			c.removePeer(deviceID)
+			c.peerWentOffline(deviceID)
 		},
 		PeerEndpointUpdated: func(deviceID string, endpoint api.Endpoint) {
 			addr, ok := parseEndpoint(endpoint)
@@ -223,9 +223,13 @@ func (c *Core) addPeer(peer api.Peer) {
 		c.peers[peer.DeviceID] = view
 	}
 	// What the server knows: a name and an address. The state and the latency
-	// belong to the link and are left alone.
+	// belong to the link and are left alone, except for someone who was away
+	// and is back: there is a link to try again now.
 	view.Nickname = peer.Nickname
 	view.VirtualIP = peer.VirtualIP
+	if view.State == ipc.PeerOffline {
+		view.State = ipc.PeerConnecting
+	}
 
 	added := *view
 	state := c.snapshot()
@@ -266,6 +270,98 @@ func (c *Core) linkPeer(peer api.Peer) {
 	endpoint, _ := parseEndpoint(endpointOf(peer))
 	if err := links.AddPeer(peer.DeviceID, peer.Nickname, virtualIP, key, endpoint); err != nil {
 		c.log.Warn("cannot add a peer", "deviceId", peer.DeviceID, "error", err)
+	}
+}
+
+// loadMembers brings the list in line with who belongs to the group, as opposed
+// to who is currently reachable.
+//
+// The peer list only ever held people with a live session, so a group of six
+// with one person online looked like a group of two. This adds the rest as
+// offline, and drops anyone who is no longer a member: leaving a group and
+// closing the app look identical from the outside, and this is what tells them
+// apart.
+//
+// The state and latency of a link are left alone. They belong to the link.
+func (c *Core) loadMembers(ctx context.Context, groupID string) {
+	members, err := withClient(c, ctx, func(client *control.Client) ([]api.Member, error) {
+		return client.Members(ctx, groupID)
+	})
+	if err != nil {
+		c.log.Info("cannot list the group's members", "groupId", groupID, "error", err)
+		return
+	}
+
+	c.mu.Lock()
+	if c.session == nil || c.session.groupID != groupID {
+		// Disconnected, or moved to another group, while this was in flight.
+		c.mu.Unlock()
+		return
+	}
+
+	belongs := make(map[string]struct{}, len(members))
+	for _, member := range members {
+		if member.DeviceID == c.identity.DeviceID {
+			continue
+		}
+		belongs[member.DeviceID] = struct{}{}
+
+		if peer, known := c.peers[member.DeviceID]; known {
+			peer.Nickname = member.Nickname
+			continue
+		}
+		c.peers[member.DeviceID] = &ipc.PeerView{
+			DeviceID: member.DeviceID,
+			Nickname: member.Nickname,
+			State:    ipc.PeerOffline,
+		}
+	}
+
+	for deviceID := range c.peers {
+		if _, ok := belongs[deviceID]; !ok {
+			delete(c.peers, deviceID)
+		}
+	}
+
+	state := c.snapshot()
+	c.mu.Unlock()
+
+	c.emit(ipc.EventStateChanged, state)
+}
+
+// peerWentOffline marks someone as away rather than taking them off the list.
+// They are still in the group, and a group is worth seeing whole.
+func (c *Core) peerWentOffline(deviceID string) {
+	c.mu.Lock()
+	links := c.mesh
+	groupID := ""
+	if c.session != nil {
+		groupID = c.session.groupID
+	}
+	peer, known := c.peers[deviceID]
+	if known {
+		peer.State = ipc.PeerOffline
+		peer.VirtualIP = ""
+		peer.LatencyMS = nil
+	}
+	state := c.snapshot()
+	c.mu.Unlock()
+
+	// The link goes either way. Their session is gone, so there is nothing at
+	// the other end of it.
+	if links != nil {
+		links.RemovePeer(deviceID)
+	}
+	if !known {
+		return
+	}
+
+	c.emit(ipc.EventStateChanged, state)
+
+	// Whether they closed the app or left the group entirely, the membership
+	// list is what says which.
+	if groupID != "" {
+		go c.loadMembers(c.ctx, groupID)
 	}
 }
 

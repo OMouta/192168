@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/OMouta/192168/daemon/control"
@@ -124,6 +125,10 @@ func (c *Core) runConnect(groupID string) {
 	// The socket, our public address, and a link attempt toward everyone who is
 	// already here. A group is joined whether or not any of that works.
 	c.startNetwork(ctx, active, session.Peers)
+
+	// Everyone else in the group, so the list says who belongs rather than only
+	// who happens to be here.
+	go c.loadMembers(ctx, groupID)
 }
 
 // failConnect reports a connect that did not happen and puts the state back.
@@ -287,14 +292,21 @@ func (c *Core) describeGroup(ctx context.Context, groupID string) (name, nicknam
 
 // sortPeers keeps the list in a stable order, so a UI redraw does not shuffle
 // rows under someone's cursor.
+// sortPeers puts everyone who is here first, in address order, and everyone who
+// is not after them by name. Someone who is away has no address to sort by, and
+// a list that reshuffles as people come and go is hard to read.
 func sortPeers(peers []ipc.PeerView) {
 	slices.SortFunc(peers, func(a, b ipc.PeerView) int {
-		if a.VirtualIP != b.VirtualIP {
-			if a.VirtualIP < b.VirtualIP {
-				return -1
+		away, bAway := a.State == ipc.PeerOffline, b.State == ipc.PeerOffline
+		if away != bAway {
+			if away {
+				return 1
 			}
-			return 1
+			return -1
 		}
-		return 0
+		if away {
+			return strings.Compare(a.Nickname, b.Nickname)
+		}
+		return strings.Compare(a.VirtualIP, b.VirtualIP)
 	})
 }

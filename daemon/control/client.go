@@ -161,6 +161,13 @@ func (c *Client) Groups(ctx context.Context) ([]api.Membership, error) {
 	return out, err
 }
 
+// Members lists everyone in a group, whether or not they are connected.
+func (c *Client) Members(ctx context.Context, groupID string) ([]api.Member, error) {
+	var out api.MembersResponse
+	err := c.do(ctx, http.MethodGet, c.discovery.API+"/groups/"+groupID+"/members", nil, &out)
+	return out.Members, err
+}
+
 // LeaveGroup gives up membership of a group.
 func (c *Client) LeaveGroup(ctx context.Context, groupID string) error {
 	return c.do(ctx, http.MethodDelete, c.discovery.API+"/groups/"+groupID+"/membership", nil, nil)
