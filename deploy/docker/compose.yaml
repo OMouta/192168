@@ -14,7 +14,7 @@ services:
       NET192168_ADDR: ":8080"
       # Comma-separated. Defaults to a public STUN server when unset.
       NET192168_STUN: ${NET192168_STUN:-}
-      NET192168_DATABASE_URL: ${NET192168_DATABASE_URL:-}
+      NET192168_DATABASE_URL: ${NET192168_DATABASE_URL:-/data/192168.db}
     volumes:
       - 192168-data:/data
 
