@@ -29,6 +29,11 @@
     needs. Without this the daemon runs and links open, but no game traffic
     moves and the app says why. Expect a UAC prompt.
 
+.PARAMETER LogLevel
+    How much the server and daemon say. Debug includes a line per packet that
+    reaches the adapter, which is how you tell a packet arriving from a packet
+    being imagined.
+
 .PARAMETER Stop
     Stop everything this script started and exit.
 
@@ -44,7 +49,9 @@ param(
     [switch]$NoClient,
     [switch]$Reset,
     [switch]$Stop,
-    [switch]$Elevated
+    [switch]$Elevated,
+    [ValidateSet('debug', 'info', 'warn', 'error')]
+    [string]$LogLevel = 'info'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -201,7 +208,12 @@ Start-Console -Title '192168 DAEMON' -Colour 'Cyan' -AsAdmin:$Elevated `
     -Exe (Join-Path $binDir '192168-daemon.exe') `
     -LogFile (Join-Path $logDir 'daemon.log') `
     -Notes @('networking daemon    pipe \\.\pipe\192168', "talking to  $serverUrl", $adapterNote) `
-    -Environment @{ NET192168_SERVER_URL = $serverUrl } | Out-Null
+    -Environment @{
+        NET192168_SERVER_URL = $serverUrl
+        # An elevated process does not inherit this shell's environment, so
+        # anything the daemon needs has to be set inside its own console.
+        NET192168_LOG_LEVEL  = $LogLevel
+    } | Out-Null
 
 Start-Sleep -Seconds 2
 if (-not (Get-Process -Name '192168-daemon' -ErrorAction SilentlyContinue)) {

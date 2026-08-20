@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wintun"
@@ -33,14 +34,20 @@ var ErrNeedsAdmin = errors.New("tun: creating the network adapter needs administ
 // ErrMissingDriver means wintun.dll is not next to the daemon.
 var ErrMissingDriver = errors.New("tun: wintun.dll is missing")
 
+// ErrClosed means the adapter is going away, or already has.
+var ErrClosed = errors.New("tun: adapter closed")
+
 // Device is an open adapter.
 type Device struct {
 	log     *slog.Logger
 	adapter *wintun.Adapter
 	session wintun.Session
 
+	// mu is held for reading by anything inside the driver and for writing by
+	// Close, which is what stops a teardown racing a call in flight.
+	mu        sync.RWMutex
+	closing   atomic.Bool
 	closeOnce sync.Once
-	closed    chan struct{}
 }
 
 // Open creates the adapter, gives it an address, and routes the group's subnet
@@ -69,7 +76,7 @@ func Open(name string, address netip.Prefix, mtu int, log *slog.Logger) (*Device
 		}
 	}
 
-	device := &Device{log: log, adapter: adapter, closed: make(chan struct{})}
+	device := &Device{log: log, adapter: adapter}
 
 	luid := winipcfg.LUID(adapter.LUID())
 	if err := luid.SetIPAddresses([]netip.Prefix{address}); err != nil {
@@ -106,8 +113,20 @@ func Open(name string, address netip.Prefix, mtu int, log *slog.Logger) (*Device
 
 // Read returns the next packet Windows wants sent. It blocks until there is
 // one, ctx is cancelled, or the adapter goes away.
+//
+// The read lock is held for the whole call. Closing takes the write lock, so an
+// adapter cannot be torn down while a read is inside the driver. Without that,
+// disconnecting mid-read faults the process: the session is freed and
+// ReceivePacket walks into it.
 func (d *Device) Read(ctx context.Context) ([]byte, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	for {
+		if d.closing.Load() {
+			return nil, ErrClosed
+		}
+
 		packet, err := d.session.ReceivePacket()
 		switch {
 		case err == nil:
@@ -124,7 +143,7 @@ func (d *Device) Read(ctx context.Context) ([]byte, error) {
 			}
 
 		case errors.Is(err, windows.ERROR_HANDLE_EOF):
-			return nil, errors.New("tun: adapter closed")
+			return nil, ErrClosed
 
 		default:
 			return nil, fmt.Errorf("tun: read: %w", err)
@@ -139,14 +158,15 @@ func (d *Device) wait(ctx context.Context) error {
 	const slice = 250
 
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-d.closed:
-			return errors.New("tun: adapter closed")
-		default:
+		if d.closing.Load() {
+			return ErrClosed
+		}
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 
+		// Waiting in slices rather than forever is what bounds how long a
+		// close waits for this reader to let go of the lock.
 		result, err := windows.WaitForSingleObject(d.session.ReadWaitEvent(), slice)
 		if err != nil {
 			return fmt.Errorf("tun: wait: %w", err)
@@ -159,6 +179,13 @@ func (d *Device) wait(ctx context.Context) error {
 
 // Write hands a decrypted packet to Windows as if it arrived from the network.
 func (d *Device) Write(packet []byte) error {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if d.closing.Load() {
+		return ErrClosed
+	}
+
 	out, err := d.session.AllocateSendPacket(len(packet))
 	if err != nil {
 		if errors.Is(err, windows.ERROR_BUFFER_OVERFLOW) {
@@ -175,9 +202,19 @@ func (d *Device) Write(packet []byte) error {
 
 // Close ends the session and removes the adapter, which takes its address and
 // routes with it.
+//
+// It waits for readers and writers to leave the driver first. Ending a session
+// underneath a call that is inside it faults the process, and disconnecting
+// while a game is running is exactly when that would happen.
 func (d *Device) Close() error {
 	d.closeOnce.Do(func() {
-		close(d.closed)
+		// Set before taking the lock, so a reader that wakes from its wait
+		// sees it and returns instead of going back into the driver.
+		d.closing.Store(true)
+
+		d.mu.Lock()
+		defer d.mu.Unlock()
+
 		if d.session != (wintun.Session{}) {
 			d.session.End()
 		}

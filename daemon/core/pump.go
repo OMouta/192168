@@ -48,7 +48,9 @@ func (c *Core) pumpOut(ctx context.Context, device *tun.Device, links *mesh.Mesh
 	for {
 		packet, err := device.Read(ctx)
 		if err != nil {
-			if ctx.Err() == nil {
+			// Disconnecting closes the adapter under this loop on purpose, so
+			// only an unexpected end is worth a line.
+			if ctx.Err() == nil && !errors.Is(err, tun.ErrClosed) {
 				c.log.Info("stopped reading the adapter", "error", err)
 			}
 			return

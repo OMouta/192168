@@ -20,6 +20,9 @@ var ErrNeedsAdmin = errors.New("tun: creating the network adapter needs administ
 // ErrMissingDriver means the adapter driver is not installed.
 var ErrMissingDriver = errors.New("tun: the adapter driver is missing")
 
+// ErrClosed means the adapter is going away, or already has.
+var ErrClosed = errors.New("tun: adapter closed")
+
 // ErrUnsupported means this build has no adapter at all.
 var ErrUnsupported = errors.New("tun: virtual adapters are only supported on Windows")
 

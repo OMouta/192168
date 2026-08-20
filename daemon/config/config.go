@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -79,4 +80,20 @@ func envOr(key, fallback string) string {
 
 func isLoopback(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+// LogLevel reads NET192168_LOG_LEVEL. Debug is where the per-packet lines live,
+// which is the difference between seeing that a packet reached the adapter and
+// guessing.
+func LogLevel() slog.Level {
+	switch strings.ToLower(os.Getenv("NET192168_LOG_LEVEL")) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
