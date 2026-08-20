@@ -40,3 +40,6 @@ coverage.*
 !.vscode/extensions.json
 Thumbs.db
 desktop.ini
+
+# Installer output
+/build/
