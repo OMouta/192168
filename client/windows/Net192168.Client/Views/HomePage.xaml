@@ -3,8 +3,7 @@
     x:Class="Net192168.Client.Views.HomePage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:vm="using:Net192168.Client.ViewModels"
-    Background="{ThemeResource AppBackground}">
+    xmlns:vm="using:Net192168.Client.ViewModels">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -13,20 +12,22 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!--  Who you are on this network, or an invitation to join one.  -->
+        <!--
+            Connected, the address is the point of the app: it is what somebody
+            reads out or types into a game. So it gets the card and the size.
+        -->
         <Grid
             Grid.Row="0"
-            Margin="12,4,12,10"
-            Padding="14,12"
-            Background="{ThemeResource CardBackground}"
-            BorderBrush="{ThemeResource CardStroke}"
+            Margin="16,0,16,12"
+            Padding="16,14"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
             BorderThickness="1"
             ColumnSpacing="12"
             CornerRadius="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <Ellipse
@@ -36,174 +37,166 @@
                 VerticalAlignment="Center"
                 Fill="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource ConnectionBrush}}" />
 
-            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                <TextBlock
-                    FontSize="15"
-                    FontWeight="SemiBold"
-                    Text="{x:Bind ViewModel.Title, Mode=OneWay}"
-                    TextTrimming="CharacterEllipsis" />
-                <TextBlock
-                    FontSize="12"
-                    Foreground="{ThemeResource TextDim}"
-                    Text="{x:Bind ViewModel.Status, Mode=OneWay}" />
-            </StackPanel>
-
-            <StackPanel
-                Grid.Column="2"
-                VerticalAlignment="Center"
-                Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+            <StackPanel Grid.Column="1">
                 <TextBlock
                     FontFamily="Consolas"
-                    FontSize="14"
-                    Foreground="{ThemeResource Accent}"
+                    FontSize="22"
+                    Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                     Text="{x:Bind ViewModel.VirtualIp, Mode=OneWay}"
-                    TextAlignment="Right" />
+                    Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
                 <TextBlock
-                    FontSize="11"
-                    Foreground="{ThemeResource TextDim}"
-                    Text="{x:Bind ViewModel.Nickname, Mode=OneWay}"
-                    TextAlignment="Right" />
+                    Style="{StaticResource BodyStrongTextBlockStyle}"
+                    Text="{x:Bind ViewModel.GroupLabel, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis" />
+                <TextBlock
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Text="{x:Bind ViewModel.Status, Mode=OneWay}" />
             </StackPanel>
         </Grid>
 
-        <!--  Connected: who else is here.  -->
-        <ListView
-            Grid.Row="1"
-            Margin="6,0,6,0"
-            ItemsSource="{x:Bind ViewModel.Peers, Mode=OneWay}"
-            SelectionMode="None"
-            Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-            <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem">
-                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                    <Setter Property="MinHeight" Value="0" />
-                    <Setter Property="Padding" Value="8,6" />
-                </Style>
-            </ListView.ItemContainerStyle>
-            <ListView.ItemTemplate>
-                <DataTemplate x:DataType="vm:PeerItem">
-                    <Grid ColumnSpacing="10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-                        <Ellipse
-                            Grid.Column="0"
-                            Width="7"
-                            Height="7"
-                            VerticalAlignment="Center"
-                            Fill="{x:Bind IsReachable, Converter={StaticResource ConnectionBrush}}" />
-                        <TextBlock
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            FontSize="13"
-                            Text="{x:Bind Nickname}"
-                            TextTrimming="CharacterEllipsis" />
-                        <TextBlock
-                            Grid.Column="2"
-                            VerticalAlignment="Center"
-                            FontFamily="Consolas"
-                            FontSize="12"
-                            Foreground="{ThemeResource TextDim}"
-                            Text="{x:Bind VirtualIp}" />
-                        <TextBlock
-                            Grid.Column="3"
-                            Width="62"
-                            VerticalAlignment="Center"
-                            FontSize="11"
-                            Foreground="{ThemeResource TextDim}"
-                            Text="{x:Bind Status}"
-                            TextAlignment="Right" />
-                    </Grid>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+            <TextBlock
+                Grid.Row="0"
+                Margin="16,4,16,4"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Text="{x:Bind ViewModel.ListLabel, Mode=OneWay}" />
 
-        <TextBlock
-            Grid.Row="1"
-            Margin="24"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            FontSize="12"
-            Foreground="{ThemeResource TextDim}"
-            Text="Nobody else is online yet."
-            TextAlignment="Center"
-            TextWrapping="Wrap"
-            Visibility="{x:Bind ViewModel.ShowEmptyPeers, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+            <!--  Connected: everyone else on this network.  -->
+            <ListView
+                Grid.Row="1"
+                Padding="8,0,8,8"
+                ItemsSource="{x:Bind ViewModel.Peers, Mode=OneWay}"
+                SelectionMode="None"
+                Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="MinHeight" Value="0" />
+                        <Setter Property="Padding" Value="10,8" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PeerItem">
+                        <Grid ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="64" />
+                            </Grid.ColumnDefinitions>
 
-        <!--  Disconnected: the groups you can join.  -->
-        <ListView
-            Grid.Row="1"
-            Margin="6,0,6,0"
-            ItemsSource="{x:Bind ViewModel.Groups, Mode=OneWay}"
-            SelectionMode="None"
-            Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}">
-            <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem">
-                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                    <Setter Property="MinHeight" Value="0" />
-                    <Setter Property="Padding" Value="8,4" />
-                </Style>
-            </ListView.ItemContainerStyle>
-            <ListView.ItemTemplate>
-                <DataTemplate x:DataType="vm:GroupListItem">
-                    <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <Ellipse
+                                Grid.Column="0"
+                                Width="7"
+                                Height="7"
+                                VerticalAlignment="Center"
+                                Fill="{x:Bind IsReachable, Converter={StaticResource ConnectionBrush}}" />
                             <TextBlock
-                                FontSize="13"
-                                Text="{x:Bind Name, Mode=OneWay}"
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Text="{x:Bind Nickname}"
                                 TextTrimming="CharacterEllipsis" />
                             <TextBlock
-                                FontSize="11"
-                                Foreground="{ThemeResource TextDim}"
-                                Text="{x:Bind Nickname, Mode=OneWay}" />
-                        </StackPanel>
+                                Grid.Column="2"
+                                VerticalAlignment="Center"
+                                FontFamily="Consolas"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{x:Bind VirtualIp}" />
+                            <TextBlock
+                                Grid.Column="3"
+                                VerticalAlignment="Center"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Text="{x:Bind Status}"
+                                TextAlignment="Right" />
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
 
-                        <Button
-                            Grid.Column="1"
-                            Padding="12,4"
-                            Click="OnConnect"
-                            Content="Connect"
-                            FontSize="12"
-                            Tag="{x:Bind}" />
-                    </Grid>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+            <!--  Disconnected: the groups you can walk into.  -->
+            <ListView
+                Grid.Row="1"
+                Padding="8,0,8,8"
+                ItemsSource="{x:Bind ViewModel.Groups, Mode=OneWay}"
+                SelectionMode="None"
+                Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="MinHeight" Value="0" />
+                        <Setter Property="Padding" Value="10,8" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GroupListItem">
+                        <Grid ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-        <StackPanel
-            Grid.Row="1"
-            Margin="24"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Spacing="4"
-            Visibility="{x:Bind ViewModel.ShowEmptyGroups, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="{x:Bind Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    Text="{x:Bind Nickname, Mode=OneWay}" />
+                            </StackPanel>
+
+                            <Button
+                                Grid.Column="1"
+                                Click="OnConnect"
+                                Content="Connect"
+                                Tag="{x:Bind}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
             <TextBlock
+                Grid.Row="1"
+                Margin="24,0,24,40"
                 HorizontalAlignment="Center"
-                FontSize="13"
-                Text="No groups yet" />
-            <TextBlock
-                HorizontalAlignment="Center"
-                FontSize="11"
-                Foreground="{ThemeResource TextDim}"
-                Text="Create one, then share its name and password."
+                VerticalAlignment="Center"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Text="Nobody else has connected yet."
                 TextAlignment="Center"
-                TextWrapping="Wrap" />
-        </StackPanel>
+                TextWrapping="Wrap"
+                Visibility="{x:Bind ViewModel.ShowEmptyPeers, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
 
-        <!--  Actions. What is on offer depends on where you are.  -->
+            <StackPanel
+                Grid.Row="1"
+                Margin="24,0,24,40"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="4"
+                Visibility="{x:Bind ViewModel.ShowEmptyGroups, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Style="{StaticResource BodyStrongTextBlockStyle}"
+                    Text="No groups yet" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Text="Create one, then give its name and password to your friends."
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+        </Grid>
+
         <Grid
             Grid.Row="2"
-            Padding="12,10"
-            Background="{ThemeResource FooterBackground}"
+            Padding="16,12"
             ColumnSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -213,8 +206,8 @@
             <TextBlock
                 Grid.Column="0"
                 VerticalAlignment="Center"
-                FontSize="11"
-                Foreground="{ThemeResource TextDim}"
+                Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                Style="{StaticResource CaptionTextBlockStyle}"
                 Text="{x:Bind ViewModel.Message, Mode=OneWay}"
                 TextTrimming="CharacterEllipsis"
                 TextWrapping="NoWrap" />
@@ -224,25 +217,17 @@
                 Orientation="Horizontal"
                 Spacing="8"
                 Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}">
+                <Button Click="OnJoin" Content="Join" />
                 <Button
-                    Padding="14,5"
-                    Click="OnJoin"
-                    Content="Join"
-                    FontSize="12" />
-                <Button
-                    Padding="14,5"
                     Click="OnCreate"
-                    Content="Create"
-                    FontSize="12"
+                    Content="Create group"
                     Style="{StaticResource AccentButtonStyle}" />
             </StackPanel>
 
             <Button
                 Grid.Column="1"
-                Padding="14,5"
                 Command="{x:Bind ViewModel.DisconnectCommand}"
                 Content="Disconnect"
-                FontSize="12"
                 Visibility="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
         </Grid>
     </Grid>

@@ -14,22 +14,14 @@
             <views:BooleanToVisibility x:Key="BooleanToVisibility" />
             <views:BooleanToCollapsed x:Key="BooleanToCollapsed" />
             <views:NotNullToBoolean x:Key="NotNullToBoolean" />
-            <views:ConnectionBrush x:Key="ConnectionBrush" />
             <views:TextToVisibility x:Key="TextToVisibility" />
+            <views:ConnectionBrush x:Key="ConnectionBrush" />
 
             <!--
-                One dark palette, always. A tool you leave open beside a game
-                should not glow, and following the system theme would mean two
-                looks to get right for no benefit.
+                Dark always, rather than following the system. This sits open
+                beside a game, and the alternative is two looks to keep right.
+                Everything else comes from the standard Fluent styles.
             -->
-            <SolidColorBrush x:Key="AppBackground" Color="#12141A" />
-            <SolidColorBrush x:Key="TitleBarBackground" Color="#0D0F14" />
-            <SolidColorBrush x:Key="FooterBackground" Color="#0D0F14" />
-            <SolidColorBrush x:Key="CardBackground" Color="#1B1E26" />
-            <SolidColorBrush x:Key="CardStroke" Color="#282C36" />
-            <SolidColorBrush x:Key="TextDim" Color="#8A90A0" />
-            <SolidColorBrush x:Key="Accent" Color="#4DD0A0" />
-            <SolidColorBrush x:Key="Offline" Color="#4A505E" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

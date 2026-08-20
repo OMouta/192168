@@ -46,9 +46,13 @@ public sealed partial class HomeViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsBusy { get; set; }
 
-    /// <summary>The name of the active group, or an invitation to pick one.</summary>
+    /// <summary>The active group name, shown above the address.</summary>
     [ObservableProperty]
-    public partial string? Title { get; set; }
+    public partial string? GroupLabel { get; set; }
+
+    /// <summary>Names whichever list is on screen.</summary>
+    [ObservableProperty]
+    public partial string? ListLabel { get; set; }
 
     [ObservableProperty]
     public partial string? Status { get; set; }
@@ -102,6 +106,7 @@ public sealed partial class HomeViewModel : ObservableObject
                 });
             }
             HasGroups = Groups.Count > 0;
+            ListLabel = IsConnected ? "On this network" : "Your groups";
             ShowEmptyGroups = !IsConnected && !HasGroups;
             Message = null;
         }
@@ -181,7 +186,8 @@ public sealed partial class HomeViewModel : ObservableObject
         IsConnected = state.Connection == ConnectionState.Connected;
         Nickname = state.Nickname;
         VirtualIp = state.VirtualIp;
-        Title = IsConnected ? state.GroupName : "Groups";
+        GroupLabel = IsConnected ? state.GroupName : "No group connected";
+        ListLabel = IsConnected ? "On this network" : "Your groups";
         Status = Describe(state);
 
         if (!string.IsNullOrEmpty(state.Message))
@@ -218,7 +224,7 @@ public sealed partial class HomeViewModel : ObservableObject
         },
         ConnectionState.Connecting => "Connecting",
         ConnectionState.Disconnecting => "Disconnecting",
-        _ => _daemon.IsAvailable ? "Not connected" : "Service not running",
+        _ => _daemon.IsAvailable ? "Pick a group to join" : "Background service is not running",
     };
 
     /// <summary>
