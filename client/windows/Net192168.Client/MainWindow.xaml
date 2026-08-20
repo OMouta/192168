@@ -3,6 +3,7 @@
     x:Class="Net192168.Client.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:tb="using:H.NotifyIcon"
     Title="192168">
 
     <Window.SystemBackdrop>
@@ -56,5 +57,31 @@
         </Grid>
 
         <Frame x:Name="ContentFrame" Grid.Row="1" />
+
+        <!--
+            Closing the window leaves the app here rather than ending it. The
+            daemon keeps the tunnels up either way, so quitting outright would
+            hide a live connection instead of showing it. The count lives in
+            the tooltip, which is where a tray icon says how things are going.
+        -->
+        <tb:TaskbarIcon
+            x:Name="Tray"
+            Grid.Row="0"
+            IconSource="ms-appx:///Assets/icon.ico"
+            LeftClickCommand="{x:Bind ShowWindowCommand}"
+            NoLeftClickDelay="True"
+            ToolTipText="192168">
+            <tb:TaskbarIcon.ContextFlyout>
+                <MenuFlyout>
+                    <MenuFlyoutItem Click="OnTrayOpen" Text="Open" />
+                    <MenuFlyoutItem
+                        x:Name="TrayDisconnect"
+                        Click="OnTrayDisconnect"
+                        Text="Disconnect" />
+                    <MenuFlyoutSeparator />
+                    <MenuFlyoutItem Click="OnTrayExit" Text="Exit" />
+                </MenuFlyout>
+            </tb:TaskbarIcon.ContextFlyout>
+        </tb:TaskbarIcon>
     </Grid>
 </Window>

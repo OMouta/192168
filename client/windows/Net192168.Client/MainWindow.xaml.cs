@@ -1,8 +1,10 @@
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Net192168.Client.Ipc;
 using Net192168.Client.Views;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -53,7 +55,88 @@ public sealed partial class MainWindow : Window
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
+        // Closing hides rather than quits. The daemon holds the tunnels open on
+        // its own, so ending the app on a close would leave a live connection
+        // with nothing showing it.
+        AppWindow.Closing += (_, args) =>
+        {
+            if (_exiting)
+            {
+                return;
+            }
+            args.Cancel = true;
+            AppWindow.Hide();
+        };
+
+        App.Daemon.StateChanged += UpdateTray;
+        UpdateTray();
+
         ContentFrame.Navigate(typeof(HomePage));
+    }
+
+    /// <summary>True once Exit was chosen, so the close is allowed through.</summary>
+    private bool _exiting;
+
+    /// <summary>
+    /// What the tray says without being opened: which group, and how many
+    /// people are on it. This is the whole reason to leave the app running
+    /// with no window.
+    /// </summary>
+    private void UpdateTray()
+    {
+        var state = App.Daemon.State;
+        var connected = state.Connection == ConnectionState.Connected;
+
+        TrayDisconnect.IsEnabled = connected;
+        Tray.ToolTipText = connected
+            ? $"192168 - {state.GroupName}, {Describe(state.Peers.Count)}"
+            : "192168 - not connected";
+    }
+
+    private static string Describe(int peers) => peers switch
+    {
+        0 => "nobody else online",
+        1 => "1 other online",
+        _ => $"{peers} others online",
+    };
+
+    /// <summary>
+    /// Brings the window back from the tray. Showing is not enough on its own:
+    /// a window restored behind whatever is in front of it reads as a click
+    /// that did nothing.
+    /// </summary>
+    [RelayCommand]
+    private void ShowWindow()
+    {
+        AppWindow.Show();
+        Activate();
+    }
+
+    private void OnTrayOpen(object sender, RoutedEventArgs e) => ShowWindow();
+
+    private async void OnTrayDisconnect(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await App.Daemon.DisconnectAsync();
+        }
+        catch (DaemonException error)
+        {
+            // Nothing is on screen to show this on, and the state the tray
+            // reports is about to say whether it worked anyway.
+            App.Trace($"tray disconnect failed: {error.Code} {error.Message}");
+        }
+    }
+
+    private void OnTrayExit(object sender, RoutedEventArgs e)
+    {
+        _exiting = true;
+        App.Daemon.StateChanged -= UpdateTray;
+
+        // The icon outlives the process unless it is taken down by hand, which
+        // leaves a dead entry in the tray until something hovers over it.
+        Tray.Dispose();
+        Application.Current.Exit();
     }
 
     /// <summary>
