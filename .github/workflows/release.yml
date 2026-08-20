@@ -1,0 +1,80 @@
+# Builds the installer and attaches it to a GitHub release.
+#
+# Push a tag to release:
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# The tag is the version. It is stamped into the client, the service binary's
+# version resource, and the installer filename, so all three agree.
+#
+# Nothing is signed. Windows will call the publisher unknown, and SmartScreen
+# will warn about a build nobody has downloaded yet.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  # So the build can be exercised without cutting a release.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to build, without the leading v
+        required: true
+        default: 0.0.0-test
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # One source of truth, rather than a version repeated here to drift.
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Work out the version
+        id: version
+        shell: pwsh
+        run: |
+          $version = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            '${{ inputs.version }}'
+          } else {
+            '${{ github.ref_name }}' -replace '^v', ''
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Building $version"
+
+      - name: Build the installer
+        shell: pwsh
+        run: ./scripts/package.ps1 -Version ${{ steps.version.outputs.version }}
+
+      # Kept whether or not a release is cut, so a dispatch run is testable.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 192168-${{ steps.version.outputs.version }}-setup
+          path: build/*-setup.exe
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/*-setup.exe
+          generate_release_notes: true
+          body: |
+            Windows 10 20H1 (build 19041) or newer, 64-bit.
+
+            This build is not signed. Windows will say the publisher is unknown,
+            and SmartScreen may warn that it does not recognise the app: choose
+            **More info**, then **Run anyway**.

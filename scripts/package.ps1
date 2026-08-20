@@ -44,6 +44,11 @@ if (-not $Version) {
     $Version = $found.Matches[0].Groups[1].Value
 }
 
+# Windows version resources are four numbers and nothing else, so a tag like
+# 0.2.0-rc1 has to be reduced to one before it can be stamped into a binary.
+$number = [version](($Version -split '-')[0])
+$numericVersion = '{0}.{1}.{2}.0' -f $number.Major, [math]::Max($number.Minor, 0), [math]::Max($number.Build, 0)
+
 Write-Host "Packaging 192168 $Version" -ForegroundColor Cyan
 
 # Inno Setup is not fetched automatically.
@@ -70,10 +75,22 @@ if (-not $SkipBuild) {
     Push-Location $repo
     try {
         # Go emits no version resource, so without this the UAC prompt names the
-        # file instead of the app. It is generated rather than committed, so it
-        # has to happen before every build that ships.
-        & go generate ./daemon/cmd/192168-service
-        if ($LASTEXITCODE -ne 0) { throw 'go generate failed, so the binary would have no version resource' }
+        # file instead of the app. The version is passed rather than read from
+        # versioninfo.json, which carries a development default that a release
+        # would otherwise ship as its real version.
+        Push-Location (Join-Path $repo 'daemon\cmd\192168-service')
+        try {
+            & go tool goversioninfo -o resource.syso `
+                -ver-major $number.Major `
+                -ver-minor ([math]::Max($number.Minor, 0)) `
+                -ver-patch ([math]::Max($number.Build, 0)) `
+                -product-version $Version `
+                versioninfo.json
+            if ($LASTEXITCODE -ne 0) { throw 'goversioninfo failed, so the binary would have no version resource' }
+        }
+        finally {
+            Pop-Location
+        }
 
         $env:GOOS = 'windows'
         $env:GOARCH = 'amd64'
@@ -122,6 +139,7 @@ foreach ($required in @('Net192168.Client.exe', 'Net192168.Client.pri', 'Assets\
 Write-Host 'Compiling the installer...' -ForegroundColor Cyan
 & $iscc `
     "/DAppVersion=$Version" `
+    "/DAppVersionNumeric=$numericVersion" `
     "/DStageDir=$stage" `
     (Join-Path $repo 'installer\192168.iss')
 if ($LASTEXITCODE -ne 0) { throw 'ISCC failed' }

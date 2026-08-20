@@ -18,6 +18,13 @@
   #define AppVersion "0.1.0"
 #endif
 
+; The same version as four numbers, which is the only shape Windows accepts in
+; a version resource. A tag like 0.2.0-rc1 is a valid AppVersion and not a valid
+; one of these.
+#ifndef AppVersionNumeric
+  #define AppVersionNumeric "0.1.0.0"
+#endif
+
 ; Where package.ps1 staged everything.
 #ifndef StageDir
   #define StageDir "..\build\stage"
@@ -47,6 +54,15 @@ ArchitecturesAllowed=x64compatible
 ; Nothing here runs on anything older, and the Windows App SDK is bundled.
 MinVersion=10.0.19041
 LicenseFile={#StageDir}\LICENSE.txt
+; What the UAC prompt and the file's properties show. Unsigned, the publisher
+; line says unknown whatever is put here, but the name does not have to.
+VersionInfoVersion={#AppVersionNumeric}
+; Numeric here as well. Only AppVersion, which is what Add or remove programs
+; lists, keeps a suffix like -rc1.
+VersionInfoProductVersion={#AppVersionNumeric}
+VersionInfoProductName={#AppName}
+VersionInfoCompany={#AppPublisher}
+VersionInfoDescription={#AppName} Setup
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
