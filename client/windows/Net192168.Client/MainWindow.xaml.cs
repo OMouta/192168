@@ -146,15 +146,35 @@ public sealed partial class MainWindow : Window
         _exiting = true;
         App.Daemon.StateChanged -= UpdateTray;
 
-        if (DaemonService.IsAvailable)
+        App.Trace("tray exit: requested");
+
+        // Quitting must not depend on the service agreeing to stop, or on the
+        // stop returning at all.
+        try
         {
-            await DaemonService.StopAsync();
+            if (DaemonService.IsAvailable)
+            {
+                await Task.WhenAny(DaemonService.StopAsync(), Task.Delay(TimeSpan.FromSeconds(15)));
+            }
         }
+        catch (Exception error)
+        {
+            App.Trace($"tray exit: stopping the service failed: {error}");
+        }
+
+        App.Trace("tray exit: quitting");
 
         // The icon outlives the process unless it is taken down by hand, which
         // leaves a dead entry in the tray until something hovers over it.
         Tray.Dispose();
-        Application.Current.Exit();
+        App.Daemon.Shutdown();
+
+        // Application.Exit closes windows, and this window is hidden rather
+        // than open, so there is nothing for it to close and the process stays
+        // up serving the tray icon's message loop. Everything worth shutting
+        // down has been by now, and a tray app that will not quit is worse than
+        // one that quits abruptly.
+        Environment.Exit(0);
     }
 
     /// <summary>

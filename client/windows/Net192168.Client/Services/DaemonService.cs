@@ -131,7 +131,17 @@ public static class DaemonService
                 return (-1, "");
             }
 
-            var output = elevated ? "" : await process.StandardOutput.ReadToEndAsync();
+            // Both pipes are drained. Redirecting stderr and never reading it
+            // deadlocks the child once its buffer fills, and a stop that never
+            // returns is indistinguishable from one that never ran.
+            var output = "";
+            if (!elevated)
+            {
+                var stdout = process.StandardOutput.ReadToEndAsync();
+                var stderr = process.StandardError.ReadToEndAsync();
+                output = await stdout;
+                await stderr;
+            }
 
             using var deadline = new CancellationTokenSource(Timeout);
             await process.WaitForExitAsync(deadline.Token);
