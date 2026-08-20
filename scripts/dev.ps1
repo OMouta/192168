@@ -17,6 +17,18 @@
 .PARAMETER Port
     Port for the local server. Defaults to 8080.
 
+.PARAMETER Hosted
+    Skip the local server and talk to the deployed one instead, which is what
+    two machines on different networks have to do. The address is not repeated
+    here: the daemon falls back to its own DefaultServerURL.
+
+    This also deletes settings.json, because a server picked in the Settings
+    screen is stored there and beats the built-in default. That file holds
+    nothing else.
+
+    Combined with -Reset the daemon registers as a new device against the real
+    server, so use it deliberately rather than out of habit.
+
 .PARAMETER NoClient
     Start the server and daemon but not the window.
 
@@ -40,12 +52,14 @@
 .EXAMPLE
     .\scripts\dev.ps1
     .\scripts\dev.ps1 -Reset
+    .\scripts\dev.ps1 -Hosted -Elevated
     .\scripts\dev.ps1 -Stop
 #>
 
 [CmdletBinding()]
 param(
     [int]$Port = 8080,
+    [switch]$Hosted,
     [switch]$NoClient,
     [switch]$Reset,
     [switch]$Stop,
@@ -93,10 +107,20 @@ Stop-Stack
 Start-Sleep -Milliseconds 500
 
 if ($Reset) {
-    Remove-Item (Join-Path $devRoot 'server.db*') -Force -ErrorAction SilentlyContinue
+    if (-not $Hosted) {
+        Remove-Item (Join-Path $devRoot 'server.db*') -Force -ErrorAction SilentlyContinue
+    }
     Remove-Item (Join-Path $identityDir 'identity.json') -Force -ErrorAction SilentlyContinue
     Remove-Item (Join-Path $identityDir 'settings.json') -Force -ErrorAction SilentlyContinue
-    Write-Host 'Cleared the server database and this device identity.' -ForegroundColor Yellow
+    $cleared = if ($Hosted) { 'this device identity' } else { 'the server database and this device identity' }
+    Write-Host "Cleared $cleared." -ForegroundColor Yellow
+}
+
+# A server chosen in the Settings screen is remembered in settings.json, and
+# that choice wins over the built-in default, so pointing at the hosted server
+# means clearing it. The file holds nothing but the server URL.
+if ($Hosted) {
+    Remove-Item (Join-Path $identityDir 'settings.json') -Force -ErrorAction SilentlyContinue
 }
 
 New-Item -ItemType Directory -Force -Path $binDir, $logDir | Out-Null
@@ -107,9 +131,11 @@ if (-not (Test-Path (Join-Path $binDir 'wintun.dll'))) {
 }
 
 Write-Host 'Building Go...' -ForegroundColor Cyan
+$goTargets = @('./daemon/cmd/192168-daemon')
+if (-not $Hosted) { $goTargets += './server/cmd/192168-server' }
 Push-Location $repo
 try {
-    & go build -o "$binDir\" ./server/cmd/192168-server ./daemon/cmd/192168-daemon
+    & go build -o "$binDir\" @goTargets
     if ($LASTEXITCODE -ne 0) { throw 'go build failed' }
 }
 finally {
@@ -122,7 +148,18 @@ if (-not $NoClient) {
     if ($LASTEXITCODE -ne 0) { throw 'dotnet build failed' }
 }
 
-$serverUrl = "http://localhost:$Port"
+# Under -Hosted the daemon resolves the address itself, so this is only for the
+# console header. It is read out of the daemon's own default rather than
+# repeated here, which is the difference between a header that is true and one
+# that is true today.
+if ($Hosted) {
+    $found = Select-String -Path (Join-Path $repo 'daemon\config\config.go') `
+        -Pattern 'DefaultServerURL\s*=\s*"([^"]+)"'
+    $serverUrl = if ($found) { $found.Matches[0].Groups[1].Value } else { 'its built-in default' }
+}
+else {
+    $serverUrl = "http://localhost:$Port"
+}
 
 <#
 .SYNOPSIS
@@ -172,30 +209,35 @@ function Start-Console {
     return $console
 }
 
-Write-Host "Starting the server on $serverUrl" -ForegroundColor Cyan
-Start-Console -Title '192168 SERVER' -Colour 'Green' `
-    -Exe (Join-Path $binDir '192168-server.exe') `
-    -LogFile (Join-Path $logDir 'server.log') `
-    -Notes @("coordination server  $serverUrl", 'introduces peers, carries no game traffic') `
-    -Environment @{
-        NET192168_PUBLIC_URL   = $serverUrl
-        NET192168_ADDR         = ":$Port"
-        NET192168_DATABASE_URL = Join-Path $devRoot 'server.db'
-    } | Out-Null
-
-# The daemon registers with the server on its first call, so the server has to
-# be answering before it is worth starting.
-$ready = $false
-foreach ($attempt in 1..30) {
-    Start-Sleep -Milliseconds 200
-    try {
-        Invoke-RestMethod "$serverUrl/api/health" -TimeoutSec 2 | Out-Null
-        $ready = $true
-        break
-    }
-    catch { }
+if ($Hosted) {
+    Write-Host "Using the hosted server at $serverUrl" -ForegroundColor Cyan
 }
-if (-not $ready) { throw "The server never answered on $serverUrl. Its console will say why." }
+else {
+    Write-Host "Starting the server on $serverUrl" -ForegroundColor Cyan
+    Start-Console -Title '192168 SERVER' -Colour 'Green' `
+        -Exe (Join-Path $binDir '192168-server.exe') `
+        -LogFile (Join-Path $logDir 'server.log') `
+        -Notes @("coordination server  $serverUrl", 'introduces peers, carries no game traffic') `
+        -Environment @{
+            NET192168_PUBLIC_URL   = $serverUrl
+            NET192168_ADDR         = ":$Port"
+            NET192168_DATABASE_URL = Join-Path $devRoot 'server.db'
+        } | Out-Null
+
+    # The daemon registers with the server on its first call, so the server has
+    # to be answering before it is worth starting.
+    $ready = $false
+    foreach ($attempt in 1..30) {
+        Start-Sleep -Milliseconds 200
+        try {
+            Invoke-RestMethod "$serverUrl/api/health" -TimeoutSec 2 | Out-Null
+            $ready = $true
+            break
+        }
+        catch { }
+    }
+    if (-not $ready) { throw "The server never answered on $serverUrl. Its console will say why." }
+}
 
 Write-Host 'Starting the daemon' -ForegroundColor Cyan
 $adapterNote = if ($Elevated) {
@@ -204,18 +246,36 @@ $adapterNote = if ($Elevated) {
 else {
     'not elevated, so no adapter and no game traffic'
 }
+# An elevated process does not inherit this shell's environment, so anything the
+# daemon needs has to be set inside its own console. Under -Hosted the server
+# URL is left out entirely, which is what makes the daemon fall back to the
+# address it ships with.
+$daemonEnvironment = @{ NET192168_LOG_LEVEL = $LogLevel }
+if (-not $Hosted) { $daemonEnvironment['NET192168_SERVER_URL'] = $serverUrl }
+
 Start-Console -Title '192168 DAEMON' -Colour 'Cyan' -AsAdmin:$Elevated `
     -Exe (Join-Path $binDir '192168-daemon.exe') `
     -LogFile (Join-Path $logDir 'daemon.log') `
     -Notes @('networking daemon    pipe \\.\pipe\192168', "talking to  $serverUrl", $adapterNote) `
-    -Environment @{
-        NET192168_SERVER_URL = $serverUrl
-        # An elevated process does not inherit this shell's environment, so
-        # anything the daemon needs has to be set inside its own console.
-        NET192168_LOG_LEVEL  = $LogLevel
-    } | Out-Null
+    -Environment $daemonEnvironment | Out-Null
 
-Start-Sleep -Seconds 2
+# The daemon does not exist until its console has finished opening, and a cold
+# pwsh takes longer than any fixed sleep worth writing. Waiting for the process
+# rather than guessing is also what keeps -Hosted honest, since without the
+# server console this is the first pwsh to start and the slowest.
+$daemonUp = $false
+foreach ($attempt in 1..40) {
+    Start-Sleep -Milliseconds 250
+    if (Get-Process -Name '192168-daemon' -ErrorAction SilentlyContinue) {
+        $daemonUp = $true
+        break
+    }
+}
+if (-not $daemonUp) { throw 'The daemon never started. Its console will say why.' }
+
+# It can also come up and then fail on its first call to the server, which the
+# check above is too early to see.
+Start-Sleep -Milliseconds 750
 if (-not (Get-Process -Name '192168-daemon' -ErrorAction SilentlyContinue)) {
     throw 'The daemon exited. Its console will say why.'
 }
@@ -228,7 +288,7 @@ if (-not $NoClient) {
 
 Write-Host ''
 Write-Host 'Running.' -ForegroundColor Green
-Write-Host "  server    $serverUrl"
+Write-Host "  server    $serverUrl$(if ($Hosted) { '  (hosted)' })"
 Write-Host "  logs      $logDir"
 Write-Host "  crashes   $(Join-Path $identityDir 'client-crash.log')"
 Write-Host ''
