@@ -60,3 +60,28 @@ func TestCheckPublicURLRejectsUnusableAddresses(t *testing.T) {
 		}
 	}
 }
+
+func TestListenAddress(t *testing.T) {
+	tests := []struct {
+		name string
+		addr string
+		port string
+		want string
+	}{
+		{"nothing set", "", "", ":8080"},
+		{"our own variable", ":9000", "", ":9000"},
+		// Railway and similar hosts hand the port over this way, and a
+		// deployment that ignores it never becomes reachable.
+		{"the host supplies a port", "", "4567", ":4567"},
+		{"ours wins", ":9000", "4567", ":9000"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("NET192168_ADDR", tt.addr)
+			t.Setenv("PORT", tt.port)
+			if got := listenAddress(); got != tt.want {
+				t.Errorf("listenAddress() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

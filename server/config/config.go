@@ -31,7 +31,7 @@ type Config struct {
 // Load reads configuration from the environment and validates it.
 func Load() (Config, error) {
 	c := Config{
-		Addr:        envOr("NET192168_ADDR", ":8080"),
+		Addr:        listenAddress(),
 		PublicURL:   strings.TrimRight(strings.TrimSpace(os.Getenv("NET192168_PUBLIC_URL")), "/"),
 		DatabaseURL: os.Getenv("NET192168_DATABASE_URL"),
 		STUN:        DefaultSTUN,
@@ -81,11 +81,17 @@ func checkPublicURL(raw string) error {
 	return fmt.Errorf("NET192168_PUBLIC_URL must use https (got %q)", raw)
 }
 
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
+// listenAddress prefers our own variable, then PORT, which is what hosts like
+// Railway and Fly set for you. Without the fallback every such deployment needs
+// a variable set by hand before it will start.
+func listenAddress() string {
+	if addr := os.Getenv("NET192168_ADDR"); addr != "" {
+		return addr
 	}
-	return fallback
+	if port := os.Getenv("PORT"); port != "" {
+		return ":" + port
+	}
+	return ":8080"
 }
 
 func splitAndTrim(raw string) []string {

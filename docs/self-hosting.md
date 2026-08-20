@@ -9,7 +9,17 @@ client at yours.
 - A public HTTPS domain, with your reverse proxy terminating TLS.
 - Docker, or a Go 1.26+ toolchain.
 
-## Run it
+## Railway
+
+The least work of any host, and it needs one variable set. See
+[deploy/railway](../deploy/railway/README.md).
+
+One thing to know before choosing it: Railway has no UDP, so it cannot host the
+relay if one is ever built. That costs nothing today, because peers talk
+straight to each other and the coordination server only speaks HTTP and
+WebSocket.
+
+## Docker anywhere else
 
 ```sh
 cd deploy/docker
@@ -43,7 +53,7 @@ connection, and save.
 | Variable | Required | Description |
 | --- | --- | --- |
 | `NET192168_PUBLIC_URL` | yes | Public base URL. Must match what users type in. HTTPS unless localhost. |
-| `NET192168_ADDR` | no | Listen address. Defaults to `:8080`. |
+| `NET192168_ADDR` | no | Listen address. Falls back to `PORT`, then `:8080`. |
 | `NET192168_STUN` | no | Comma-separated STUN servers to advertise. Defaults to a public one. |
 | `NET192168_DATABASE_URL` | no | Storage DSN. Defaults to local SQLite. |
 
