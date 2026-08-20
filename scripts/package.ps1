@@ -85,16 +85,17 @@ if (-not $SkipBuild) {
         Pop-Location
     }
 
-    Write-Host 'Publishing the client...' -ForegroundColor Cyan
-    # Publish, not build: the client is self-contained, so this is what runs on a
-    # machine with no .NET and no Windows App SDK.
-    & dotnet publish $csproj -c Release -r win-x64 -p:Platform=x64 `
+    Write-Host 'Building the client...' -ForegroundColor Cyan
+    # Build, not publish. The csproj is already self-contained, and publish drops
+    # Net192168.Client.pri, which holds the compiled XAML. Without it every
+    # window fails to parse and the app dies before it draws anything.
+    & dotnet build $csproj -c Release -r win-x64 -p:Platform=x64 `
         -p:Version=$Version --nologo -v quiet -o (Join-Path $stage 'client')
-    if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed' }
+    if ($LASTEXITCODE -ne 0) { throw 'dotnet build failed' }
 }
 else {
     Write-Host 'Skipping the build, staging what is already there.' -ForegroundColor Yellow
-    Copy-Item (Join-Path $repo 'client\windows\Net192168.Client\bin\Release\net10.0-windows10.0.26100.0\win-x64\publish\*') `
+    Copy-Item (Join-Path $repo 'client\windows\Net192168.Client\bin\x64\Release\net10.0-windows10.0.26100.0\win-x64\*') `
         (Join-Path $stage 'client') -Recurse -Force -ErrorAction SilentlyContinue
     Copy-Item (Join-Path $env:LOCALAPPDATA '192168-dev\bin\192168-service.exe') $stage -Force
 }
@@ -109,8 +110,13 @@ Copy-Item (Join-Path $repo 'LICENSE') (Join-Path $stage 'LICENSE.txt') -Force
 foreach ($required in @('192168-service.exe', 'wintun.dll', 'wintun-LICENSE.txt', 'LICENSE.txt')) {
     if (-not (Test-Path (Join-Path $stage $required))) { throw "Missing from the stage directory: $required" }
 }
-if (-not (Test-Path (Join-Path $stage 'client\Net192168.Client.exe'))) {
-    throw 'Missing from the stage directory: client\Net192168.Client.exe'
+# The pri holds the compiled XAML. Shipping without it produces an installer
+# that lays everything down and an app that dies parsing its first window, which
+# is only visible on the machine that installed it.
+foreach ($required in @('Net192168.Client.exe', 'Net192168.Client.pri', 'Assets\icon.ico', 'Assets\wordmark.png')) {
+    if (-not (Test-Path (Join-Path $stage "client\$required"))) {
+        throw "Missing from the stage directory: client\$required"
+    }
 }
 
 Write-Host 'Compiling the installer...' -ForegroundColor Cyan
