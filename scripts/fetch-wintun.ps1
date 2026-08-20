@@ -66,7 +66,10 @@ function Test-WintunSignature {
 }
 
 $target = Join-Path $Destination 'wintun.dll'
-if (Test-Path $target) {
+# The installer ships this beside the DLL.
+$licenseTarget = Join-Path $Destination 'wintun-LICENSE.txt'
+
+if ((Test-Path $target) -and (Test-Path $licenseTarget)) {
     $problem = Test-WintunSignature $target
     if (-not $problem) {
         Write-Host "wintun.dll is already in place, signed by $expectedSigner." -ForegroundColor Green
@@ -109,9 +112,16 @@ try {
     }
     Write-Host "Signed by $expectedSigner." -ForegroundColor Green
 
+    $license = Join-Path $work 'wintun\LICENSE.txt'
+    if (-not (Test-Path $license)) {
+        throw 'The archive has no LICENSE.txt.'
+    }
+
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
     Copy-Item $dll $target -Force
+    Copy-Item $license $licenseTarget -Force
     Write-Host "Placed $target" -ForegroundColor Green
+    Write-Host "Placed $licenseTarget" -ForegroundColor Green
 }
 finally {
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
