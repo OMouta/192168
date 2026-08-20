@@ -19,6 +19,11 @@ RUN mkdir /data
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/192168-server /192168-server
 COPY --from=build --chown=nonroot:nonroot /data /data
+# The default database path is relative, so it resolves against the working
+# directory. Without this it lands in /, which nonroot cannot write to, and the
+# server exits before it serves anything. Pointing the working directory at the
+# one writable place means a deployment with no storage configured still runs.
+WORKDIR /data
 EXPOSE 8080
 USER nonroot:nonroot
 ENTRYPOINT ["/192168-server"]

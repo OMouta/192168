@@ -30,12 +30,14 @@ couple of variables and a volume.
    RAILWAY_RUN_UID = 0
    ```
 
-   Skip the volume and every deploy wipes the groups.
+   Without a volume the server still runs, so you can try a deploy before
+   committing to storage, but the database lives in the container and every
+   deploy wipes the groups.
 
-   `RAILWAY_RUN_UID` is not optional here. The image runs as a non-root user and
-   Railway mounts the volume owned by root, so without it the server cannot
-   create the database and crash-loops at startup. Railway documents this
-   variable as the fix.
+   `RAILWAY_RUN_UID` is not optional once a volume is attached. The image runs
+   as a non-root user and Railway mounts the volume owned by root, so without it
+   the server cannot create the database and crash-loops at startup. Railway
+   documents this variable as the fix.
 
 6. Under Settings, Backups, pick a schedule. Railway backs up whatever is in the
    volume, SQLite included, and restores it from the same tab.
