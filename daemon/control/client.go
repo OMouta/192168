@@ -42,11 +42,24 @@ type Error struct {
 	Status  int
 	Code    string
 	Message string
+
+	// Err is the transport failure underneath, when there was one. It never
+	// reaches the user, who gets Message. It exists so the log can say which
+	// of a name that would not resolve, a refused connection, a timeout, or a
+	// certificate it was, because all four read as "could not reach" and only
+	// one of them is worth changing a setting over.
+	Err error
 }
 
 func (e *Error) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("control: %s (%d): %s: %v", e.Code, e.Status, e.Message, e.Err)
+	}
 	return fmt.Sprintf("control: %s (%d): %s", e.Code, e.Status, e.Message)
 }
+
+// Unwrap exposes the transport failure to errors.Is and errors.As.
+func (e *Error) Unwrap() error { return e.Err }
 
 // IsUnauthorized reports whether an error means the token is no longer good, so
 // the daemon knows to register again rather than retrying.
@@ -209,8 +222,14 @@ func (c *Client) do(ctx context.Context, method, url string, body, out any) erro
 	res, err := c.http.Do(req)
 	if err != nil {
 		// A network failure is not the server's fault and has no code, so it
-		// gets one the UI can recognise.
-		return &Error{Code: "unreachable", Message: "Could not reach the server. Check your connection or server settings."}
+		// gets one the UI can recognise. The cause is carried along rather
+		// than replaced, since the friendly sentence is true of every way this
+		// can fail and so says nothing about which one happened.
+		return &Error{
+			Code:    "unreachable",
+			Message: "Could not reach the server. Check your connection or server settings.",
+			Err:     err,
+		}
 	}
 	defer res.Body.Close()
 

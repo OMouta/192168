@@ -36,6 +36,13 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBarRow);
 
+        // The window buttons are drawn by Windows from the top of the window
+        // down, so the header only looks level with them when the row is
+        // exactly as tall as they are. Tall is 48, which TitleBarRow matches.
+        // Left at Standard the buttons are 32 and sit six pixels high of the
+        // wordmark and the gear.
+        AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
+
         AppWindow.Title = "192168";
         AppWindow.SetIcon("Assets/icon.ico");
         AppWindow.Resize(new SizeInt32(Width, Height));

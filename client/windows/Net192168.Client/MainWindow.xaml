@@ -12,7 +12,8 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="44" />
+            <!--  48 is the tall window button height, set in MainWindow.xaml.cs.  -->
+            <RowDefinition Height="48" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 

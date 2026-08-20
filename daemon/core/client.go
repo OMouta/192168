@@ -75,6 +75,9 @@ func (c *Core) ensureClient(ctx context.Context) (*control.Client, error) {
 
 	client, err := control.Discover(ctx, url)
 	if err != nil {
+		// Connecting fails here more often than anywhere else, and the user
+		// only sees that it did. The cause belongs in the log.
+		c.log.Info("server unreachable", "serverUrl", url, "error", err)
 		c.setServerOnline(false)
 		return nil, toFailure(err)
 	}

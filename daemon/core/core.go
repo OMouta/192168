@@ -301,6 +301,11 @@ func (c *Core) TestServer(ctx context.Context, url string) (ipc.TestServerResult
 
 	client, err := control.Discover(ctx, url)
 	if err != nil {
+		// The user gets a sentence they can act on; the log gets the cause,
+		// which is the only place the difference between a bad address and a
+		// resolver having a bad day is visible.
+		c.log.Info("server test failed", "serverUrl", url, "error", err)
+
 		var e *control.Error
 		if errors.As(err, &e) {
 			return ipc.TestServerResult{Reachable: false, Message: e.Message}, nil
