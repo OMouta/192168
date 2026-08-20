@@ -38,6 +38,55 @@ public sealed partial class ManageGroupViewModel : ObservableObject
     public partial bool IsBusy { get; set; }
 
     /// <summary>
+    /// True once Delete has been pressed and the question is on screen.
+    ///
+    /// Asked in place rather than over the window: a dialog in a window this
+    /// narrow covers the name of the thing being deleted, which is the one fact
+    /// worth checking before agreeing.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNotConfirmingDelete))]
+    public partial bool IsConfirmingDelete { get; set; }
+
+    public bool IsNotConfirmingDelete => !IsConfirmingDelete;
+
+    /// <summary>What deleting takes with it, named so it cannot be misread.</summary>
+    public string DeletePrompt => $"Delete {OriginalName}? It goes for everyone in it, and cannot be undone.";
+
+    [RelayCommand]
+    private void AskToDelete() => IsConfirmingDelete = true;
+
+    [RelayCommand]
+    private void KeepGroup() => IsConfirmingDelete = false;
+
+    /// <summary>
+    /// Removes the group for everybody. The daemon disconnects first, since
+    /// this device is the one holding an adapter for a group about to stop
+    /// existing.
+    /// </summary>
+    /// <returns>Whether the screen is finished with.</returns>
+    [RelayCommand]
+    public async Task<bool> DeleteAsync()
+    {
+        IsBusy = true;
+        try
+        {
+            await _daemon.DeleteGroupAsync(_groupId);
+            return true;
+        }
+        catch (DaemonException e)
+        {
+            Status = ErrorCopy.Describe(e);
+            IsConfirmingDelete = false;
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
     /// Applies whichever of the two was changed.
     /// </summary>
     /// <returns>Whether the screen is finished with.</returns>

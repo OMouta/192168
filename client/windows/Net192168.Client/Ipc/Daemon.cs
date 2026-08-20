@@ -190,6 +190,9 @@ public sealed class Daemon
     public Task TransferOwnershipAsync(string groupId, string deviceId)
         => _client.CallAsync("TransferOwnership", new MemberParams(groupId, deviceId), _lifetime.Token);
 
+    public Task DeleteGroupAsync(string groupId)
+        => _client.CallAsync("DeleteGroup", new GroupParams(groupId), _lifetime.Token);
+
     public Task<GetServerResult> ResetSettingsAsync()
         => _client.CallAsync<GetServerResult>("ResetSettings", null, _lifetime.Token);
 

@@ -44,6 +44,7 @@ type Handler interface {
 	RenameGroup(ctx context.Context, params ipc.RenameGroupParams) error
 	SetGroupPassword(ctx context.Context, params ipc.SetGroupPasswordParams) error
 	TransferOwnership(ctx context.Context, params ipc.MemberParams) error
+	DeleteGroup(ctx context.Context, groupID string) error
 	GetServer(ctx context.Context) (string, error)
 	SetServer(ctx context.Context, url string) error
 	TestServer(ctx context.Context, url string) (ipc.TestServerResult, error)
@@ -331,6 +332,13 @@ func (s *Server) call(ctx context.Context, req ipc.Request) (any, error) {
 			return nil, badParams(err)
 		}
 		return nil, s.handler.TransferOwnership(ctx, params)
+
+	case ipc.MethodDeleteGroup:
+		var params ipc.GroupParams
+		if err := req.UnmarshalParams(&params); err != nil {
+			return nil, badParams(err)
+		}
+		return nil, s.handler.DeleteGroup(ctx, params.GroupID)
 
 	case ipc.MethodGetServer:
 		url, err := s.handler.GetServer(ctx)

@@ -306,3 +306,8 @@ func (c *Client) SetGroupPassword(ctx context.Context, groupID, groupName, passw
 func (c *Client) TransferOwnership(ctx context.Context, groupID, deviceID string) error {
 	return c.do(ctx, http.MethodPut, c.discovery.API+"/groups/"+groupID+"/owner/"+deviceID, nil, nil)
 }
+
+// DeleteGroup removes a group for everyone in it.
+func (c *Client) DeleteGroup(ctx context.Context, groupID string) error {
+	return c.do(ctx, http.MethodDelete, c.discovery.API+"/groups/"+groupID, nil, nil)
+}

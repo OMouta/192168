@@ -39,6 +39,7 @@ const (
 	MethodRenameGroup       Method = "RenameGroup"
 	MethodSetGroupPassword  Method = "SetGroupPassword"
 	MethodTransferOwnership Method = "TransferOwnership"
+	MethodDeleteGroup       Method = "DeleteGroup"
 	MethodGetServer         Method = "GetServer"
 	MethodSetServer         Method = "SetServer"
 	MethodTestServer        Method = "TestServer"

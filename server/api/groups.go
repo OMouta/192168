@@ -313,3 +313,21 @@ func (s *Server) handleTransferOwnership(w http.ResponseWriter, r *http.Request,
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// handleDeleteGroup removes a group for everyone in it.
+func (s *Server) handleDeleteGroup(w http.ResponseWriter, r *http.Request, device storage.Device) {
+	groupID := r.PathValue("groupId")
+
+	if err := s.store.DeleteGroup(r.Context(), groupID, device.ID); err != nil {
+		s.fail(w, r, err, api.ErrGroupNotFound, "You are not a member of that group.")
+		return
+	}
+	s.log.Info("group deleted", "groupId", groupID, "by", device.ID)
+
+	// After it is gone, not before: an attempt that gets turned down must not
+	// tell the group it was deleted. The subscribers live in memory and outlive
+	// the row, so there is still somebody to tell.
+	s.hub.Broadcast(groupID, "", api.EventGroupDeleted, api.GroupDeletedData{GroupID: groupID})
+
+	w.WriteHeader(http.StatusNoContent)
+}

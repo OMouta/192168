@@ -459,3 +459,35 @@ func (c *Core) TransferOwnership(ctx context.Context, params ipc.MemberParams) e
 	c.emit(ipc.EventStateChanged, state)
 	return nil
 }
+
+// DeleteGroup removes a group for everyone in it.
+//
+// Disconnecting first is what makes the local teardown orderly. The other
+// members are told by the server and disconnect the same way, but this device
+// is the one holding an adapter and a socket for a group about to stop
+// existing.
+func (c *Core) DeleteGroup(ctx context.Context, groupID string) error {
+	if groupID == "" {
+		return &ipcserver.Failure{Code: "bad_request", Message: "Choose a group to delete."}
+	}
+
+	c.mu.Lock()
+	active := c.session != nil && c.session.groupID == groupID
+	c.mu.Unlock()
+
+	if active {
+		if err := c.Disconnect(ctx); err != nil {
+			return err
+		}
+	}
+
+	_, err := withClient(c, ctx, func(client *control.Client) (struct{}, error) {
+		return struct{}{}, client.DeleteGroup(ctx, groupID)
+	})
+	if err != nil {
+		return err
+	}
+
+	c.log.Info("group deleted", "groupId", groupID)
+	return nil
+}

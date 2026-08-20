@@ -459,3 +459,25 @@ func (s *Store) write(ctx context.Context, work func(tx *sql.Tx) error) error {
 	}
 	return nil
 }
+
+// DeleteGroup removes a group and everything that belongs to it.
+//
+// Memberships and sessions are declared to cascade from the group, so this ends
+// them too: nobody is left holding a membership of something that no longer
+// exists, and no session keeps a virtual IP in a group nobody can reach.
+func (s *Store) DeleteGroup(ctx context.Context, groupID, ownerDeviceID string) error {
+	return s.write(ctx, func(tx *sql.Tx) error {
+		if err := ownerOnly(ctx, tx, groupID, ownerDeviceID); err != nil {
+			return err
+		}
+
+		result, err := tx.ExecContext(ctx, `DELETE FROM groups WHERE id = ?`, groupID)
+		if err != nil {
+			return fmt.Errorf("storage: delete group: %w", err)
+		}
+		if affected, _ := result.RowsAffected(); affected == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}

@@ -194,6 +194,10 @@ func (c *Core) watchGroup(ctx context.Context, session *activeSession) {
 		PeerRenamed: func(deviceID, nickname string) {
 			c.renamePeer(deviceID, nickname)
 		},
+		GroupDeleted: func(groupID string) {
+			c.log.Warn("the connected group was deleted", "groupId", groupID)
+			go c.dropSession("That group was deleted.")
+		},
 		MembershipRevoked: func() {
 			c.log.Warn("membership revoked while connected")
 			go c.dropSession("You were removed from that group.")

@@ -101,6 +101,11 @@ func (h *fakeHandler) TransferOwnership(_ context.Context, p ipc.MemberParams) e
 	return h.failWith
 }
 
+func (h *fakeHandler) DeleteGroup(_ context.Context, groupID string) error {
+	h.record("DeleteGroup:" + groupID)
+	return h.failWith
+}
+
 func (h *fakeHandler) GetServer(context.Context) (string, error) {
 	h.record("GetServer")
 	return h.server, h.failWith

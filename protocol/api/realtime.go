@@ -13,6 +13,7 @@ const (
 	EventPeerRenamed         EventType = "peer_renamed"
 	EventMembershipRevoked   EventType = "membership_revoked"
 	EventGroupUpdated        EventType = "group_updated"
+	EventGroupDeleted        EventType = "group_deleted"
 	EventSessionInvalidated  EventType = "session_invalidated"
 )
 
@@ -39,6 +40,12 @@ type PeerOfflineData struct {
 type GroupUpdatedData struct {
 	GroupID string `json:"groupId"`
 	Name    string `json:"name"`
+}
+
+// GroupDeletedData accompanies EventGroupDeleted. The group is gone, so anyone
+// connected to it is disconnected and it leaves their list.
+type GroupDeletedData struct {
+	GroupID string `json:"groupId"`
 }
 
 // PeerRenamedData accompanies EventPeerRenamed. A nickname is what everyone

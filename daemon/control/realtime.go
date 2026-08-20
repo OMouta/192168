@@ -21,6 +21,7 @@ type RealtimeHandler struct {
 	PeerOffline         func(deviceID string)
 	PeerEndpointUpdated func(deviceID string, endpoint api.Endpoint)
 	PeerRenamed         func(deviceID, nickname string)
+	GroupDeleted        func(groupID string)
 	MembershipRevoked   func()
 	SessionInvalidated  func()
 
@@ -135,6 +136,12 @@ func dispatch(event api.Event, handler RealtimeHandler) {
 		var data api.PeerRenamedData
 		if json.Unmarshal(event.Data, &data) == nil && handler.PeerRenamed != nil {
 			handler.PeerRenamed(data.DeviceID, data.Nickname)
+		}
+
+	case api.EventGroupDeleted:
+		var data api.GroupDeletedData
+		if json.Unmarshal(event.Data, &data) == nil && handler.GroupDeleted != nil {
+			handler.GroupDeleted(data.GroupID)
 		}
 
 	case api.EventMembershipRevoked:

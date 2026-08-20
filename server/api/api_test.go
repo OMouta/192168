@@ -702,3 +702,42 @@ func TestChangingThePasswordKeepsEveryoneAndStopsTheOldOne(t *testing.T) {
 		t.Fatalf("join with the new password: status %d", code)
 	}
 }
+
+// Deleting a group takes it away from everyone in it, so it is the owner's
+// alone and it takes the memberships and sessions with it.
+func TestDeletingAGroupTakesEverythingWithIt(t *testing.T) {
+	h := newTestServer(t)
+	owner, member, groupID, proof := setUpGroup(t, h)
+
+	if code := call(t, h, http.MethodPost, "/api/groups/"+groupID+"/sessions", member.token, nil, nil); code != http.StatusCreated {
+		t.Fatalf("member connect: status %d", code)
+	}
+
+	if code := call(t, h, http.MethodDelete, "/api/groups/"+groupID, member.token, nil, nil); code != http.StatusForbidden {
+		t.Fatalf("member deleting: status %d, want 403", code)
+	}
+	if code := call(t, h, http.MethodDelete, "/api/groups/"+groupID, owner.token, nil, nil); code != http.StatusNoContent {
+		t.Fatalf("owner deleting: status %d", code)
+	}
+
+	// Gone from everybody's list, not only the owner's.
+	for _, who := range []struct {
+		name   string
+		device device
+	}{{"owner", owner}, {"member", member}} {
+		var groups []papi.Membership
+		if code := call(t, h, http.MethodGet, "/api/groups", who.device.token, nil, &groups); code != http.StatusOK {
+			t.Fatalf("%s listing groups: status %d", who.name, code)
+		}
+		if len(groups) != 0 {
+			t.Errorf("%s still has %+v", who.name, groups)
+		}
+	}
+
+	// And the name is free again, rather than held by a group nobody can reach.
+	if code := call(t, h, http.MethodPost, "/api/groups", member.token, papi.CreateGroupRequest{
+		Name: "Friday Night", PasswordProof: proof, Nickname: "Joao",
+	}, nil); code != http.StatusCreated {
+		t.Fatalf("reusing the name: status %d, want 201", code)
+	}
+}
