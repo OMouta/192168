@@ -71,6 +71,9 @@ public sealed record PeerView
     public string VirtualIp { get; init; } = "";
     public PeerState State { get; init; }
     public int? LatencyMs { get; init; }
+
+    /// <summary>Whoever runs the group, marked in the list.</summary>
+    public bool IsOwner { get; init; }
 }
 
 /// <summary>One saved membership.</summary>
@@ -81,6 +84,10 @@ public sealed record Group
     public string Nickname { get; init; } = "";
     public bool Active { get; init; }
     public int? OnlineMembers { get; init; }
+
+    /// <summary>Whether this device runs the group, which decides whether the
+    /// row offers a way into its settings.</summary>
+    public bool IsOwner { get; init; }
 }
 
 public sealed record GetGroupsResult

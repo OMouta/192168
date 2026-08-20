@@ -88,23 +88,38 @@
                     TextTrimming="CharacterEllipsis" />
 
                 <!--
-                    Only the owner has anything to change, so only the owner is
-                    shown a way in.
+                    Everybody can leave. Only the owner has anything to change,
+                    so only the owner is offered the way in.
                 -->
                 <Button
                     Width="24"
                     Height="24"
                     Padding="0"
-                    AutomationProperties.Name="Group settings"
+                    AutomationProperties.Name="Group"
                     Background="Transparent"
                     BorderThickness="0"
-                    Click="OnManageGroup"
-                    ToolTipService.ToolTip="Group settings"
-                    Visibility="{x:Bind ViewModel.IsOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                    ToolTipService.ToolTip="Group">
                     <FontIcon
                         FontSize="12"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Glyph="&#xE713;" />
+                        Glyph="&#xE712;" />
+                    <Button.Flyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem
+                                Click="OnManageGroup"
+                                Text="Group settings"
+                                Visibility="{x:Bind ViewModel.IsOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE713;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Click="OnLeaveConnected" Text="Leave group">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE7E8;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </Button.Flyout>
                 </Button>
             </StackPanel>
 
@@ -235,12 +250,16 @@
                         than replaced.
                     -->
                     <DataTemplate x:DataType="vm:PeerItem">
+                      <Grid>
                         <!--
                             Dimmed for someone in the group who is not here. They
                             are worth showing, and not worth reading as though
                             they were online.
                         -->
-                        <Grid ColumnSpacing="8" Opacity="{x:Bind IsHere, Mode=OneWay, Converter={StaticResource PresenceOpacity}}">
+                        <Grid
+                            ColumnSpacing="8"
+                            Opacity="{x:Bind IsHere, Mode=OneWay, Converter={StaticResource PresenceOpacity}}"
+                            Visibility="{x:Bind IsNotConfirmingOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
@@ -255,11 +274,24 @@
                                 Height="7"
                                 VerticalAlignment="Center"
                                 Fill="{x:Bind IsReachable, Mode=OneWay, Converter={StaticResource ConnectionBrush}}" />
-                            <TextBlock
+                            <StackPanel
                                 Grid.Column="1"
                                 VerticalAlignment="Center"
-                                Text="{x:Bind Nickname, Mode=OneWay}"
-                                TextTrimming="CharacterEllipsis" />
+                                Orientation="Horizontal"
+                                Spacing="5">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    Text="{x:Bind Nickname, Mode=OneWay}"
+                                    TextTrimming="CharacterEllipsis" />
+                                <!--  Whose group it is, so people know who to ask.  -->
+                                <FontIcon
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Glyph="&#xE7EF;"
+                                    ToolTipService.ToolTip="Owns this group"
+                                    Visibility="{x:Bind IsOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                            </StackPanel>
                             <TextBlock
                                 Grid.Column="2"
                                 VerticalAlignment="Center"
@@ -300,7 +332,7 @@
                                         <MenuFlyoutSeparator Visibility="{x:Bind ShowManageSeparator, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
 
                                         <MenuFlyoutItem
-                                            Command="{x:Bind MakeOwnerCommand}"
+                                            Command="{x:Bind AskToMakeOwnerCommand}"
                                             Text="Make owner"
                                             Visibility="{x:Bind CanManage, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
                                             <MenuFlyoutItem.Icon>
@@ -327,6 +359,26 @@
                                 Text="{x:Bind Status, Mode=OneWay}"
                                 TextAlignment="Right" />
                         </Grid>
+
+                        <!--
+                            Asked in the row, like leaving a group is. Handing
+                            the group over is not undone without the other
+                            person agreeing to hand it back.
+                        -->
+                        <StackPanel Spacing="8" Visibility="{x:Bind IsConfirmingOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Text="{x:Bind OwnerPrompt, Mode=OneWay}"
+                                TextWrapping="Wrap" />
+                            <StackPanel
+                                HorizontalAlignment="Right"
+                                Orientation="Horizontal"
+                                Spacing="8">
+                                <Button Command="{x:Bind KeepOwnershipCommand}" Content="Cancel" />
+                                <Button Command="{x:Bind MakeOwnerCommand}" Content="Hand over" />
+                            </StackPanel>
+                        </StackPanel>
+                      </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
@@ -359,7 +411,17 @@
                                     Grid.Column="0"
                                     Margin="0,0,4,0"
                                     VerticalAlignment="Center">
-                                    <TextBlock Text="{x:Bind Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <TextBlock Text="{x:Bind Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                                        <!--  Yours to run, and so yours to change.  -->
+                                        <FontIcon
+                                            VerticalAlignment="Center"
+                                            FontSize="11"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Glyph="&#xE7EF;"
+                                            ToolTipService.ToolTip="You own this group"
+                                            Visibility="{x:Bind IsOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                                    </StackPanel>
                                     <TextBlock
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                         Style="{StaticResource CaptionTextBlockStyle}"
@@ -406,6 +468,16 @@
                                     <FontIcon FontSize="14" Glyph="&#xE712;" />
                                     <Button.Flyout>
                                         <MenuFlyout>
+                                            <!--  Yours to change, so reachable without connecting to it first.  -->
+                                            <MenuFlyoutItem
+                                                Click="OnManageGroupFromList"
+                                                Tag="{x:Bind}"
+                                                Text="Group settings"
+                                                Visibility="{x:Bind IsOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xE713;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
                                             <MenuFlyoutItem
                                                 Click="OnStartLeaving"
                                                 Tag="{x:Bind}"

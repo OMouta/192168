@@ -43,6 +43,11 @@ public sealed partial class GroupListItem : ObservableObject
 
     public string GroupId { get; init; } = "";
 
+    /// <summary>Whether this device runs the group. It decides whether the row
+    /// says so and offers a way into its settings.</summary>
+    [ObservableProperty]
+    public partial bool IsOwner { get; set; }
+
     public string ConnectLabel => IsConnecting ? "Connecting" : "Connect";
 
     public string LeavePrompt => $"Leave {Name}? You will need the password to join again.";
@@ -67,6 +72,7 @@ public sealed partial class PeerItem(string deviceId, HomeViewModel owner) : Obs
     public HomeViewModel Home { get; } = owner;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OwnerPrompt))]
     public partial string Nickname { get; set; } = "";
 
     [ObservableProperty]
@@ -108,9 +114,38 @@ public sealed partial class PeerItem(string deviceId, HomeViewModel owner) : Obs
     [RelayCommand]
     private Task RemoveAsync() => Home.RemoveMemberAsync(this);
 
+    /// <summary>Whoever runs the group, marked in the list so people know who to
+    /// ask, and so the owner can see the mark move when they hand it over.</summary>
+    [ObservableProperty]
+    public partial bool IsOwner { get; set; }
+
+    /// <summary>
+    /// True while this row is asking whether to hand the group over. Handing it
+    /// over cannot be undone alone, so it is worth one question.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNotConfirmingOwner))]
+    public partial bool IsConfirmingOwner { get; set; }
+
+    public bool IsNotConfirmingOwner => !IsConfirmingOwner;
+
+    public string OwnerPrompt => $"Make {Nickname} the owner? You stop being it.";
+
+    /// <summary>Asks first. Handing the group over is not undone without the
+    /// other person agreeing to hand it back.</summary>
+    [RelayCommand]
+    private void AskToMakeOwner() => IsConfirmingOwner = true;
+
+    [RelayCommand]
+    private void KeepOwnership() => IsConfirmingOwner = false;
+
     /// <summary>Hands the group over to this person, and stops being its owner.</summary>
     [RelayCommand]
-    private Task MakeOwnerAsync() => Home.TransferOwnershipAsync(this);
+    private async Task MakeOwnerAsync()
+    {
+        await Home.TransferOwnershipAsync(this);
+        IsConfirmingOwner = false;
+    }
 
     /// <summary>
     /// Puts this peer's address on the clipboard. It is the thing people type
@@ -284,6 +319,7 @@ public sealed partial class HomeViewModel : ObservableObject
                     GroupId = group.GroupId,
                     Name = group.Name,
                     Nickname = group.Nickname,
+                    IsOwner = group.IsOwner,
                 });
             }
             HasGroups = Groups.Count > 0;
@@ -477,6 +513,21 @@ public sealed partial class HomeViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Leaves the connected group. Disconnecting is part of it, and is the
+    /// daemon's job rather than two calls from here.
+    /// </summary>
+    public async Task LeaveConnectedGroupAsync()
+    {
+        var groupId = _groupId;
+        if (groupId == "")
+        {
+            return;
+        }
+        await Run(() => _daemon.LeaveGroupAsync(groupId));
+        await RefreshAsync();
+    }
+
     /// <summary>Takes someone out of the group, for good.</summary>
     public async Task RemoveMemberAsync(PeerItem peer)
     {
@@ -522,6 +573,7 @@ public sealed partial class HomeViewModel : ObservableObject
             row.Status = Describe(peer);
             row.IsReachable = peer.State == PeerState.Direct;
             row.IsHere = peer.State != PeerState.Offline;
+            row.IsOwner = peer.IsOwner;
         }
     }
 

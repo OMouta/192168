@@ -101,4 +101,18 @@ public sealed partial class HomePage : Page
     private void OnManageGroup(object sender, RoutedEventArgs e)
         => Frame.Navigate(typeof(ManageGroupPage),
             new ManageGroupPage.Target(ViewModel.ConnectedGroupId, ViewModel.GroupLabel ?? ""));
+
+    // The same screen, reached from a group in the list rather than from the one
+    // that is connected, so a group can be changed without joining it first.
+    private void OnManageGroupFromList(object sender, RoutedEventArgs e)
+    {
+        if (Group(sender) is GroupListItem group)
+        {
+            Frame.Navigate(typeof(ManageGroupPage), new ManageGroupPage.Target(group.GroupId, group.Name ?? ""));
+        }
+    }
+
+    // Leaving the group that is connected. The daemon disconnects on the way.
+    private async void OnLeaveConnected(object sender, RoutedEventArgs e)
+        => await ViewModel.LeaveConnectedGroupAsync();
 }
