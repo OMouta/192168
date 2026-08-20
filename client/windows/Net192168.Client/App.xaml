@@ -18,6 +18,7 @@
             <views:ConnectionBrush x:Key="ConnectionBrush" />
             <views:NotBoolean x:Key="NotBoolean" />
             <views:CopyGlyph x:Key="CopyGlyph" />
+            <views:PresenceOpacity x:Key="PresenceOpacity" />
 
             <!--
                 Dark always, rather than following the system. This sits open

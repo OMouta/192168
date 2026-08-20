@@ -91,3 +91,16 @@ public sealed class CopyGlyph : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, string language)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// Fades a row for someone who is in the group but not connected. Dimming says
+/// "not here" without a second column of words saying it.
+/// </summary>
+public sealed class PresenceOpacity : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+        => value is true ? 1.0 : 0.45;
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+        => throw new NotSupportedException();
+}

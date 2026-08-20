@@ -211,7 +211,12 @@
                         than replaced.
                     -->
                     <DataTemplate x:DataType="vm:PeerItem">
-                        <Grid ColumnSpacing="8">
+                        <!--
+                            Dimmed for someone in the group who is not here. They
+                            are worth showing, and not worth reading as though
+                            they were online.
+                        -->
+                        <Grid ColumnSpacing="8" Opacity="{x:Bind IsHere, Mode=OneWay, Converter={StaticResource PresenceOpacity}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
@@ -239,7 +244,11 @@
                                 IsTextSelectionEnabled="True"
                                 Text="{x:Bind VirtualIp, Mode=OneWay}" />
 
-                            <!--  The address is what people type into a game.  -->
+                            <!--
+                                The address is what people type into a game.
+                                Somebody who is away has not been given one, so
+                                there is nothing to copy.
+                            -->
                             <Button
                                 Grid.Column="3"
                                 Width="28"
@@ -249,7 +258,8 @@
                                 Background="Transparent"
                                 BorderThickness="0"
                                 Command="{x:Bind CopyAddressCommand}"
-                                ToolTipService.ToolTip="Copy address">
+                                ToolTipService.ToolTip="Copy address"
+                                Visibility="{x:Bind IsHere, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
                                 <FontIcon FontSize="13" Glyph="{x:Bind JustCopied, Mode=OneWay, Converter={StaticResource CopyGlyph}}" />
                             </Button>
 

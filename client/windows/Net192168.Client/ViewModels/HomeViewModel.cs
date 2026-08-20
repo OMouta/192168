@@ -72,6 +72,13 @@ public sealed partial class PeerItem(string deviceId) : ObservableObject
     [ObservableProperty]
     public partial bool IsReachable { get; set; }
 
+    /// <summary>
+    /// False for someone who is in the group but not connected. Their row is
+    /// dimmed and has no address to copy, because they have not been given one.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsHere { get; set; } = true;
+
     /// <summary>True for a moment after copying, so the button can say so.</summary>
     [ObservableProperty]
     public partial bool JustCopied { get; set; }
@@ -449,6 +456,7 @@ public sealed partial class HomeViewModel : ObservableObject
             row.VirtualIp = peer.VirtualIp;
             row.Status = Describe(peer);
             row.IsReachable = peer.State == PeerState.Direct;
+            row.IsHere = peer.State != PeerState.Offline;
         }
     }
 
