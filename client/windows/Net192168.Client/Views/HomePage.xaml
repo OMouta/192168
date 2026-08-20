@@ -209,13 +209,17 @@
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="vm:GroupListItem">
-                        <Grid ColumnSpacing="10">
+                        <Grid ColumnSpacing="6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <StackPanel
+                                Grid.Column="0"
+                                Margin="0,0,4,0"
+                                VerticalAlignment="Center">
                                 <TextBlock Text="{x:Bind Name, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
                                 <TextBlock
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -228,6 +232,35 @@
                                 Click="OnConnect"
                                 Content="Connect"
                                 Tag="{x:Bind}" />
+
+                            <!--
+                                Leaving is rare and hard to undo, so it sits
+                                behind the overflow rather than beside Connect
+                                where a mis-click would find it.
+                            -->
+                            <Button
+                                Grid.Column="2"
+                                Width="32"
+                                Height="32"
+                                Padding="0"
+                                AutomationProperties.Name="More options"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                ToolTipService.ToolTip="More options">
+                                <FontIcon FontSize="14" Glyph="&#xE712;" />
+                                <Button.Flyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem
+                                            Click="OnLeave"
+                                            Tag="{x:Bind}"
+                                            Text="Leave group">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE89B;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
                         </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>

@@ -56,6 +56,41 @@ public sealed partial class HomePage : Page
         }
     }
 
+    /// <summary>
+    /// Leaves a group, after asking.
+    ///
+    /// The daemon never stores a group password, so getting back in means
+    /// having it to hand again. That is worth a question, and the answer names
+    /// the group so it is clear which one is going.
+    /// </summary>
+    private async void OnLeave(object sender, RoutedEventArgs e)
+    {
+        // The flyout lives in its own popup rather than under the row, so the
+        // group is carried on the item itself. DataContext is checked too,
+        // because that is what a flyout inherits when it does reach it.
+        var item = (sender as FrameworkElement)?.Tag as GroupListItem
+            ?? (sender as FrameworkElement)?.DataContext as GroupListItem;
+        if (item is null)
+        {
+            return;
+        }
+
+        var confirm = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = $"Leave {item.Name}?",
+            Content = "You will need the group password to join again.",
+            PrimaryButtonText = "Leave",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+        };
+
+        if (await confirm.ShowAsync() == ContentDialogResult.Primary)
+        {
+            await ViewModel.LeaveAsync(item);
+        }
+    }
+
     private async void OnCreate(object sender, RoutedEventArgs e)
         => await ShowGroupDialog(GroupDialogMode.Create);
 
