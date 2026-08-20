@@ -29,15 +29,6 @@ click.
 You can belong to any number of groups, and one of them can be connected at a
 time. While you are connected you see everyone else who is online.
 
-```
-Friday Night                        Connected
-
-Tiago       10.69.0.1               You
-João        10.69.0.2               Direct · 18 ms
-Pedro       10.69.0.3               Direct · 24 ms
-Miguel      10.69.0.4               Connecting
-```
-
 ## Servers
 
 The app talks to `https://api.192168.lol`. To use another one, type its URL into
