@@ -151,8 +151,6 @@ public sealed partial class MainWindow : Window
         _exiting = true;
         App.Daemon.StateChanged -= UpdateTray;
 
-        App.Trace("tray exit: requested");
-
         // Quitting must not depend on the service agreeing to stop, or on the
         // stop returning at all.
         try
@@ -166,8 +164,6 @@ public sealed partial class MainWindow : Window
         {
             App.Trace($"tray exit: stopping the service failed: {error}");
         }
-
-        App.Trace("tray exit: quitting");
 
         // The icon outlives the process unless it is taken down by hand, which
         // leaves a dead entry in the tray until something hovers over it.
