@@ -48,8 +48,56 @@ public sealed partial class GroupListItem : ObservableObject
     public string LeavePrompt => $"Leave {Name}? You will need the password to join again.";
 }
 
-/// <summary>One connected peer.</summary>
-public sealed record PeerItem(string Nickname, string VirtualIp, string Status, bool IsReachable);
+/// <summary>
+/// One connected peer.
+///
+/// A row that changes in place rather than a new one each time. Latency arrives
+/// every few seconds, and rebuilding the list on every update made rows vanish
+/// and reappear instead of quietly changing their number.
+/// </summary>
+public sealed partial class PeerItem(string deviceId) : ObservableObject
+{
+    /// <summary>Which peer this row is, so an update finds it again.</summary>
+    public string DeviceId { get; } = deviceId;
+
+    [ObservableProperty]
+    public partial string Nickname { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string VirtualIp { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string Status { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsReachable { get; set; }
+
+    /// <summary>True for a moment after copying, so the button can say so.</summary>
+    [ObservableProperty]
+    public partial bool JustCopied { get; set; }
+
+    /// <summary>
+    /// Puts this peer's address on the clipboard. It is the thing people type
+    /// into a game, and reading it off the screen to type by hand is the worst
+    /// part of using this.
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyAddressAsync()
+    {
+        if (string.IsNullOrEmpty(VirtualIp))
+        {
+            return;
+        }
+
+        var package = new DataPackage();
+        package.SetText(VirtualIp);
+        Clipboard.SetContent(package);
+
+        JustCopied = true;
+        await Task.Delay(TimeSpan.FromSeconds(1.5));
+        JustCopied = false;
+    }
+}
 
 /// <summary>
 /// The whole window. The app is one screen that changes with the connection, so
@@ -356,15 +404,7 @@ public sealed partial class HomeViewModel : ObservableObject
             Message = state.Message;
         }
 
-        Peers.Clear();
-        foreach (var peer in state.Peers)
-        {
-            Peers.Add(new PeerItem(
-                peer.Nickname,
-                peer.VirtualIp,
-                Describe(peer),
-                peer.State == PeerState.Direct));
-        }
+        UpdatePeers(state.Peers);
         HasPeers = Peers.Count > 0;
         ShowEmptyPeers = IsConnected && !HasPeers;
         ShowEmptyGroups = !IsConnected && !HasGroups;
@@ -374,6 +414,41 @@ public sealed partial class HomeViewModel : ObservableObject
         if (justBecameReady)
         {
             _ = RefreshAsync();
+        }
+    }
+
+    /// <summary>
+    /// Brings the peer list in line with what the daemon reports, changing the
+    /// rows that are already there.
+    ///
+    /// Emptying the list and filling it again is the obvious way to write this
+    /// and the wrong one: a peer's latency changes every few seconds, and every
+    /// one of those took every row off the screen and put it back, so the list
+    /// flickered and nothing could be clicked reliably.
+    /// </summary>
+    private void UpdatePeers(IReadOnlyList<PeerView> peers)
+    {
+        for (var i = Peers.Count - 1; i >= 0; i--)
+        {
+            if (!peers.Any(p => p.DeviceId == Peers[i].DeviceId))
+            {
+                Peers.RemoveAt(i);
+            }
+        }
+
+        foreach (var peer in peers)
+        {
+            var row = Peers.FirstOrDefault(p => p.DeviceId == peer.DeviceId);
+            if (row is null)
+            {
+                row = new PeerItem(peer.DeviceId);
+                Peers.Add(row);
+            }
+
+            row.Nickname = peer.Nickname;
+            row.VirtualIp = peer.VirtualIp;
+            row.Status = Describe(peer);
+            row.IsReachable = peer.State == PeerState.Direct;
         }
     }
 

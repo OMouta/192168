@@ -17,6 +17,7 @@
             <views:TextToVisibility x:Key="TextToVisibility" />
             <views:ConnectionBrush x:Key="ConnectionBrush" />
             <views:NotBoolean x:Key="NotBoolean" />
+            <views:CopyGlyph x:Key="CopyGlyph" />
 
             <!--
                 Dark always, rather than following the system. This sits open

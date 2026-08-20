@@ -205,13 +205,19 @@
                     </Style>
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
+                    <!--
+                        OneWay throughout. x:Bind is OneTime unless told
+                        otherwise, and these rows are updated in place rather
+                        than replaced.
+                    -->
                     <DataTemplate x:DataType="vm:PeerItem">
-                        <Grid ColumnSpacing="10">
+                        <Grid ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="64" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="60" />
                             </Grid.ColumnDefinitions>
 
                             <Ellipse
@@ -219,24 +225,40 @@
                                 Width="7"
                                 Height="7"
                                 VerticalAlignment="Center"
-                                Fill="{x:Bind IsReachable, Converter={StaticResource ConnectionBrush}}" />
+                                Fill="{x:Bind IsReachable, Mode=OneWay, Converter={StaticResource ConnectionBrush}}" />
                             <TextBlock
                                 Grid.Column="1"
                                 VerticalAlignment="Center"
-                                Text="{x:Bind Nickname}"
+                                Text="{x:Bind Nickname, Mode=OneWay}"
                                 TextTrimming="CharacterEllipsis" />
                             <TextBlock
                                 Grid.Column="2"
                                 VerticalAlignment="Center"
                                 FontFamily="Consolas"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="{x:Bind VirtualIp}" />
-                            <TextBlock
+                                IsTextSelectionEnabled="True"
+                                Text="{x:Bind VirtualIp, Mode=OneWay}" />
+
+                            <!--  The address is what people type into a game.  -->
+                            <Button
                                 Grid.Column="3"
+                                Width="28"
+                                Height="28"
+                                Padding="0"
+                                AutomationProperties.Name="Copy address"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Command="{x:Bind CopyAddressCommand}"
+                                ToolTipService.ToolTip="Copy address">
+                                <FontIcon FontSize="13" Glyph="{x:Bind JustCopied, Mode=OneWay, Converter={StaticResource CopyGlyph}}" />
+                            </Button>
+
+                            <TextBlock
+                                Grid.Column="4"
                                 VerticalAlignment="Center"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                 Style="{StaticResource CaptionTextBlockStyle}"
-                                Text="{x:Bind Status}"
+                                Text="{x:Bind Status, Mode=OneWay}"
                                 TextAlignment="Right" />
                         </Grid>
                     </DataTemplate>

@@ -73,3 +73,21 @@ public sealed class NotBoolean : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, string language)
         => value is not true;
 }
+
+/// <summary>
+/// Swaps the copy icon for a tick just after copying, so the button answers for
+/// itself rather than needing a line of text somewhere that has to be cleared.
+/// </summary>
+public sealed class CopyGlyph : IValueConverter
+{
+    // The same two the header uses: a tick just after copying, a pair of pages
+    // the rest of the time.
+    private const string Copied = "\uE73E";
+    private const string Copy = "\uE8C8";
+
+    public object Convert(object value, Type targetType, object parameter, string language)
+        => value is true ? Copied : Copy;
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+        => throw new NotSupportedException();
+}
