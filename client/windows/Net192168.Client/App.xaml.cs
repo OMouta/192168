@@ -35,11 +35,46 @@ public partial class App : Application
     /// </summary>
     public static Daemon Daemon { get; private set; } = null!;
 
-    /// <summary>Where a crash is written, next to the daemon's own state.</summary>
-    public static string LogPath { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "192168",
-        "client-crash.log");
+    /// <summary>Where this app's log is written, beside the daemon's.</summary>
+    public static string LogPath { get; } = ResolveLogPath();
+
+    /// <summary>The folder holding both logs, which is what About opens.</summary>
+    public static string LogFolder { get; } = Path.GetDirectoryName(LogPath)!;
+
+    /// <summary>
+    /// Puts this log next to the daemon's, so there is one place to look and
+    /// one folder to ask somebody for.
+    ///
+    /// The daemon runs as a service and writes to ProgramData, which it opens
+    /// to local users for exactly this. Falls back to this user's own folder
+    /// when that is not writable, which means a development build where no
+    /// service ever created it.
+    /// </summary>
+    private static string ResolveLogPath()
+    {
+        var shared = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "192168",
+            "logs");
+
+        try
+        {
+            Directory.CreateDirectory(shared);
+            var path = Path.Combine(shared, "client.log");
+            // Opening it is the only honest test of whether it can be written.
+            using (new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
+            {
+            }
+            return path;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "192168",
+                "client.log");
+        }
+    }
 
     /// <summary>
     /// Whether Windows started this at sign-in, in which case the app stays in

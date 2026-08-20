@@ -15,17 +15,20 @@ public sealed partial class AboutPage : Page
     public string Version => $"Version {AppInfo.Version}";
 
     /// <summary>
-    /// Opens the folder with the log picked out, rather than the log itself:
-    /// the daemon writes its own alongside, and both are usually wanted.
+    /// Opens the folder holding both logs, with the daemon's picked out. That
+    /// is the one worth sending when a tunnel will not come up; this app's sits
+    /// beside it.
     /// </summary>
     private void OnShowLog(object sender, RoutedEventArgs e)
     {
         try
         {
-            var folder = Path.GetDirectoryName(App.LogPath)!;
-            Directory.CreateDirectory(folder);
+            Directory.CreateDirectory(App.LogFolder);
 
-            var target = File.Exists(App.LogPath) ? $"/select,\"{App.LogPath}\"" : $"\"{folder}\"";
+            var daemon = Path.Combine(App.LogFolder, "daemon.log");
+            var pick = File.Exists(daemon) ? daemon : App.LogPath;
+
+            var target = File.Exists(pick) ? $"/select,\"{pick}\"" : $"\"{App.LogFolder}\"";
             Process.Start(new ProcessStartInfo("explorer.exe", target) { UseShellExecute = true });
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)

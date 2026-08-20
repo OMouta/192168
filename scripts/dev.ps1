@@ -295,7 +295,7 @@ Write-Host ''
 Write-Host 'Running.' -ForegroundColor Green
 Write-Host "  server    $serverUrl$(if ($Hosted) { '  (hosted)' })"
 Write-Host "  logs      $logDir"
-Write-Host "  crashes   $(Join-Path $identityDir 'client-crash.log')"
+Write-Host "  client    $env:ProgramData\192168\logs\client.log, or $identityDir\client.log if that is not writable"
 Write-Host ''
 Write-Host 'Stop everything with: .\scripts\dev.ps1 -Stop' -ForegroundColor DarkGray
 if (-not $Elevated) {

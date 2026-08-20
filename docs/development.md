@@ -16,7 +16,7 @@ clear the local database and this device's identity, which is the difference
 between testing a returning user and a new one. `-Stop` kills everything.
 
 Logs land in `%LOCALAPPDATA%\192168-dev\logs`. If the client vanishes without a
-window or a message, read `%APPDATA%\192168\client-crash.log`. An unhandled
+window or a message, read `%ProgramData%\192168\logs\client.log`. An unhandled
 exception in WinUI closes the app silently, so that file is usually the only
 evidence.
 

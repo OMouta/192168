@@ -22,9 +22,16 @@ func LogFile(dataDir string) string {
 // when it has grown too large.
 func OpenLog(dataDir string) (io.WriteCloser, error) {
 	path := LogFile(dataDir)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	directory := filepath.Dir(path)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
 		return nil, fmt.Errorf("create the log directory: %w", err)
 	}
+
+	// The app writes its own log in here beside this one, as the signed-in
+	// user, and this directory belongs to the service. Failing is not worth
+	// stopping for: the daemon's own log still works, and there is nowhere to
+	// report it to yet since this is what opens the log.
+	_ = shareLogDir(directory)
 
 	file, size, err := openAppend(path)
 	if err != nil {
