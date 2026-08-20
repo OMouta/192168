@@ -102,6 +102,19 @@ type Peer struct {
 	Endpoint     *Endpoint `json:"endpoint,omitempty"`
 }
 
+// Member is one person in a group, whether or not they are connected. A peer is
+// someone there is a link to; a member is someone who belongs.
+type Member struct {
+	DeviceID string `json:"deviceId"`
+	Nickname string `json:"nickname"`
+	Online   bool   `json:"online"`
+}
+
+// MembersResponse is what listing a group's members returns.
+type MembersResponse struct {
+	Members []Member `json:"members"`
+}
+
 // Endpoint is a public UDP address candidate discovered via STUN.
 type Endpoint struct {
 	Protocol string `json:"protocol"`

@@ -472,3 +472,74 @@ func TestDiscoveryDocument(t *testing.T) {
 		t.Errorf("features = %+v, relay = %v", doc.Features, doc.Relay)
 	}
 }
+
+// Members lists everyone in the group, not only the people connected to it, so
+// the app can show a group of six as six rather than as whoever is awake.
+func TestMembersListsEveryoneAndSaysWhoIsOnline(t *testing.T) {
+	h := newTestServer(t)
+	host := register(t, h, "dev_host")
+	guest := register(t, h, "dev_guest")
+	absent := register(t, h, "dev_absent")
+
+	proof := auth.DeriveGroupProof("hunter2", "Friday Night")
+
+	var created papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
+		Name: "Friday Night", PasswordProof: proof, Nickname: "Tiago",
+	}, &created); code != http.StatusCreated {
+		t.Fatalf("create group: status %d", code)
+	}
+
+	for _, joiner := range []struct {
+		device   device
+		nickname string
+	}{{guest, "Joao"}, {absent, "Pedro"}} {
+		if code := call(t, h, http.MethodPost, "/api/groups/join", joiner.device.token, papi.JoinGroupRequest{
+			Group: "Friday Night", PasswordProof: proof, Nickname: joiner.nickname,
+		}, nil); code != http.StatusOK {
+			t.Fatalf("join as %s: status %d", joiner.nickname, code)
+		}
+	}
+
+	// Two of the three connect. The third belongs and is not here.
+	sessions := "/api/groups/" + created.GroupID + "/sessions"
+	for _, connecting := range []device{host, guest} {
+		if code := call(t, h, http.MethodPost, sessions, connecting.token, nil, nil); code != http.StatusCreated {
+			t.Fatalf("connect: status %d", code)
+		}
+	}
+
+	var members papi.MembersResponse
+	if code := call(t, h, http.MethodGet, "/api/groups/"+created.GroupID+"/members", guest.token, nil, &members); code != http.StatusOK {
+		t.Fatalf("list members: status %d", code)
+	}
+	if len(members.Members) != 3 {
+		t.Fatalf("members = %+v, want 3", members.Members)
+	}
+
+	online := map[string]bool{}
+	for _, member := range members.Members {
+		online[member.Nickname] = member.Online
+	}
+	if !online["Tiago"] || !online["Joao"] || online["Pedro"] {
+		t.Fatalf("online = %+v, want Tiago and Joao here and Pedro away", online)
+	}
+}
+
+// Who is in a group is the business of the people in it.
+func TestMembersNeedsMembership(t *testing.T) {
+	h := newTestServer(t)
+	host := register(t, h, "dev_host")
+	stranger := register(t, h, "dev_stranger")
+
+	var created papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+	}, &created); code != http.StatusCreated {
+		t.Fatalf("create group: status %d", code)
+	}
+
+	if code := call(t, h, http.MethodGet, "/api/groups/"+created.GroupID+"/members", stranger.token, nil, nil); code != http.StatusNotFound {
+		t.Fatalf("stranger listing members: status %d, want 404", code)
+	}
+}

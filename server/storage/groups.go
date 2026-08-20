@@ -179,6 +179,41 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 	return out, rows.Err()
 }
 
+// Member is one person in a group, whether or not they are connected.
+type Member struct {
+	DeviceID string
+	Nickname string
+	Online   bool
+}
+
+// Members lists everyone in a group and says who is connected.
+//
+// The peer list only carries people with a live session, because that is who
+// there is anything to reach. This is the rest of them, so the app can show who
+// is in the group rather than only who is here right now.
+func (s *Store) Members(ctx context.Context, groupID string) ([]Member, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT m.device_id, m.nickname, s.id IS NOT NULL
+		FROM memberships m
+		LEFT JOIN sessions s ON s.membership_id = m.id
+		WHERE m.group_id = ? AND m.revoked_at IS NULL
+		ORDER BY m.created_at`, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("storage: list members: %w", err)
+	}
+	defer rows.Close()
+
+	var out []Member
+	for rows.Next() {
+		var member Member
+		if err := rows.Scan(&member.DeviceID, &member.Nickname, &member.Online); err != nil {
+			return nil, fmt.Errorf("storage: read member: %w", err)
+		}
+		out = append(out, member)
+	}
+	return out, rows.Err()
+}
+
 // Membership returns one device's membership in one group.
 func (s *Store) Membership(ctx context.Context, groupID, deviceID string) (Membership, error) {
 	var (

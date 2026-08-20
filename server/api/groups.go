@@ -126,6 +126,30 @@ func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request, device
 	writeJSON(w, http.StatusOK, out)
 }
 
+// handleListMembers lists everyone in a group, connected or not.
+//
+// Membership is checked first: who belongs to a group is only the business of
+// the people in it.
+func (s *Server) handleListMembers(w http.ResponseWriter, r *http.Request, device storage.Device) {
+	groupID := r.PathValue("groupId")
+	if _, err := s.store.Membership(r.Context(), groupID, device.ID); err != nil {
+		s.fail(w, r, err, api.ErrGroupNotFound, "You are not a member of that group.")
+		return
+	}
+
+	members, err := s.store.Members(r.Context(), groupID)
+	if err != nil {
+		s.fail(w, r, err, api.ErrGroupNotFound, "You are not a member of that group.")
+		return
+	}
+
+	out := make([]api.Member, 0, len(members))
+	for _, m := range members {
+		out = append(out, api.Member{DeviceID: m.DeviceID, Nickname: m.Nickname, Online: m.Online})
+	}
+	writeJSON(w, http.StatusOK, api.MembersResponse{Members: out})
+}
+
 // handleLeaveGroup removes the caller from a group and ends its session there.
 func (s *Server) handleLeaveGroup(w http.ResponseWriter, r *http.Request, device storage.Device) {
 	groupID := r.PathValue("groupId")
