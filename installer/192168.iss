@@ -15,14 +15,14 @@
 
 ; Passed in by package.ps1 so the version lives in one place.
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.0.0-dev"
 #endif
 
 ; The same version as four numbers, which is the only shape Windows accepts in
 ; a version resource. A tag like 0.2.0-rc1 is a valid AppVersion and not a valid
 ; one of these.
 #ifndef AppVersionNumeric
-  #define AppVersionNumeric "0.1.0.0"
+  #define AppVersionNumeric "0.0.0.0"
 #endif
 
 ; Where package.ps1 staged everything.

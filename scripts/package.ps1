@@ -47,7 +47,18 @@ if (-not $Version) {
 # Windows version resources are four numbers and nothing else, so a tag like
 # 0.2.0-rc1 has to be reduced to one before it can be stamped into a binary.
 $number = [version](($Version -split '-')[0])
-$numericVersion = '{0}.{1}.{2}.0' -f $number.Major, [math]::Max($number.Minor, 0), [math]::Max($number.Build, 0)
+$major = $number.Major
+$minor = [math]::Max($number.Minor, 0)
+$patch = [math]::Max($number.Build, 0)
+
+# Windows throws away a version resource whose numbers are all zero, and it
+# takes the description with it, which is the name the UAC prompt shows. The
+# default version in the repository is 0.0.0-dev, so this is the ordinary case
+# rather than an edge one. Only the numbers move: every string a person reads
+# still says what the version really is.
+if ($major -eq 0 -and $minor -eq 0 -and $patch -eq 0) { $patch = 1 }
+
+$numericVersion = '{0}.{1}.{2}.0' -f $major, $minor, $patch
 
 Write-Host "Packaging 192168 $Version" -ForegroundColor Cyan
 
@@ -81,9 +92,9 @@ if (-not $SkipBuild) {
         Push-Location (Join-Path $repo 'daemon\cmd\192168-service')
         try {
             & go tool goversioninfo -o resource.syso `
-                -ver-major $number.Major `
-                -ver-minor ([math]::Max($number.Minor, 0)) `
-                -ver-patch ([math]::Max($number.Build, 0)) `
+                -ver-major $major `
+                -ver-minor $minor `
+                -ver-patch $patch `
                 -product-version $Version `
                 versioninfo.json
             if ($LASTEXITCODE -ne 0) { throw 'goversioninfo failed, so the binary would have no version resource' }
