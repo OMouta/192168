@@ -5,51 +5,48 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="192168">
 
-    <Grid>
+    <Grid Background="{ThemeResource AppBackground}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="36" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <InfoBar
-            x:Name="DaemonWarning"
+        <!--  The window's own title bar, so it matches the app instead of the system.  -->
+        <Grid
+            x:Name="TitleBar"
             Grid.Row="0"
-            IsClosable="False"
-            IsOpen="False"
-            Message="The background service is not running, so nothing here will work. It normally starts with Windows."
-            Severity="Warning"
-            Title="Cannot reach the network service" />
+            Background="{ThemeResource TitleBarBackground}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <!--  Kept clear for the system caption buttons.  -->
+                <ColumnDefinition x:Name="CaptionSpacer" Width="0" />
+            </Grid.ColumnDefinitions>
 
-        <NavigationView
-            x:Name="Nav"
-            Grid.Row="1"
-            IsBackButtonVisible="Collapsed"
-            IsSettingsVisible="False"
-            PaneDisplayMode="Left"
-            SelectionChanged="OnNavSelectionChanged">
+            <TextBlock
+                Grid.Column="0"
+                Margin="14,0,0,0"
+                VerticalAlignment="Center"
+                FontSize="13"
+                FontWeight="SemiBold"
+                Text="192168" />
 
-            <NavigationView.MenuItems>
-                <NavigationViewItem Content="Groups" IsSelected="True" Tag="groups">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE902;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="Active Group" Tag="active">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE968;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-            </NavigationView.MenuItems>
+            <!--  Settings sits here so no screen has to be spent on it.  -->
+            <Button
+                x:Name="SettingsButton"
+                Grid.Column="2"
+                Width="36"
+                Height="36"
+                Background="Transparent"
+                BorderThickness="0"
+                Click="OnSettings"
+                CornerRadius="0"
+                ToolTipService.ToolTip="Settings">
+                <FontIcon FontSize="14" Glyph="&#xE713;" />
+            </Button>
+        </Grid>
 
-            <NavigationView.FooterMenuItems>
-                <NavigationViewItem Content="Settings" Tag="settings">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE713;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-            </NavigationView.FooterMenuItems>
-
-            <Frame x:Name="ContentFrame" />
-        </NavigationView>
+        <Frame x:Name="ContentFrame" Grid.Row="1" />
     </Grid>
 </Window>
