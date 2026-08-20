@@ -33,8 +33,9 @@ type Store struct {
 }
 
 // Open connects to the database and brings the schema up to date. An empty dsn
-// means a file called 192168.db in the working directory, which is what the
-// Docker image gets with a volume mounted over it.
+// means a file called 192168.db in the working directory, which is fine for a
+// local run. A container deployment has to point this at a mounted volume, or
+// the database goes away with the container.
 func Open(ctx context.Context, dsn string) (*Store, error) {
 	if dsn == "" {
 		dsn = "192168.db"

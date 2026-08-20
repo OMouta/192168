@@ -110,7 +110,7 @@ type Endpoint struct {
 }
 
 // Error is the body returned for any non-2xx control-plane response. Code is
-// stable and machine-readable; Message is safe to surface to the user.
+// stable and machine-readable; Message is safe to show the user.
 type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`

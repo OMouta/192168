@@ -11,22 +11,24 @@
     LLC or the script refuses it. That is the check that matters for a driver:
     it says who published the file, not merely that the bytes arrived intact.
 
-    The script prints the SHA256 it saw. Pin it with -ExpectedHash once you have
-    compared it against wintun.net, and every later run will refuse anything
-    else.
+    The archive hash is pinned by default, so a download that produces different
+    bytes stops the script instead of installing them.
 
 .PARAMETER Destination
     Where to put wintun.dll. Defaults to the dev bin directory.
 
 .PARAMETER Version
-    Wintun release to fetch.
+    Wintun release to fetch. Fetching a different version needs a matching
+    -ExpectedHash, or the pinned one will reject it.
 
 .PARAMETER ExpectedHash
-    SHA256 of the archive. Optional. When given, a mismatch stops the script.
+    SHA256 of the archive, pinned by default. Pass an empty string to skip the
+    check, which prints the hash it saw so you can compare it against
+    wintun.net and pin that instead.
 
 .EXAMPLE
     .\scripts\fetch-wintun.ps1
-    .\scripts\fetch-wintun.ps1 -ExpectedHash ABC123...
+    .\scripts\fetch-wintun.ps1 -Version 0.14.1 -ExpectedHash ABC123...
 #>
 
 [CmdletBinding()]

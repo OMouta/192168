@@ -1,4 +1,5 @@
-// Package api serves the coordination server's HTTP surface.
+// Package api is the coordination server's HTTP handlers, covering device
+// registration, groups, sessions, and the realtime channel.
 package api
 
 import (
