@@ -202,18 +202,6 @@ public sealed partial class HomeViewModel : ObservableObject
         await Run(() => _daemon.SetNicknameAsync(_groupId, name));
     }
 
-    public async Task CreateAsync(string name, string password, string nickname)
-    {
-        await _daemon.CreateGroupAsync(name, password, nickname);
-        await RefreshAsync();
-    }
-
-    public async Task JoinAsync(string group, string password, string nickname)
-    {
-        await _daemon.JoinGroupAsync(group, password, nickname);
-        await RefreshAsync();
-    }
-
     private async Task Run(Func<Task> action)
     {
         IsBusy = true;

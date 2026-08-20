@@ -14,6 +14,11 @@ public sealed partial class HomePage : Page
     {
         InitializeComponent();
         ViewModel = new HomeViewModel(App.Daemon);
+
+        // Home is returned to rather than visited, and its view model is
+        // subscribed to the daemon for the life of the app. A fresh instance on
+        // every trip back would leave the old one listening.
+        NavigationCacheMode = NavigationCacheMode.Required;
     }
 
     public HomeViewModel ViewModel { get; }
@@ -91,41 +96,11 @@ public sealed partial class HomePage : Page
         }
     }
 
-    private async void OnCreate(object sender, RoutedEventArgs e)
-        => await ShowGroupDialog(GroupDialogMode.Create);
+    // The group screen reports its own failures and comes back only once it has
+    // worked, so there is nothing to catch here.
+    private void OnCreate(object sender, RoutedEventArgs e)
+        => Frame.Navigate(typeof(GroupPage), GroupPageMode.Create);
 
-    private async void OnJoin(object sender, RoutedEventArgs e)
-        => await ShowGroupDialog(GroupDialogMode.Join);
-
-    private async Task ShowGroupDialog(GroupDialogMode mode)
-    {
-        var dialog = new GroupDialog(mode) { XamlRoot = XamlRoot };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-        {
-            return;
-        }
-
-        try
-        {
-            if (mode == GroupDialogMode.Create)
-            {
-                await ViewModel.CreateAsync(dialog.GroupName, dialog.Password, dialog.Nickname);
-            }
-            else
-            {
-                await ViewModel.JoinAsync(dialog.GroupName, dialog.Password, dialog.Nickname);
-            }
-        }
-        catch (DaemonException error)
-        {
-            var context = mode == GroupDialogMode.Create ? ErrorContext.General : ErrorContext.Join;
-            await new ContentDialog
-            {
-                XamlRoot = XamlRoot,
-                Title = mode == GroupDialogMode.Create ? "Could not create that group" : "Could not join that group",
-                Content = ErrorCopy.Describe(error, context),
-                CloseButtonText = "OK",
-            }.ShowAsync();
-        }
-    }
+    private void OnJoin(object sender, RoutedEventArgs e)
+        => Frame.Navigate(typeof(GroupPage), GroupPageMode.Join);
 }

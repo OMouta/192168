@@ -17,9 +17,6 @@ public sealed partial class MainWindow : Window
     private const int Width = 400;
     private const int Height = 560;
 
-    /// <summary>The dialog on screen, if any. Windows allows only one.</summary>
-    private ContentDialog? _openDialog;
-
     public MainWindow()
     {
         InitializeComponent();
@@ -48,6 +45,13 @@ public sealed partial class MainWindow : Window
 
         SettingsButton.Loaded += (_, _) => CutSettingsButtonOutOfDragRegion();
         SettingsButton.SizeChanged += (_, _) => CutSettingsButtonOutOfDragRegion();
+
+        // The gear belongs to the home screen. On any other screen it would
+        // either do nothing or stack a second settings page on the first.
+        ContentFrame.Navigated += (_, _) =>
+            SettingsButton.Visibility = ContentFrame.CurrentSourcePageType == typeof(HomePage)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
 
         ContentFrame.Navigate(typeof(HomePage));
     }
@@ -83,26 +87,13 @@ public sealed partial class MainWindow : Window
             .SetRegionRects(NonClientRegionKind.Passthrough, [rect]);
     }
 
-    private async void OnSettings(object sender, RoutedEventArgs e)
+    private void OnSettings(object sender, RoutedEventArgs e)
     {
-        App.Trace("OnSettings" + Environment.NewLine + Environment.StackTrace);
-
-        // Windows allows one ContentDialog at a time and throws on the second,
-        // which takes the app down. A double click on the gear is enough.
-        if (_openDialog is not null)
+        // Navigating to the page already on screen would push a second copy
+        // onto the back stack, so a double click has to be harmless.
+        if (ContentFrame.CurrentSourcePageType != typeof(SettingsPage))
         {
-            return;
-        }
-
-        var dialog = new SettingsDialog { XamlRoot = Content.XamlRoot };
-        _openDialog = dialog;
-        try
-        {
-            await dialog.ShowAsync();
-        }
-        finally
-        {
-            _openDialog = null;
+            ContentFrame.Navigate(typeof(SettingsPage));
         }
     }
 }

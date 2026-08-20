@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Net192168.Client.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    KeyDown="OnKeyDown">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid
+            Grid.Row="0"
+            Margin="8,0,16,8"
+            ColumnSpacing="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Button
+                Grid.Column="0"
+                Width="32"
+                Height="32"
+                Padding="0"
+                AutomationProperties.Name="Back"
+                Background="Transparent"
+                BorderThickness="0"
+                Click="OnBack"
+                ToolTipService.ToolTip="Back">
+                <FontIcon FontSize="14" Glyph="&#xE72B;" />
+            </Button>
+
+            <TextBlock
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="Settings" />
+        </Grid>
+
+        <StackPanel
+            Grid.Row="1"
+            Margin="16,4,16,0"
+            Spacing="8">
+            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Server" />
+
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBox
+                    x:Name="ServerBox"
+                    Grid.Column="0"
+                    PlaceholderText="https://api.192168.lol"
+                    Text="{x:Bind ViewModel.ServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                <!--  Beside the field it belongs to, since it tests what is in it.  -->
+                <Button
+                    Grid.Column="1"
+                    Command="{x:Bind ViewModel.TestCommand}"
+                    Content="Test"
+                    IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource NotBoolean}}" />
+            </Grid>
+
+            <!--  Status only, and only once there is any. No standing paragraph.  -->
+            <TextBlock
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Text="{x:Bind ViewModel.Status, Mode=OneWay}"
+                TextWrapping="Wrap"
+                Visibility="{x:Bind ViewModel.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
+        </StackPanel>
+
+        <Grid Grid.Row="2" Padding="16,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button
+                Grid.Column="0"
+                HorizontalAlignment="Left"
+                Click="OnReset"
+                Content="Reset"
+                IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource NotBoolean}}" />
+
+            <Button
+                Grid.Column="1"
+                Click="OnSave"
+                Content="Save"
+                IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource NotBoolean}}"
+                Style="{StaticResource AccentButtonStyle}" />
+        </Grid>
+    </Grid>
+</Page>
