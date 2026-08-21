@@ -365,7 +365,12 @@ func (m *Mesh) beginHandshake(peer *Peer) {
 
 	peer.mu.Lock()
 	reachable := peer.endpoint.IsValid() || peer.via != nil
-	busy := peer.session != nil || peer.handshake != nil || peer.handshakes >= handshakeBudget(peer.via)
+	// An attempt already under way is left alone until it has had time to be
+	// answered, because the reply only verifies against the state that sent it.
+	// Left alone forever, though, a handshake nobody answers is a link that
+	// never retries and never gives up, and a spinner that never stops.
+	waiting := peer.handshake != nil && time.Since(peer.lastHandshake) < handshakeRetry
+	busy := peer.session != nil || waiting || peer.handshakes >= handshakeBudget(peer.via)
 	// A peer with no endpoint yet is waiting, not failing. Counting an attempt
 	// here would give up on somebody nobody has tried to reach.
 	if busy || !reachable {
@@ -373,6 +378,7 @@ func (m *Mesh) beginHandshake(peer *Peer) {
 		return
 	}
 	peer.handshakes++
+	peer.lastHandshake = time.Now()
 	sender := peer.sender
 	peer.mu.Unlock()
 

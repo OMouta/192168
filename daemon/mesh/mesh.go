@@ -40,6 +40,11 @@ const (
 	// deadAfter is how long a link goes unheard before it is given up on.
 	deadAfter = 45 * time.Second
 
+	// handshakeRetry is how long an unanswered handshake is given before
+	// another is sent. Long enough for a reply to cross a slow path and come
+	// back, short enough that ten of them is a wait somebody will sit through.
+	handshakeRetry = time.Second
+
 	// maxHandshakes bounds how many times a link is retried before it is
 	// reported as failed. The user is told rather than left watching a spinner.
 	maxHandshakes = 10

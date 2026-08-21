@@ -52,9 +52,10 @@ type Peer struct {
 	// probes and keepalives waiting for an echo, by token.
 	pending map[uint64]time.Time
 
-	lastHeard  time.Time
-	lastProbe  time.Time
-	handshakes int
+	lastHeard     time.Time
+	lastProbe     time.Time
+	lastHandshake time.Time
+	handshakes    int
 }
 
 // ErrNoSession means the link is not open yet, so there is nowhere to send.
@@ -185,6 +186,7 @@ func (p *Peer) resetLocked() {
 	p.state = ipc.PeerConnecting
 	p.lastProbe = time.Time{}
 	p.lastHeard = time.Time{}
+	p.lastHandshake = time.Time{}
 	p.handshakes = 0
 	clear(p.pending)
 }
