@@ -18,8 +18,6 @@ public sealed partial class AboutPage : Page
     /// <summary>Whether there is a newer release to go and get.</summary>
     public bool HasUpdate => Updates.Available is not null;
 
-    public string UpdateLabel => $"Download {Updates.Available?.Version}";
-
     /// <summary>
     /// The release page, opened in a browser. Downloading and installing an app
     /// that installed a service is a bigger idea than this needs.

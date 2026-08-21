@@ -115,9 +115,4 @@ public sealed partial class HomePage : Page
     // Leaving the group that is connected. The daemon disconnects on the way.
     private async void OnLeaveConnected(object sender, RoutedEventArgs e)
         => await ViewModel.LeaveConnectedGroupAsync();
-
-    // Straight to where the download link is, rather than making somebody find
-    // Settings and then About after being told to.
-    private void OnOpenAbout(object sender, RoutedEventArgs e)
-        => Frame.Navigate(typeof(AboutPage));
 }

@@ -30,15 +30,18 @@
                     Text="{x:Bind Version}" />
 
                 <!--
-                    Where the banner sends people. The link opens the release in
-                    a browser: the app looks for a new version and does not
-                    fetch or install one.
+                    The release opens in a browser: the app looks for a new
+                    version and does not fetch or install one.
                 -->
                 <HyperlinkButton
                     HorizontalAlignment="Center"
                     NavigateUri="{x:Bind UpdateUrl}"
-                    Content="{x:Bind UpdateLabel}"
-                    Visibility="{x:Bind HasUpdate, Converter={StaticResource BooleanToVisibility}}" />
+                    Visibility="{x:Bind HasUpdate, Converter={StaticResource BooleanToVisibility}}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Get on GitHub" />
+                        <FontIcon FontSize="12" Glyph="&#xE8A7;" />
+                    </StackPanel>
+                </HyperlinkButton>
             </StackPanel>
 
             <TextBlock

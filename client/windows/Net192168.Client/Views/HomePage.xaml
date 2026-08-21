@@ -49,11 +49,15 @@
             Grid.Row="1"
             Margin="12,8,12,0"
             IsOpen="{x:Bind ViewModel.HasUpdate, Mode=TwoWay}"
-            Message="{x:Bind ViewModel.UpdateMessage, Mode=OneWay}"
             Severity="Informational"
-            Title="There is a newer version">
+            Title="{x:Bind ViewModel.UpdateTitle, Mode=OneWay}">
             <InfoBar.ActionButton>
-                <Button Click="OnOpenAbout" Content="Open About" />
+                <HyperlinkButton NavigateUri="{x:Bind ViewModel.UpdateUrl, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Get on GitHub" />
+                        <FontIcon FontSize="12" Glyph="&#xE8A7;" />
+                    </StackPanel>
+                </HyperlinkButton>
             </InfoBar.ActionButton>
         </InfoBar>
 

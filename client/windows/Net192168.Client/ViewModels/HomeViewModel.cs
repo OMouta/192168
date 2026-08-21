@@ -208,6 +208,7 @@ public sealed partial class HomeViewModel : ObservableObject
     {
         UpdateVersion = Updates.Available?.Version;
         HasUpdate = UpdateVersion is not null;
+        OnPropertyChanged(nameof(UpdateUrl));
     }
 
     public ObservableCollection<GroupListItem> Groups { get; } = [];
@@ -220,10 +221,14 @@ public sealed partial class HomeViewModel : ObservableObject
     public partial bool HasUpdate { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(UpdateMessage))]
+    [NotifyPropertyChangedFor(nameof(UpdateTitle))]
     public partial string? UpdateVersion { get; set; }
 
-    public string UpdateMessage => $"Version {UpdateVersion} is out. Settings, then About, has the download.";
+    public string UpdateTitle => $"Version {UpdateVersion} is available";
+
+    /// <summary>The release page. The button goes there; nothing describes how
+    /// to get there in words.</summary>
+    public Uri UpdateUrl => new(Updates.Available?.Url ?? "https://github.com/OMouta/192168/releases");
 
     /// <summary>True while a group is up, which is what swaps the screen over.</summary>
     [ObservableProperty]
