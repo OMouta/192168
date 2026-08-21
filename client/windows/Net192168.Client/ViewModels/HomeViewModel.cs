@@ -109,6 +109,14 @@ public sealed partial class PeerItem(string deviceId, HomeViewModel owner) : Obs
     [ObservableProperty]
     public partial string Status { get; set; } = "";
 
+    /// <summary>
+    /// What is in the way, spelled out. The status is one or two words because
+    /// that is all the row has room for, and Unreachable on its own tells
+    /// somebody nothing they can act on.
+    /// </summary>
+    [ObservableProperty]
+    public partial string StatusDetail { get; set; } = "";
+
     /// <summary>Packets each way with this person. A link can read Direct at
     /// 20 ms and still carry nothing, and this is what says so.</summary>
     [ObservableProperty]
@@ -647,6 +655,7 @@ public sealed partial class HomeViewModel : ObservableObject
             row.Nickname = peer.Nickname;
             row.VirtualIp = peer.VirtualIp;
             row.Status = Describe(peer);
+            row.StatusDetail = Explain(peer);
             row.Traffic = Describe(peer.PacketsSent, peer.PacketsReceived);
             row.IsReachable = peer.State is PeerState.Direct or PeerState.Indirect;
             row.IsHere = peer.State != PeerState.Offline;
@@ -707,6 +716,23 @@ public sealed partial class HomeViewModel : ObservableObject
         PeerState.Connecting => "Connecting",
         PeerState.Failed => "Unreachable",
         _ => "Offline",
+    };
+
+    /// <summary>
+    /// The sentence behind the status word. Every one of these says what
+    /// happened and, where there is one, what to do about it: a row somebody
+    /// cannot act on is a row they will ask you about instead.
+    /// </summary>
+    private static string Explain(PeerView peer) => peer.Reason switch
+    {
+        PeerReason.NoAddress =>
+            "They are online, but their app has not said where to reach them yet. "
+            + "This usually clears on its own in a moment.",
+        PeerReason.NoRoute =>
+            "Neither network would let a direct connection through, and nobody else "
+            + "in the group could pass it along. Try again, or try once more when "
+            + "somebody else is online.",
+        _ => "",
     };
 
     /// <summary>The two counts on one line, sent first.</summary>

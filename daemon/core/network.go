@@ -177,8 +177,15 @@ func (c *Core) republishEndpoint(ctx context.Context, links *mesh.Mesh, sessionI
 	endpoint, err := links.PublicEndpoint(ctx, c.stunServers())
 	if err != nil {
 		c.log.Error("cannot find our public address", "error", err)
+		// Said out loud because it is the one fault that makes every row wrong
+		// at once. Without an address of our own nobody can be told where to
+		// send, so each link fails on its own and the list reads as though
+		// everyone else were the problem.
+		c.noteAddressProblem(true)
 		return
 	}
+	c.noteAddressProblem(false)
+
 	if endpoint == *published {
 		return
 	}
@@ -223,6 +230,32 @@ func localAddresses() string {
 	}
 	slices.Sort(found)
 	return strings.Join(found, ",")
+}
+
+// addressProblem is what the user is told when this machine's own address on
+// the internet cannot be found. Kept as a constant so the line can be taken
+// back down again without disturbing whatever else is on screen.
+const addressProblem = "Could not work out this machine's address on the internet, so nobody can reach it."
+
+// noteAddressProblem puts that line up, or takes it down once an address is
+// found. A STUN server having a bad minute is common and recovers on the next
+// round, so a message that only ever appeared would outlive the fault.
+func (c *Core) noteAddressProblem(bad bool) {
+	c.mu.Lock()
+	showing := c.state.Message == addressProblem
+	switch {
+	case bad && !showing:
+		c.state.Message = addressProblem
+	case !bad && showing:
+		c.state.Message = ""
+	default:
+		c.mu.Unlock()
+		return
+	}
+	state := c.snapshot()
+	c.mu.Unlock()
+
+	c.emit(ipc.EventStateChanged, state)
 }
 
 // watchGroup follows the group while it is connected, so a peer who joins after
@@ -440,6 +473,9 @@ func (c *Core) peerWentOffline(deviceID string) {
 	if known {
 		peer.State = ipc.PeerOffline
 		peer.LatencyMS = nil
+		// Whatever was in the way of the link is beside the point now. They are
+		// not here, which is its own explanation.
+		peer.Reason = ""
 		// The address is not cleared. It belongs to their membership rather
 		// than to the session that just ended.
 	}
@@ -497,11 +533,12 @@ func (c *Core) removePeer(deviceID string) {
 
 // onPeerState carries a link's state up to the UI. This is where a row stops
 // saying Connecting and starts saying Direct.
-func (c *Core) onPeerState(deviceID string, state ipc.PeerState) {
+func (c *Core) onPeerState(deviceID string, state ipc.PeerState, reason ipc.PeerReason) {
 	c.mu.Lock()
 	peer, ok := c.peers[deviceID]
 	if ok {
 		peer.State = state
+		peer.Reason = reason
 	}
 	snapshot := c.snapshot()
 	c.mu.Unlock()
@@ -509,7 +546,7 @@ func (c *Core) onPeerState(deviceID string, state ipc.PeerState) {
 		return
 	}
 
-	c.emit(ipc.EventPeerStateChanged, ipc.PeerStateChangedData{DeviceID: deviceID, State: state})
+	c.emit(ipc.EventPeerStateChanged, ipc.PeerStateChangedData{DeviceID: deviceID, State: state, Reason: reason})
 	c.emit(ipc.EventStateChanged, snapshot)
 }
 

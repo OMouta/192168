@@ -63,8 +63,9 @@ const (
 // Events is how the mesh reports what changed. The core turns these into IPC
 // events for the UI.
 type Events struct {
-	// PeerStateChanged fires when a link opens, fails, or starts over.
-	PeerStateChanged func(deviceID string, state ipc.PeerState)
+	// PeerStateChanged fires when a link opens, fails, or starts over. The
+	// reason is empty for a link with nothing in the way of it.
+	PeerStateChanged func(deviceID string, state ipc.PeerState, reason ipc.PeerReason)
 	// PeerLatencyChanged fires after a keepalive is answered.
 	PeerLatencyChanged func(deviceID string, latency time.Duration)
 }
@@ -292,6 +293,10 @@ func (m *Mesh) AddPeer(deviceID, nickname string, virtualIP netip.Addr, transpor
 
 	m.reindex()
 	m.log.Info("peer added", "deviceId", deviceID, "virtualIp", virtualIP.String(), "endpoint", endpoint.String())
+	// Said now rather than at the first change, because somebody who joined
+	// without an address yet has nothing to change until one arrives, and the
+	// row would spend that time saying Connecting with no reason given.
+	m.report(peer)
 	m.punch(peer)
 	return nil
 }
@@ -518,7 +523,8 @@ func (m *Mesh) reindex() {
 
 func (m *Mesh) report(peer *Peer) {
 	if m.events.PeerStateChanged != nil {
-		m.events.PeerStateChanged(peer.DeviceID, peer.State())
+		state, reason := peer.status()
+		m.events.PeerStateChanged(peer.DeviceID, state, reason)
 	}
 }
 

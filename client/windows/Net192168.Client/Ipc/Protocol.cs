@@ -45,6 +45,19 @@ public enum PeerState
     Failed,
 }
 
+/// <summary>
+/// What is standing in the way of a link. None for one with nothing wrong.
+/// </summary>
+public enum PeerReason
+{
+    None,
+    /// <summary>They are online, but nobody has been told where to reach them.</summary>
+    NoAddress,
+    /// <summary>Neither network would let a connection through, and nobody else
+    /// in the group could carry it.</summary>
+    NoRoute,
+}
+
 /// <summary>Everything needed to draw the app.</summary>
 public sealed record DaemonState
 {
@@ -82,6 +95,9 @@ public sealed record PeerView
     public string VirtualIp { get; init; } = "";
     public PeerState State { get; init; }
     public int? LatencyMs { get; init; }
+
+    /// <summary>What is in the way, if anything.</summary>
+    public PeerReason Reason { get; init; }
 
     /// <summary>Whoever runs the group, marked in the list.</summary>
     public bool IsOwner { get; init; }

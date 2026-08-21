@@ -28,17 +28,29 @@ type node struct {
 type stateLog struct {
 	mu      sync.Mutex
 	states  map[string]ipc.PeerState
+	reasons map[string]ipc.PeerReason
 	latency map[string]time.Duration
 }
 
 func newStateLog() *stateLog {
-	return &stateLog{states: map[string]ipc.PeerState{}, latency: map[string]time.Duration{}}
+	return &stateLog{
+		states:  map[string]ipc.PeerState{},
+		reasons: map[string]ipc.PeerReason{},
+		latency: map[string]time.Duration{},
+	}
 }
 
-func (s *stateLog) set(deviceID string, state ipc.PeerState) {
+func (s *stateLog) set(deviceID string, state ipc.PeerState, reason ipc.PeerReason) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.states[deviceID] = state
+	s.reasons[deviceID] = reason
+}
+
+func (s *stateLog) reasonOf(deviceID string) ipc.PeerReason {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.reasons[deviceID]
 }
 
 func (s *stateLog) setLatency(deviceID string, latency time.Duration) {
@@ -237,6 +249,49 @@ func TestRetryingAPeerOpensItAgain(t *testing.T) {
 	// Retrying reports connecting on its way past, so the wait below is for the
 	// link opening again rather than for the state it was already in.
 	waitForState(t, a, b.deviceID, ipc.PeerDirect)
+}
+
+// A row that says Connecting forever and a row that is about to open look the
+// same. The reason is what tells them apart, and waiting on somebody's address
+// is the case a person can act on: it is their app that has not published one.
+func TestAPeerWithNoAddressSaysSo(t *testing.T) {
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
+
+	// Online and in the group, but nobody has told a where b is. This is what a
+	// peer looks like between connecting and their first STUN round landing.
+	// b is given a's address so that the link has only the one thing missing.
+	if err := b.mesh.AddPeer(a.deviceID, a.deviceID, a.virtualIP, a.keys.Public, a.endpoint()); err != nil {
+		t.Fatalf("AddPeer: %v", err)
+	}
+	if err := a.mesh.AddPeer(b.deviceID, b.deviceID, b.virtualIP, b.keys.Public, netip.AddrPort{}); err != nil {
+		t.Fatalf("AddPeer: %v", err)
+	}
+	if got := a.states.reasonOf(b.deviceID); got != ipc.ReasonNoAddress {
+		t.Errorf("reason = %q, want %q", got, ipc.ReasonNoAddress)
+	}
+
+	// The address arriving is the end of it, and the row should stop saying so.
+	a.mesh.SetPeerEndpoint(b.deviceID, b.endpoint())
+	waitForState(t, a, b.deviceID, ipc.PeerDirect)
+	if got := a.states.reasonOf(b.deviceID); got != "" {
+		t.Errorf("an open link still gives the reason %q", got)
+	}
+}
+
+func TestAGivenUpLinkSaysThereWasNoRoute(t *testing.T) {
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
+	introduce(t, a, b)
+
+	waitForState(t, a, b.deviceID, ipc.PeerDirect)
+
+	link(t, a, b.deviceID).fail()
+	a.mesh.report(link(t, a, b.deviceID))
+
+	if got := a.states.reasonOf(b.deviceID); got != ipc.ReasonNoRoute {
+		t.Errorf("reason = %q, want %q", got, ipc.ReasonNoRoute)
+	}
 }
 
 func TestRetryingSomebodyWhoIsNotHere(t *testing.T) {

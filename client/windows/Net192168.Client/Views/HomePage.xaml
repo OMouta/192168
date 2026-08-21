@@ -461,13 +461,18 @@
                                 </Button.Flyout>
                             </Button>
 
+                            <!--
+                                One or two words is all this column holds, so
+                                the sentence behind them hangs off it.
+                            -->
                             <TextBlock
                                 Grid.Column="5"
                                 VerticalAlignment="Center"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                 Style="{StaticResource CaptionTextBlockStyle}"
                                 Text="{x:Bind Status, Mode=OneWay}"
-                                TextAlignment="Right" />
+                                TextAlignment="Right"
+                                ToolTipService.ToolTip="{x:Bind StatusDetail, Mode=OneWay}" />
                         </Grid>
 
                         <!--

@@ -29,6 +29,25 @@ const (
 	PeerFailed PeerState = "failed"
 )
 
+// PeerReason says what is standing in the way of a link. It is a key rather
+// than a sentence, because the wording belongs to the app. Empty means nothing
+// is in the way, which is why there is no constant for it.
+//
+// Only the cases a person can tell apart are here. The daemon knows more than
+// this and it goes in the log, which is where a fault nobody can act on
+// belongs.
+type PeerReason string
+
+const (
+	// ReasonNoAddress means they are in the group and online, but nobody has
+	// been told where to reach them yet. Ordinary for a second or two after
+	// somebody connects, and a wait with no end after that.
+	ReasonNoAddress PeerReason = "noAddress"
+	// ReasonNoRoute means the attempt is over: neither network would let a
+	// direct connection through, and nobody else in the group could carry it.
+	ReasonNoRoute PeerReason = "noRoute"
+)
+
 // State is the full snapshot returned by GetState and pushed on StateChanged.
 // It is everything the UI needs to render, and nothing more.
 type State struct {
@@ -62,6 +81,8 @@ type PeerView struct {
 	VirtualIP string    `json:"virtualIp"`
 	State     PeerState `json:"state"`
 	LatencyMS *int      `json:"latencyMs,omitempty"`
+	// Reason is what is in the way, empty for a link with nothing wrong with it.
+	Reason PeerReason `json:"reason,omitempty"`
 	// IsOwner marks whoever runs the group, so the list says who to ask.
 	IsOwner bool `json:"isOwner,omitempty"`
 	// PacketsSent and PacketsReceived count the game's packets and not the

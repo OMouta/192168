@@ -99,6 +99,25 @@ func (p *Peer) Latency() time.Duration {
 	return p.latency
 }
 
+// status is the link's state together with what is in the way of it, which is
+// the part somebody can occasionally do something about.
+//
+// A link with no address to aim at is waiting rather than failing, and the two
+// look identical from a row that only says Connecting. That distinction is the
+// whole point of this.
+func (p *Peer) status() (ipc.PeerState, ipc.PeerReason) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	switch {
+	case p.state == ipc.PeerFailed:
+		return p.state, ipc.ReasonNoRoute
+	case p.state == ipc.PeerConnecting && !p.endpoint.IsValid() && p.via == nil:
+		return p.state, ipc.ReasonNoAddress
+	}
+	return p.state, ""
+}
+
 // Traffic is how many data packets this link has carried each way. Handshakes
 // and keepalives are the app talking to itself, so they are left out.
 func (p *Peer) Traffic() (sent, received uint64) {

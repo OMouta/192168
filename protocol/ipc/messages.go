@@ -114,8 +114,9 @@ type PeerRemovedData struct {
 
 // PeerStateChangedData accompanies EventPeerStateChanged.
 type PeerStateChangedData struct {
-	DeviceID string    `json:"deviceId"`
-	State    PeerState `json:"state"`
+	DeviceID string     `json:"deviceId"`
+	State    PeerState  `json:"state"`
+	Reason   PeerReason `json:"reason,omitempty"`
 }
 
 // PeerLatencyChangedData accompanies EventPeerLatencyChanged.
