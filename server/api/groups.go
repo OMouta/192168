@@ -152,10 +152,11 @@ func (s *Server) handleListMembers(w http.ResponseWriter, r *http.Request, devic
 	out := make([]api.Member, 0, len(members))
 	for _, m := range members {
 		out = append(out, api.Member{
-			DeviceID: m.DeviceID,
-			Nickname: m.Nickname,
-			Role:     string(m.Role),
-			Online:   m.Online,
+			DeviceID:  m.DeviceID,
+			Nickname:  m.Nickname,
+			VirtualIP: m.VirtualIP,
+			Role:      string(m.Role),
+			Online:    m.Online,
 		})
 	}
 	writeJSON(w, http.StatusOK, api.MembersResponse{Members: out})
@@ -218,6 +219,7 @@ func toMembership(m storage.Membership) api.Membership {
 		GroupName:    m.GroupName,
 		Nickname:     m.Nickname,
 		Subnet:       m.Subnet,
+		VirtualIP:    m.VirtualIP,
 		Role:         string(m.Role),
 	}
 }

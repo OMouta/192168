@@ -72,17 +72,22 @@ type JoinGroupRequest struct {
 // authenticates the caller, and the server looks up what it is a member of.
 // Revoking a membership is a server-side change, so it takes effect whether or
 // not that device is online.
+// VirtualIP is the address this device holds in the group. It is given when
+// the device joins and does not change, so it can be written into a game and
+// left there.
 type Membership struct {
 	MembershipID string `json:"membershipId"`
 	GroupID      string `json:"groupId"`
 	GroupName    string `json:"groupName"`
 	Nickname     string `json:"nickname"`
 	Subnet       string `json:"subnet"`
+	VirtualIP    string `json:"virtualIp"`
 	Role         string `json:"role"`
 }
 
 // CreateSessionResponse is returned when a device connects to a group. The
-// virtual IP is unique within the group for the lifetime of the session.
+// virtual IP is the one the membership already holds; connecting neither picks
+// it nor gives it up.
 type CreateSessionResponse struct {
 	SessionID string `json:"sessionId"`
 	VirtualIP string `json:"virtualIp"`
@@ -112,11 +117,16 @@ const (
 
 // Member is one person in a group, whether or not they are connected. A peer is
 // someone there is a link to; a member is someone who belongs.
+//
+// The address is here rather than only on Peer because it belongs to the
+// membership: somebody who is away still has one, and that is what makes it
+// worth showing.
 type Member struct {
-	DeviceID string `json:"deviceId"`
-	Nickname string `json:"nickname"`
-	Role     string `json:"role"`
-	Online   bool   `json:"online"`
+	DeviceID  string `json:"deviceId"`
+	Nickname  string `json:"nickname"`
+	VirtualIP string `json:"virtualIp"`
+	Role      string `json:"role"`
+	Online    bool   `json:"online"`
 }
 
 // MembersResponse is what listing a group's members returns.

@@ -233,6 +233,11 @@ func TestGroupAndSessionFlow(t *testing.T) {
 	if joined.GroupID != created.GroupID {
 		t.Fatalf("joined %q, want %q", joined.GroupID, created.GroupID)
 	}
+	// Joining is what hands out an address, so both have one before either of
+	// them has connected.
+	if created.VirtualIP != "10.69.0.1" || joined.VirtualIP != "10.69.0.2" {
+		t.Fatalf("addresses = %q and %q", created.VirtualIP, joined.VirtualIP)
+	}
 
 	var groups []papi.Membership
 	if code := call(t, h, http.MethodGet, "/api/groups", guest.token, nil, &groups); code != http.StatusOK {
@@ -518,11 +523,18 @@ func TestMembersListsEveryoneAndSaysWhoIsOnline(t *testing.T) {
 	}
 
 	online := map[string]bool{}
+	addresses := map[string]string{}
 	for _, member := range members.Members {
 		online[member.Nickname] = member.Online
+		addresses[member.Nickname] = member.VirtualIP
 	}
 	if !online["Tiago"] || !online["Joao"] || online["Pedro"] {
 		t.Fatalf("online = %+v, want Tiago and Joao here and Pedro away", online)
+	}
+	// Pedro is away and still has an address. It is his whether he is here or
+	// not, which is what makes it worth showing.
+	if addresses["Tiago"] != "10.69.0.1" || addresses["Joao"] != "10.69.0.2" || addresses["Pedro"] != "10.69.0.3" {
+		t.Errorf("addresses = %+v", addresses)
 	}
 }
 

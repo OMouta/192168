@@ -8,9 +8,9 @@ import (
 	"github.com/OMouta/192168/server/storage"
 )
 
-// handleCreateSession connects a device to a group and assigns it a virtual IP.
-// The response carries the peers already online, which is the list the daemon
-// starts punching toward.
+// handleCreateSession connects a device to a group. The response carries the
+// address the membership already holds, and the peers already online, which is
+// the list the daemon starts punching toward.
 func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request, device storage.Device) {
 	groupID := r.PathValue("groupId")
 
@@ -103,7 +103,8 @@ func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request, device 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleDeleteSession disconnects, freeing the virtual IP for the next person.
+// handleDeleteSession disconnects. The address stays with the membership, so
+// this takes the device off the peer list and nothing more.
 func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request, device storage.Device) {
 	session, ok := s.ownedSession(w, r, device)
 	if !ok {
