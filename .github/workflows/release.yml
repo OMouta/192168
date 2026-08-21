@@ -111,3 +111,21 @@ jobs:
         with:
           files: build/*-setup.exe
           body_path: release-notes.md
+
+  # Railway watches the release branch rather than main, so the server moves
+  # when a version is cut instead of on every commit. This is what moves it.
+  #
+  # After the installer, so a tag that cannot be built does not reach the server
+  # everybody's client talks to. Forced, because the branch follows the tag
+  # wherever it is rather than the other way round.
+  server:
+    name: Point the release branch at this tag
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: git push --force origin ${{ github.sha }}:refs/heads/release

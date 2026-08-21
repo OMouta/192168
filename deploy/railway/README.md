@@ -12,9 +12,19 @@ couple of variables and a volume.
    `/api/health`, and rebuilds only when the server, the protocol, or the
    Dockerfile change.
 
-3. Generate a domain under Settings, Networking.
+3. Under Settings, Source, set the branch to `release`.
 
-4. Set:
+   Railway deploys every push to the branch it watches. Pointed at `main` that
+   is every commit, so the server everybody's client talks to runs code no
+   release was cut from. The `release` branch only moves when a tag is pushed,
+   which the release workflow does after the installer builds.
+
+   The branch does not exist until the first tag after this. To deploy what is
+   on main now, push it once: `git push origin main:release`.
+
+4. Generate a domain under Settings, Networking.
+
+5. Set:
 
    ```
    NET192168_PUBLIC_URL = https://${{RAILWAY_PUBLIC_DOMAIN}}
@@ -23,7 +33,7 @@ couple of variables and a volume.
    The server exits at startup without this rather than guess at its own
    address.
 
-5. Add a volume mounted at `/data` and set:
+6. Add a volume mounted at `/data` and set:
 
    ```
    NET192168_DATABASE_URL = /data/192168.db
@@ -39,7 +49,7 @@ couple of variables and a volume.
    the server cannot create the database and crash-loops at startup. Railway
    documents this variable as the fix.
 
-6. Under Settings, Backups, pick a schedule. Railway backs up whatever is in the
+7. Under Settings, Backups, pick a schedule. Railway backs up whatever is in the
    volume, SQLite included, and restores it from the same tab.
 
 Leave the port alone. Railway sets `PORT` and the server listens on it.
