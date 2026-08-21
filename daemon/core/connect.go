@@ -293,11 +293,9 @@ func (c *Core) describeGroup(ctx context.Context, groupID string) (name, nicknam
 	return groupID, "", "", false
 }
 
-// sortPeers keeps the list in a stable order, so a UI redraw does not shuffle
-// rows under someone's cursor.
-// sortPeers puts everyone who is here first, in address order, and everyone who
-// is not after them by name. Someone who is away has no address to sort by, and
-// a list that reshuffles as people come and go is hard to read.
+// sortPeers puts everyone who is here first and orders both halves by address.
+// An address belongs to a member rather than to their session, so a row keeps
+// its place in its half whether that person is here or not.
 func sortPeers(peers []ipc.PeerView) {
 	slices.SortFunc(peers, func(a, b ipc.PeerView) int {
 		away, bAway := a.State == ipc.PeerOffline, b.State == ipc.PeerOffline
@@ -306,9 +304,6 @@ func sortPeers(peers []ipc.PeerView) {
 				return 1
 			}
 			return -1
-		}
-		if away {
-			return strings.Compare(a.Nickname, b.Nickname)
 		}
 		return strings.Compare(a.VirtualIP, b.VirtualIP)
 	})

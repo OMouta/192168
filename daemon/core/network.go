@@ -321,14 +321,16 @@ func (c *Core) loadMembers(ctx context.Context, groupID string) {
 		owner := member.Role == api.RoleOwner
 		if peer, known := c.peers[member.DeviceID]; known {
 			peer.Nickname = member.Nickname
+			peer.VirtualIP = member.VirtualIP
 			peer.IsOwner = owner
 			continue
 		}
 		c.peers[member.DeviceID] = &ipc.PeerView{
-			DeviceID: member.DeviceID,
-			Nickname: member.Nickname,
-			State:    ipc.PeerOffline,
-			IsOwner:  owner,
+			DeviceID:  member.DeviceID,
+			Nickname:  member.Nickname,
+			VirtualIP: member.VirtualIP,
+			State:     ipc.PeerOffline,
+			IsOwner:   owner,
 		}
 	}
 
@@ -356,8 +358,10 @@ func (c *Core) peerWentOffline(deviceID string) {
 	peer, known := c.peers[deviceID]
 	if known {
 		peer.State = ipc.PeerOffline
-		peer.VirtualIP = ""
 		peer.LatencyMS = nil
+		// The address is not cleared. It belongs to their membership, not to
+		// the session that just ended, and it is what somebody needs to host
+		// again tomorrow.
 	}
 	state := c.snapshot()
 	c.mu.Unlock()

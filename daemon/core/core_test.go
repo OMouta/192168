@@ -219,6 +219,64 @@ func TestPeersArriveKnownButNotYetReachable(t *testing.T) {
 	}
 }
 
+// Somebody in the group who is not connected still has an address. It is what
+// their friends need in order to reach them next time, and it used to be blank
+// until they showed up.
+func TestAMemberWhoIsAwayHasAnAddress(t *testing.T) {
+	url := liveServer(t)
+	host, hostEvents := newCore(t, url)
+	guest, _ := newCore(t, url)
+	ctx := t.Context()
+
+	group, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
+		Name: "Friday Night", Password: "hunter2", Nickname: "Tiago",
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{
+		Group: "Friday Night", Password: "hunter2", Nickname: "João",
+	}); err != nil {
+		t.Fatalf("JoinGroup: %v", err)
+	}
+
+	// Only the host connects.
+	if err := host.Connect(ctx, group.GroupID); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	hostEvents.waitFor(t, ipc.EventGroupConnected)
+
+	// The member list arrives after the session does, so this waits for it.
+	peers := awaitPeers(t, host, 1)
+	if peers[0].State != ipc.PeerOffline {
+		t.Errorf("peer state = %q, want %q", peers[0].State, ipc.PeerOffline)
+	}
+	if peers[0].VirtualIP != "10.69.0.2" {
+		t.Errorf("peer address = %q, want 10.69.0.2", peers[0].VirtualIP)
+	}
+}
+
+// awaitPeers waits for the peer list to reach a size. The list is filled in by
+// a call the daemon makes on its own, so there is nothing to wait on but it.
+func awaitPeers(t *testing.T, c *Core, want int) []ipc.PeerView {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+
+	for {
+		state, err := c.GetState(t.Context())
+		if err != nil {
+			t.Fatalf("GetState: %v", err)
+		}
+		if len(state.Peers) == want {
+			return state.Peers
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("peers = %+v, want %d of them", state.Peers, want)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 func TestSwitchingGroupsDisconnectsTheFirst(t *testing.T) {
 	url := liveServer(t)
 	c, events := newCore(t, url)
