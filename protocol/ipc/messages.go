@@ -14,8 +14,8 @@ import (
 // implements a KDF. That makes the pipe itself a secret-bearing channel, and it
 // has to be restricted to the current user.
 
-// CreateGroupParams creates a group and joins it in one step. Icon and Color
-// are the look it is made with, in the keys SetGroupAppearanceParams carries.
+// CreateGroupParams creates a group and joins it in one step, with the look it
+// is made with.
 type CreateGroupParams struct {
 	Name     string `json:"name"`
 	Password string `json:"password"`
@@ -170,7 +170,7 @@ type RenameGroupParams struct {
 }
 
 // SetGroupAppearanceParams changes the icon and colour a group is shown with,
-// for everyone in it. Both travel together because they are picked together.
+// for everyone in it.
 type SetGroupAppearanceParams struct {
 	GroupID string `json:"groupId"`
 	Icon    string `json:"icon"`

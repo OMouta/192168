@@ -457,11 +457,8 @@ func (c *Core) RenameGroup(ctx context.Context, params ipc.RenameGroupParams) er
 }
 
 // SetGroupAppearance changes the icon and colour a group is shown with, for
-// everyone in it.
-//
-// The keys are passed through rather than checked against a list. What an icon
-// looks like is the app's business, and a daemon that had to know every one of
-// them would have to be updated before the app could offer a new one.
+// everyone in it. The keys are passed through: what an icon looks like is the
+// app's business, not the daemon's.
 func (c *Core) SetGroupAppearance(ctx context.Context, params ipc.SetGroupAppearanceParams) error {
 	if params.GroupID == "" {
 		return &ipcserver.Failure{Code: "bad_request", Message: "Choose a group to change."}

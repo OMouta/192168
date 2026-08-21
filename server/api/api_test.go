@@ -684,9 +684,7 @@ func TestTheGroupsLookReachesEveryMember(t *testing.T) {
 		t.Fatalf("groups = %+v", groups)
 	}
 
-	// The keys are the app's vocabulary, so the server checks their shape and
-	// not their meaning. Anything that could not have come from a picker is
-	// refused rather than stored for every client to puzzle over.
+	// The server checks the shape of a key, not its meaning.
 	if code := call(t, h, http.MethodPut, "/api/groups/"+groupID+"/appearance", owner.token,
 		papi.SetGroupAppearanceRequest{Icon: "<script>", Color: "green"}, nil); code != http.StatusBadRequest {
 		t.Fatalf("set a nonsense icon: status %d, want 400", code)

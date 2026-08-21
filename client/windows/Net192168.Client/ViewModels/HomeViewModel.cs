@@ -18,10 +18,7 @@ public sealed partial class GroupListItem : ObservableObject
     [ObservableProperty]
     public partial string? Nickname { get; set; }
 
-    /// <summary>
-    /// The icon and colour the group's owner gave it, as keys. What they look
-    /// like is <see cref="GroupLooks"/>'s business.
-    /// </summary>
+    /// <summary>The keys the owner picked. <see cref="GroupLooks"/> says what they look like.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Look))]
     public partial string? Icon { get; set; }
@@ -30,8 +27,7 @@ public sealed partial class GroupListItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(Look))]
     public partial string? Color { get; set; }
 
-    /// <summary>How the row draws the group: a glyph in a colour, which is what
-    /// tells one group from another before the name has been read.</summary>
+    /// <summary>How the row draws the group, before its name has been read.</summary>
     public GroupLook Look => GroupLooks.For(Icon, Color);
 
     /// <summary>
@@ -263,10 +259,7 @@ public sealed partial class HomeViewModel : ObservableObject
     [ObservableProperty]
     public partial string? GroupLabel { get; set; }
 
-    /// <summary>
-    /// The active group's look, so the screen you are on while connected is
-    /// marked the same way the row you got here from was.
-    /// </summary>
+    /// <summary>The active group's look, the same one its row in the list wore.</summary>
     [ObservableProperty]
     public partial GroupLook ConnectedLook { get; set; } = GroupLooks.For(null, null);
 
@@ -331,11 +324,7 @@ public sealed partial class HomeViewModel : ObservableObject
     /// <summary>The connected group, for the screens reached from this one.</summary>
     public string ConnectedGroupId => _groupId;
 
-    /// <summary>
-    /// The connected group's row in the list, which carries what its settings
-    /// screen has to start from. The list holds every group whether or not one
-    /// is up, so this is here even while the peers are what is on screen.
-    /// </summary>
+    /// <summary>The connected group's row, which its settings screen starts from.</summary>
     public GroupListItem? ConnectedGroup => Groups.FirstOrDefault(g => g.GroupId == _groupId);
 
     [RelayCommand]

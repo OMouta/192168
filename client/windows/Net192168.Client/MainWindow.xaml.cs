@@ -30,14 +30,10 @@ public sealed partial class MainWindow : Window
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
-            // No system title bar, so the header below is the whole top of the
-            // window and the buttons in it are the window's own.
-            //
-            // Windows draws minimise, maximise, and close as a set: asking for
-            // a window that cannot be maximised leaves the middle one there,
-            // greyed, taking up space to say no. Maximising a window this dense
-            // would only stretch the gaps, so it is not offered at all, and the
-            // two that do something are drawn in XAML instead.
+            // Windows draws the three window buttons as a set, and a window
+            // that cannot be maximised keeps a greyed one taking up space to
+            // say no. No system title bar at all, then, and the two buttons
+            // worth having are drawn in XAML.
             presenter.SetBorderAndTitleBar(hasBorder: true, hasTitleBar: false);
             presenter.IsMaximizable = false;
             presenter.PreferredMinimumWidth = Width;
@@ -205,12 +201,9 @@ public sealed partial class MainWindow : Window
     private static Visibility Show(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>
-    /// Says which parts of the header the window can be dragged by.
-    ///
-    /// The window has no title bar of its own, so nothing up here is a drag
-    /// handle until it is named as one, and a region named over a button
-    /// swallows its clicks. What is left is the gaps between the buttons: the
-    /// wordmark, the screen's name, and the empty space beside them.
+    /// Marks the gaps between the header's buttons as places the window can be
+    /// dragged by. With no title bar of its own nothing up here drags until it
+    /// is named, and a region over a button swallows its clicks.
     /// </summary>
     private void LayOutDragRegions()
     {
@@ -225,9 +218,8 @@ public sealed partial class MainWindow : Window
         List<RectInt32> caption = [];
         var left = 0.0;
 
-        // In the order they sit across the row, so each button closes off the
-        // gap that ran up to it. Visible ones only: a button that is not there
-        // is space to drag by like any other.
+        // In the order they sit across the row, so each closes off the gap that
+        // ran up to it. A button that is not there is space to drag by.
         foreach (var button in new FrameworkElement[] { BackButton, SettingsButton, MinimizeButton, CloseButton })
         {
             if (button.Visibility != Visibility.Visible || button.ActualWidth == 0)
@@ -248,8 +240,7 @@ public sealed partial class MainWindow : Window
             .GetForWindowId(AppWindow.Id)
             .SetRegionRects(NonClientRegionKind.Caption, [.. caption]);
 
-        // The full height of the row, so the strip above and below a button
-        // that is shorter than the row can still be dragged by.
+        // Full height, so the strip above and below a short button still drags.
         void AddCaption(double from, double to)
         {
             if (to - from < 1)
@@ -274,12 +265,9 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Hides, like every other way of closing this window does.
-    ///
-    /// Hiding rather than closing: Window.Close does not raise AppWindow's
-    /// Closing, so the handler that cancels it and hides never ran and the
-    /// button quit the app outright, taking the tray icon and the live
-    /// connection's only visible sign with it.
+    /// Hides, like every other way of closing this window does. Window.Close
+    /// does not raise AppWindow's Closing, so the handler above never ran and
+    /// this button quit the app outright.
     /// </summary>
     private void OnClose(object sender, RoutedEventArgs e) => AppWindow.Hide();
 

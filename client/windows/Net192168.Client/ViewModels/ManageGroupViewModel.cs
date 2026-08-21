@@ -30,10 +30,7 @@ public sealed partial class ManageGroupViewModel : ObservableObject
     /// the name is worth sending.</summary>
     public string OriginalName { get; }
 
-    /// <summary>
-    /// The icon and colour, as the picker offers them. Its Look is the group as
-    /// the list will draw it, which is what the chip beside the name shows.
-    /// </summary>
+    /// <summary>The icon and colour, as the picker offers them.</summary>
     public GroupLookChoice Appearance { get; }
 
     [ObservableProperty]

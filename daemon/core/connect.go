@@ -277,14 +277,12 @@ func (c *Core) finishDisconnect(session *activeSession, reason string) {
 	c.emit(ipc.EventStateChanged, state)
 }
 
-// describeGroup finds this device's membership of a group. The session response
-// carries none of it: the UI needs the name, the look, and the nickname for its
-// title, and the adapter needs the subnet to route the whole range rather than
-// one address.
+// describeGroup finds this device's membership of a group. The session
+// response carries none of it, and the UI needs the name and the look while the
+// adapter needs the subnet.
 //
-// A membership that cannot be read leaves a name to show, which is the group's
-// ID. Connecting has already worked by this point, and having nothing to call
-// the group is not a reason to undo it.
+// A membership that cannot be read falls back to the group ID. Connecting has
+// already worked, and having nothing to call the group does not undo it.
 func (c *Core) describeGroup(ctx context.Context, groupID string) api.Membership {
 	memberships, err := withClient(c, ctx, func(client *control.Client) ([]api.Membership, error) {
 		return client.Groups(ctx)

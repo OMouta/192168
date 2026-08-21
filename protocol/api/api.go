@@ -55,9 +55,9 @@ type RegisterDeviceResponse struct {
 // client-side KDF in protocol/auth. The password itself never leaves the
 // machine.
 //
-// Icon and Color are the look the group is made with, in the same keys
-// SetGroupAppearanceRequest carries. Sent at creation rather than set after it,
-// so a group is never briefly something other than what its maker chose.
+// Icon and Color are the look it is made with, in the keys
+// SetGroupAppearanceRequest carries. Set here rather than straight after, so a
+// group is never briefly something other than what its maker picked.
 type CreateGroupRequest struct {
 	Name          string `json:"name"`
 	PasswordProof string `json:"passwordProof"`
@@ -82,9 +82,8 @@ type JoinGroupRequest struct {
 // the device joins and does not change, so it can be written into a game and
 // left there.
 //
-// GroupIcon and GroupColor are the look the group's owner picked, so a list of
-// groups can be told apart at a glance. Both are short keys the client maps to
-// a glyph and a colour; empty means it has not been chosen.
+// GroupIcon and GroupColor are the look the owner picked, as short keys the
+// client maps to a glyph and a colour. Empty means it was never chosen.
 type Membership struct {
 	MembershipID string `json:"membershipId"`
 	GroupID      string `json:"groupId"`
@@ -98,8 +97,7 @@ type Membership struct {
 }
 
 // SetGroupAppearanceRequest changes the icon and colour a group is shown with.
-// The owner's alone, and both are sent together because they are picked
-// together.
+// The owner's alone, and both travel together because they are picked together.
 type SetGroupAppearanceRequest struct {
 	Icon  string `json:"icon"`
 	Color string `json:"color"`

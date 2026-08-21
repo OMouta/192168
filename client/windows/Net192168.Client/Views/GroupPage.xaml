@@ -18,14 +18,9 @@
             Grid.Row="0"
             Margin="16,8,16,0"
             Spacing="14">
-            <!--
-                Making one: the chip is what the group will look like in the
-                list, beside the name it will be listed under. Joining one shows
-                neither, because the group already is something and this is not
-                the screen that decides it.
-            -->
+            <!--  Making a group picks its look. Joining one does not: it already has one.  -->
             <StackPanel Spacing="4">
-                <!--  Its own line rather than the box's header, so it lines up with the labels below it whether or not the chip is there.  -->
+                <!--  Its own line, so it lines up with the labels below whether or not the chip is there.  -->
                 <TextBlock Margin="0,0,0,4" Text="{x:Bind ViewModel.NameLabel}" />
 
                 <Grid>
@@ -34,7 +29,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <!--  The margin is on the chip rather than the grid: joining leaves no gap where it would have been.  -->
+                    <!--  Margin on the chip, not the grid, so joining leaves no gap.  -->
                     <Border
                         Grid.Column="0"
                         Width="32"

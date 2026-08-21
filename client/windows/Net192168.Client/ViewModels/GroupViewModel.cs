@@ -18,21 +18,13 @@ public sealed partial class GroupViewModel : ObservableObject
         _creating = creating;
     }
 
-    /// <summary>
-    /// Whether this is the making of a group. Joining one is being let into
-    /// something that already exists, look and all, so the picker below is only
-    /// on the screen that decides it.
-    /// </summary>
+    /// <summary>Whether a group is being made. Joining one does not pick its look.</summary>
     public bool IsCreating => _creating;
 
     /// <summary>The look a new group is made with. Unused when joining.</summary>
     public GroupLookChoice Appearance { get; } = new();
 
-    /// <summary>
-    /// What the field above the name box is called. It covers the picker under
-    /// it when there is one, so making a group says so and joining one, where
-    /// the group already has a look, does not.
-    /// </summary>
+    /// <summary>Names the field and the picker under it, so it says both when there are both.</summary>
     public string NameLabel => _creating ? "Group name & icon" : "Group name";
 
     public string Title => _creating ? "Create a group" : "Join a group";

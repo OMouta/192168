@@ -32,8 +32,8 @@ const (
 	MethodDisconnect  Method = "Disconnect"
 	MethodSetNickname Method = "SetNickname"
 
-	// Managing a group. Every one of these is the owner's alone, and the server
-	// is what says so: the app hides them from everyone else, and hiding is not
+	// Managing a group. All of these are the owner's alone, and the server is
+	// what says so: the app hides them from everyone else, and hiding is not
 	// enforcing.
 	MethodRemoveMember       Method = "RemoveMember"
 	MethodRenameGroup        Method = "RenameGroup"

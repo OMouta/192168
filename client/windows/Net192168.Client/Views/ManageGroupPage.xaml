@@ -21,11 +21,7 @@
             <StackPanel Spacing="8">
                 <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Name" />
 
-                <!--
-                    The group as the list draws it, beside the name it is drawn
-                    with. The pickers below say what can be chosen; this says
-                    what the choice comes to, which is the thing being decided.
-                -->
+                <!--  The group as the list draws it, beside the name it is drawn with.  -->
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />

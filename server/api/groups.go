@@ -278,10 +278,8 @@ func (s *Server) handleRenameGroup(w http.ResponseWriter, r *http.Request, devic
 }
 
 // handleSetGroupAppearance changes the icon and colour a group is shown with.
-//
-// Keys rather than a glyph and a hex colour. What they look like is the app's
-// business, so a server that has never heard of an icon can still carry it, and
-// a client that has never heard of one falls back to the default.
+// Keys rather than a glyph and a hex colour, so a server that has never heard
+// of an icon can still carry it.
 func (s *Server) handleSetGroupAppearance(w http.ResponseWriter, r *http.Request, device storage.Device) {
 	var req api.SetGroupAppearanceRequest
 	if !decode(w, r, &req) {
@@ -303,9 +301,9 @@ func (s *Server) handleSetGroupAppearance(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// announceGroup tells the group what it now is, after a change to the group
-// itself. Read back rather than assembled from the request, so the event
-// carries the whole group however little of it changed.
+// announceGroup tells the group what it now is. Read back rather than
+// assembled from the request, so the event carries the whole group however
+// little of it changed.
 func (s *Server) announceGroup(r *http.Request, groupID string) {
 	group, err := s.store.GroupByID(r.Context(), groupID)
 	if err != nil {
@@ -323,10 +321,8 @@ func (s *Server) announceGroup(r *http.Request, groupID string) {
 	})
 }
 
-// isAppearanceKey reports whether a key is one the client could have meant. The
-// set of icons and colours lives in the app, so this checks the shape rather
-// than the value: short, and nothing but lowercase letters, digits, and dashes.
-// Empty is allowed and means the default look.
+// isAppearanceKey checks the shape of a key rather than its value, since the
+// set of icons and colours lives in the app. Empty means the default look.
 func isAppearanceKey(key string) bool {
 	if len(key) > 32 {
 		return false

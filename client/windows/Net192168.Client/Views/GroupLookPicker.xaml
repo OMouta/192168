@@ -5,11 +5,7 @@
     xmlns:vm="using:Net192168.Client.ViewModels"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!--
-        Both pickers are one row of everything on offer, which is why there are
-        eight of each: a group is told apart from the handful somebody is in,
-        not from every group there is.
-    -->
+    <!--  One row of everything on offer, which is why there are eight of each.  -->
     <StackPanel Spacing="4">
         <GridView
             Height="42"
@@ -21,11 +17,7 @@
             SelectionMode="Single">
             <GridView.ItemContainerStyle>
                 <Style TargetType="GridViewItem">
-                    <!--
-                        A grid item will not go under 44 on its own, and eight of
-                        those are wider than this window: the last icon wrapped
-                        onto a row nobody could see.
-                    -->
+                    <!--  A grid item will not go under 44 on its own, and eight of those wrap.  -->
                     <Setter Property="MinWidth" Value="0" />
                     <Setter Property="MinHeight" Value="0" />
                     <Setter Property="Width" Value="38" />

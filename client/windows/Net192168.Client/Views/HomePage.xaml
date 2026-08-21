@@ -153,11 +153,7 @@
                 </Button.Flyout>
             </Button>
 
-            <!--
-                The group's own icon and colour, the same ones its row in the
-                list wore, so the screen you land on after connecting is marked
-                as the group you picked.
-            -->
+            <!--  The same chip the group's row in the list wore.  -->
             <Grid
                 Grid.Row="0"
                 Grid.Column="1"
@@ -486,14 +482,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <!--
-                                    The group's own icon and colour, which is
-                                    what a row is found by once somebody is in
-                                    more than two groups. Every row has one:
-                                    a group nobody has chosen for gets the
-                                    default rather than a gap where the others
-                                    have something.
-                                -->
+                                <!--  What a row is found by once somebody is in more than two groups.  -->
                                 <Border
                                     Grid.Column="0"
                                     Width="32"

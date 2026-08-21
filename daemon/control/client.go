@@ -131,9 +131,8 @@ func (c *Client) Register(ctx context.Context, deviceID, name, publicKey, transp
 	return res.DeviceToken, nil
 }
 
-// NewGroup is everything creating one takes. A struct rather than a row of
-// strings: name, password, nickname, icon, and colour all look alike to a
-// compiler, and getting two of them the wrong way round is silent.
+// NewGroup is everything creating one takes. A struct because five strings in
+// a row are easy to pass in the wrong order.
 type NewGroup struct {
 	Name     string
 	Password string

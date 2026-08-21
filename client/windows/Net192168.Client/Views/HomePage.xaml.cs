@@ -99,9 +99,8 @@ public sealed partial class HomePage : Page
     // The name, the look, and the join password. Who is in the group is managed
     // from the rows themselves, where the people already are.
     //
-    // The connected group is in the list like every other one, and its row is
-    // what the screen starts from. Without it there is a name and nothing else,
-    // which would put the picker back to the default look.
+    // From the connected group's row, which carries the look. A name alone
+    // would put the picker back to the default.
     private void OnManageGroup(object sender, RoutedEventArgs e)
         => Frame.Navigate(typeof(ManageGroupPage), ViewModel.ConnectedGroup is GroupListItem group
             ? Target(group)

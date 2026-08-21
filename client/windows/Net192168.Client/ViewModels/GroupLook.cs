@@ -16,17 +16,12 @@ public sealed record ColorChoice(string Key, Brush Brush);
 public sealed record GroupLook(string Glyph, Brush Foreground, Brush Background);
 
 /// <summary>
-/// A look being picked: everything on offer, what is picked, and what the two
-/// come to together.
-///
-/// One of these is held by the screen that makes a group and by the one that
-/// changes it, so both offer the same thing and the picker is written once.
+/// A look being picked. Held by the screen that makes a group and by the one
+/// that changes it, so the picker itself is written once.
 /// </summary>
 public sealed partial class GroupLookChoice : ObservableObject
 {
-    /// <summary>The keys arrived with, so a screen can tell whether the choice
-    /// is worth sending. Raw rather than resolved: what the picker shows is
-    /// what saving applies, even where a key came from a newer client.</summary>
+    /// <summary>The keys arrived with, to tell whether the choice is worth sending.</summary>
     private readonly string _icon;
     private readonly string _color;
 
@@ -35,9 +30,8 @@ public sealed partial class GroupLookChoice : ObservableObject
         _icon = icon ?? "";
         _color = color ?? "";
 
-        // Something is always picked. A group has a look whether or not anybody
-        // chose it, and an empty picker would be asking a question the list has
-        // already answered.
+        // Something is always picked: a group has a look whether or not anybody
+        // chose it.
         Icon = GroupLooks.Icon(icon);
         Color = GroupLooks.Color(color);
     }
@@ -62,19 +56,13 @@ public sealed partial class GroupLookChoice : ObservableObject
 }
 
 /// <summary>
-/// What a group's icon and colour keys mean.
-///
-/// The keys are what travel between machines and get stored on the server, and
-/// this is the only place that says what they look like. A key this app has
-/// never heard of falls back to the default rather than drawing nothing, so a
-/// group given a look by a newer client still reads as a group here.
+/// What a group's icon and colour keys mean. The keys travel between machines;
+/// this is the only place that says what they look like, and one it has never
+/// heard of falls back to the default.
 /// </summary>
 public static class GroupLooks
 {
-    /// <summary>
-    /// The icons on offer. Few enough to fit one row of the picker and to be
-    /// told apart in a list at a glance, which a longer list stops being.
-    /// </summary>
+    /// <summary>The icons on offer, few enough to fit one row of the picker.</summary>
     public static IReadOnlyList<IconChoice> Icons { get; } =
     [
         new("game", "\uE7FC"),
@@ -87,10 +75,7 @@ public static class GroupLooks
         new("bolt", "\uE945"),
     ];
 
-    /// <summary>
-    /// The colours on offer, picked to hold up against the dark window rather
-    /// than to cover the wheel.
-    /// </summary>
+    /// <summary>The colours on offer, picked to hold up against the dark window.</summary>
     public static IReadOnlyList<ColorChoice> Colors { get; } =
     [
         new("blue", Fill(0x5B, 0x9C, 0xFF)),
@@ -103,10 +88,7 @@ public static class GroupLooks
         new("grey", Fill(0x94, 0xA3, 0xB8)),
     ];
 
-    /// <summary>
-    /// The look for a pair of keys. Anything missing or unknown, which is every
-    /// group made before this existed, gets the first of each.
-    /// </summary>
+    /// <summary>The look for a pair of keys. Missing or unknown gets the first of each.</summary>
     public static GroupLook For(string? icon, string? color)
     {
         var glyph = Icon(icon).Glyph;
@@ -123,11 +105,7 @@ public static class GroupLooks
     private static SolidColorBrush Fill(byte r, byte g, byte b)
         => new(ColorHelper.FromArgb(0xFF, r, g, b));
 
-    /// <summary>
-    /// The same colour behind the glyph, faint enough to sit under text without
-    /// competing with it. Kept as one brush per colour rather than one per row,
-    /// since the list rebuilds itself whenever the groups are reloaded.
-    /// </summary>
+    /// <summary>One tint brush per colour, since the list rebuilds its rows.</summary>
     private static readonly Dictionary<Brush, Brush> Tints = [];
 
     private static Brush Tint(Brush brush)

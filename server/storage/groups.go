@@ -14,9 +14,8 @@ var ErrGroupFull = errors.New("storage: group is full")
 
 // Group is a persistent private LAN.
 //
-// Icon and Colour are how the group is told apart from the others in a list.
-// Both are short keys the app maps to a glyph and a colour, and both are empty
-// until somebody picks.
+// Icon and Color are short keys the app maps to a glyph and a colour. Both are
+// empty until somebody picks.
 type Group struct {
 	ID               string
 	Name             string
@@ -507,11 +506,8 @@ func (s *Store) RenameGroup(ctx context.Context, groupID, ownerDeviceID, name, n
 	})
 }
 
-// SetGroupAppearance changes the icon and colour the group is shown with.
-//
-// Both at once, because they are picked together and read together: a colour
-// that arrives without the icon it was chosen against is a half-applied change
-// somebody has to fix.
+// SetGroupAppearance changes the icon and colour the group is shown with. Both
+// at once, because they are picked together.
 func (s *Store) SetGroupAppearance(ctx context.Context, groupID, ownerDeviceID, icon, color string) error {
 	return s.write(ctx, func(tx *sql.Tx) error {
 		if err := ownerOnly(ctx, tx, groupID, ownerDeviceID); err != nil {

@@ -31,10 +31,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!--
-                The window is dragged by the gaps between these buttons, worked
-                out from where they land. See MainWindow.xaml.cs.
-            -->
+            <!--  The window drags by the gaps between these buttons. See MainWindow.xaml.cs.  -->
             <Button
                 x:Name="BackButton"
                 Grid.Column="0"
@@ -91,13 +88,7 @@
                 <FontIcon FontSize="14" Glyph="&#xE713;" />
             </Button>
 
-            <!--
-                Ours rather than the system's. Windows draws the three together
-                or not at all, and a maximised window this dense would only
-                stretch the gaps, so the one that would sit there greyed out is
-                not drawn. Their size and their colours are Windows' own, so
-                they still read as the window's buttons rather than the app's.
-            -->
+            <!--  Ours rather than the system's, at Windows' own size and colours.  -->
             <Button
                 x:Name="MinimizeButton"
                 Grid.Column="3"
