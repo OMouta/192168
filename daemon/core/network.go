@@ -22,7 +22,15 @@ import (
 // IP is assigned either way, and a peer that cannot be reached is reported as
 // such rather than taking the whole session down.
 func (c *Core) startNetwork(ctx context.Context, session *activeSession, peers []api.Peer) {
-	links, err := mesh.New(c.identity.DeviceID, c.identity.Transport, mesh.Events{
+	// The mesh needs this device's own address to tell a forwarded packet that
+	// has arrived from one it is only carrying. An unparseable one is already
+	// fatal to the adapter, so it is not worth failing the connect twice over.
+	virtualIP, err := netip.ParseAddr(session.virtualIP)
+	if err != nil {
+		c.log.Error("the server gave us an address we cannot read", "virtualIp", session.virtualIP, "error", err)
+	}
+
+	links, err := mesh.New(c.identity.DeviceID, virtualIP, c.identity.Transport, mesh.Events{
 		PeerStateChanged:   c.onPeerState,
 		PeerLatencyChanged: c.onPeerLatency,
 	}, c.log)

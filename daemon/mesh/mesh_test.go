@@ -16,10 +16,11 @@ import (
 
 // node is one daemon's worth of mesh, running.
 type node struct {
-	deviceID string
-	keys     session.Keypair
-	mesh     *Mesh
-	states   *stateLog
+	deviceID  string
+	virtualIP netip.Addr
+	keys      session.Keypair
+	mesh      *Mesh
+	states    *stateLog
 }
 
 // stateLog records what the mesh reported, so a test waits for a state instead
@@ -59,7 +60,7 @@ func (s *stateLog) latencyOf(deviceID string) (time.Duration, bool) {
 	return got, ok
 }
 
-func newNode(t *testing.T, deviceID string) *node {
+func newNode(t *testing.T, deviceID, virtualIP string) *node {
 	t.Helper()
 
 	keys, err := session.GenerateKeypair()
@@ -68,7 +69,8 @@ func newNode(t *testing.T, deviceID string) *node {
 	}
 
 	states := newStateLog()
-	m, err := New(deviceID, keys, Events{
+	address := netip.MustParseAddr(virtualIP)
+	m, err := New(deviceID, address, keys, Events{
 		PeerStateChanged:   states.set,
 		PeerLatencyChanged: states.setLatency,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
@@ -81,7 +83,7 @@ func newNode(t *testing.T, deviceID string) *node {
 	t.Cleanup(cancel)
 	go m.Run(ctx)
 
-	return &node{deviceID: deviceID, keys: keys, mesh: m, states: states}
+	return &node{deviceID: deviceID, virtualIP: address, keys: keys, mesh: m, states: states}
 }
 
 func (n *node) endpoint() netip.AddrPort {
@@ -90,12 +92,12 @@ func (n *node) endpoint() netip.AddrPort {
 
 // introduce tells each node about the other, which is what the coordination
 // server does in the real thing.
-func introduce(t *testing.T, a, b *node, aIP, bIP string) {
+func introduce(t *testing.T, a, b *node) {
 	t.Helper()
-	if err := a.mesh.AddPeer(b.deviceID, "b", netip.MustParseAddr(bIP), b.keys.Public, b.endpoint()); err != nil {
+	if err := a.mesh.AddPeer(b.deviceID, b.deviceID, b.virtualIP, b.keys.Public, b.endpoint()); err != nil {
 		t.Fatalf("AddPeer: %v", err)
 	}
-	if err := b.mesh.AddPeer(a.deviceID, "a", netip.MustParseAddr(aIP), a.keys.Public, a.endpoint()); err != nil {
+	if err := b.mesh.AddPeer(a.deviceID, a.deviceID, a.virtualIP, a.keys.Public, a.endpoint()); err != nil {
 		t.Fatalf("AddPeer: %v", err)
 	}
 }
@@ -116,18 +118,18 @@ func waitForState(t *testing.T, n *node, deviceID string, want ipc.PeerState) {
 // each other end up with an open encrypted link.
 func TestTwoPeersOpenALink(t *testing.T) {
 	// The lower device id opens the handshake, so the names decide who does.
-	a := newNode(t, "dev_aaa")
-	b := newNode(t, "dev_bbb")
-	introduce(t, a, b, "10.69.0.1", "10.69.0.2")
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
+	introduce(t, a, b)
 
 	waitForState(t, a, b.deviceID, ipc.PeerDirect)
 	waitForState(t, b, a.deviceID, ipc.PeerDirect)
 }
 
 func TestPeersExchangePackets(t *testing.T) {
-	a := newNode(t, "dev_aaa")
-	b := newNode(t, "dev_bbb")
-	introduce(t, a, b, "10.69.0.1", "10.69.0.2")
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
+	introduce(t, a, b)
 
 	waitForState(t, a, b.deviceID, ipc.PeerDirect)
 	waitForState(t, b, a.deviceID, ipc.PeerDirect)
@@ -163,9 +165,9 @@ func TestPeersExchangePackets(t *testing.T) {
 }
 
 func TestLatencyIsMeasured(t *testing.T) {
-	a := newNode(t, "dev_aaa")
-	b := newNode(t, "dev_bbb")
-	introduce(t, a, b, "10.69.0.1", "10.69.0.2")
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
+	introduce(t, a, b)
 
 	waitForState(t, a, b.deviceID, ipc.PeerDirect)
 
@@ -182,7 +184,7 @@ func TestLatencyIsMeasured(t *testing.T) {
 }
 
 func TestSendingToNobodyFails(t *testing.T) {
-	a := newNode(t, "dev_aaa")
+	a := newNode(t, "dev_aaa", "10.69.0.1")
 
 	if err := a.mesh.Send(netip.MustParseAddr("10.69.0.9"), []byte("hello")); err == nil {
 		t.Error("sending to an address nobody has succeeded")
@@ -190,8 +192,8 @@ func TestSendingToNobodyFails(t *testing.T) {
 }
 
 func TestSendingBeforeTheLinkOpensFails(t *testing.T) {
-	a := newNode(t, "dev_aaa")
-	b := newNode(t, "dev_bbb")
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
 
 	// Known peer, no handshake yet, because nothing is listening back.
 	unreachable := netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), 1)
@@ -205,8 +207,8 @@ func TestSendingBeforeTheLinkOpensFails(t *testing.T) {
 }
 
 func TestAPeerWithTheWrongKeyNeverOpens(t *testing.T) {
-	a := newNode(t, "dev_aaa")
-	b := newNode(t, "dev_bbb")
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
 
 	// The coordination server is what says which key belongs to which device.
 	// A device answering at the right address with the wrong key is exactly
@@ -235,9 +237,9 @@ func TestAPeerWithTheWrongKeyNeverOpens(t *testing.T) {
 }
 
 func TestRemovingAPeerStopsRouting(t *testing.T) {
-	a := newNode(t, "dev_aaa")
-	b := newNode(t, "dev_bbb")
-	introduce(t, a, b, "10.69.0.1", "10.69.0.2")
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
+	introduce(t, a, b)
 	waitForState(t, a, b.deviceID, ipc.PeerDirect)
 
 	a.mesh.RemovePeer(b.deviceID)
@@ -251,9 +253,9 @@ func TestRemovingAPeerStopsRouting(t *testing.T) {
 // to be quiet rather than an error, because a game sends discovery traffic
 // continuously.
 func TestBroadcastReachesEveryOpenLink(t *testing.T) {
-	a := newNode(t, "dev_aaa")
-	b := newNode(t, "dev_bbb")
-	introduce(t, a, b, "10.69.0.1", "10.69.0.2")
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
+	introduce(t, a, b)
 	waitForState(t, a, b.deviceID, ipc.PeerDirect)
 	waitForState(t, b, a.deviceID, ipc.PeerDirect)
 
@@ -282,9 +284,9 @@ func TestBroadcastReachesEveryOpenLink(t *testing.T) {
 // What happens after a laptop changes network. The old session is useless to
 // both sides, so the link has to be rebuilt rather than carried over.
 func TestRestartLinksRebuildsAnOpenSession(t *testing.T) {
-	a := newNode(t, "dev_aaa")
-	b := newNode(t, "dev_bbb")
-	introduce(t, a, b, "10.69.0.1", "10.69.0.2")
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
+	introduce(t, a, b)
 
 	waitForState(t, a, b.deviceID, ipc.PeerDirect)
 	waitForState(t, b, a.deviceID, ipc.PeerDirect)
@@ -318,7 +320,7 @@ func TestRestartLinksRebuildsAnOpenSession(t *testing.T) {
 // A peer already given up on is retried, because it was unreachable from an
 // address this device no longer has.
 func TestRestartLinksRetriesAFailedPeer(t *testing.T) {
-	a := newNode(t, "dev_aaa")
+	a := newNode(t, "dev_aaa", "10.69.0.1")
 
 	// Nothing is listening at this address, so the link runs out of attempts.
 	dead := netip.MustParseAddr("10.69.0.9")

@@ -60,6 +60,10 @@ type Peer struct {
 // ErrNoSession means the link is not open yet, so there is nowhere to send.
 var ErrNoSession = errors.New("mesh: no session with that peer")
 
+// ErrNoPath means the peer has neither an address of its own nor anybody
+// carrying for it, so the packet has nowhere to go.
+var ErrNoPath = errors.New("mesh: no path to that peer")
+
 func newPeer(deviceID, nickname string, virtualIP netip.Addr, transportKey []byte, endpoint netip.AddrPort, sender uint64) *Peer {
 	return &Peer{
 		DeviceID:     deviceID,

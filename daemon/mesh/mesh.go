@@ -43,6 +43,16 @@ const (
 	// maxHandshakes bounds how many times a link is retried before it is
 	// reported as failed. The user is told rather than left watching a spinner.
 	maxHandshakes = 10
+
+	// maxRelayHandshakes is the same bound for an attempt through a relay,
+	// where there is no NAT left to punch through. A relay that can carry the
+	// link answers the first time, so this only has to survive a lost packet.
+	maxRelayHandshakes = 3
+
+	// initialHopLimit is how many peers a packet may pass through. One is what
+	// this implements; the field on the wire holds more, so a longer path
+	// would not be a change to the format.
+	initialHopLimit = 1
 )
 
 // Events is how the mesh reports what changed. The core turns these into IPC
@@ -60,6 +70,10 @@ type Mesh struct {
 	device string
 	log    *slog.Logger
 	events Events
+
+	// virtualIP is this device's address in the group, which is how a
+	// forwarded packet says whether it has arrived or has further to go.
+	virtualIP netip.Addr
 
 	conn *net.UDPConn
 
@@ -91,7 +105,11 @@ type Mesh struct {
 
 // New binds the socket every peer will use. Port zero lets the OS choose, and
 // whatever it chooses is what STUN reports and what peers are told.
-func New(deviceID string, keys session.Keypair, events Events, log *slog.Logger) (*Mesh, error) {
+//
+// virtualIP is this device's address in the group. It is only used to recognise
+// a forwarded packet that has arrived, so a mesh without one still carries
+// every direct link.
+func New(deviceID string, virtualIP netip.Addr, keys session.Keypair, events Events, log *slog.Logger) (*Mesh, error) {
 	conn, err := net.ListenUDP("udp4", &net.UDPAddr{})
 	if err != nil {
 		return nil, fmt.Errorf("mesh: bind: %w", err)
@@ -102,6 +120,7 @@ func New(deviceID string, keys session.Keypair, events Events, log *slog.Logger)
 		device:      deviceID,
 		log:         log,
 		events:      events,
+		virtualIP:   virtualIP,
 		conn:        conn,
 		peers:       map[string]*Peer{},
 		byIP:        map[netip.Addr]*Peer{},
@@ -159,7 +178,7 @@ func (m *Mesh) Run(ctx context.Context) {
 
 	go m.maintain(ctx)
 
-	buffer := make([]byte, transport.MaxPacketSize)
+	buffer := make([]byte, transport.MaxDatagramSize)
 	for {
 		n, from, err := m.conn.ReadFromUDPAddrPort(buffer)
 		if err != nil {
@@ -355,7 +374,7 @@ func (m *Mesh) Broadcast(packet []byte) int {
 		switch {
 		case err == nil:
 			sent++
-		case errors.Is(err, ErrNoSession):
+		case errors.Is(err, ErrNoSession), errors.Is(err, ErrNoPath):
 			// Connecting, or given up on. Ordinary, and not worth a line per
 			// packet on a path a game uses several times a second.
 		default:
@@ -384,7 +403,64 @@ func (m *Mesh) sendData(peer *Peer, packet []byte) error {
 		return err
 	}
 
-	_, err = m.conn.WriteToUDPAddrPort(out, peer.Endpoint())
+	return m.deliver(peer, out)
+}
+
+// deliver puts one finished packet on a link, down the wire when the link has a
+// path of its own and through a relay when it does not.
+//
+// Everything addressed to a peer goes through here, which is what makes a
+// relayed link behave like any other: the handshake, the keepalives, the
+// latency and the game traffic all take the same road without knowing which
+// road it is.
+func (m *Mesh) deliver(peer *Peer, packet []byte) error {
+	if relay := peer.Via(); relay != nil {
+		return m.forward(relay, transport.Forward{
+			HopLimit:    initialHopLimit,
+			Source:      m.virtualIP,
+			Destination: peer.VirtualIP,
+			Packet:      packet,
+		})
+	}
+
+	endpoint := peer.Endpoint()
+	if !endpoint.IsValid() {
+		return ErrNoPath
+	}
+	_, err := m.conn.WriteToUDPAddrPort(packet, endpoint)
+	return err
+}
+
+// forward hands a packet to the peer that will carry it. The forward header is
+// sealed with the session shared with that peer, so it can be trusted to have
+// come from us and nobody can turn this daemon into a reflector.
+func (m *Mesh) forward(relay *Peer, carried transport.Forward) error {
+	body, err := carried.Encode(nil)
+	if err != nil {
+		return err
+	}
+
+	current, counter, err := relay.nextCounter()
+	if err != nil {
+		return err
+	}
+
+	out := transport.Header{
+		Version: protocol.TransportVersion,
+		Type:    transport.MsgForward,
+		Sender:  relay.sender,
+		Counter: counter,
+	}.Encode(nil, nil)
+	out, err = current.Seal(out, out[:transport.HeaderSize], body, counter)
+	if err != nil {
+		return err
+	}
+
+	endpoint := relay.Endpoint()
+	if !endpoint.IsValid() {
+		return ErrNoPath
+	}
+	_, err = m.conn.WriteToUDPAddrPort(out, endpoint)
 	return err
 }
 
