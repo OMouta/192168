@@ -59,6 +59,7 @@ type Device struct {
 	log     *slog.Logger
 	adapter *wintun.Adapter
 	session wintun.Session
+	luid    winipcfg.LUID
 
 	// mu is held for reading by anything inside the driver and for writing by
 	// Close, which is what stops a teardown racing a call in flight.
@@ -104,6 +105,8 @@ func Open(name string, address netip.Prefix, mtu int, log *slog.Logger) (*Device
 	// Assigning an address with a prefix gives Windows the on-link route for
 	// the whole subnet, which is what sends a peer's traffic here.
 
+	device.luid = luid
+
 	// The MTU has to leave room for the packet envelope, the AEAD tag, and the
 	// UDP and IP headers underneath. Getting it wrong costs fragmentation
 	// rather than connectivity, so a failure here is worth saying and not
@@ -126,6 +129,45 @@ func Open(name string, address netip.Prefix, mtu int, log *slog.Logger) (*Device
 
 	log.Info("adapter up", "name", name, "address", address.String(), "mtu", mtu)
 	return device, nil
+}
+
+// preferredMetric is low enough to beat any interface Windows works out a
+// metric for on its own, which tops out at 5 for a link faster than 2 Gb.
+const preferredMetric = 1
+
+// PreferForMulticast decides whether this adapter wins the machine's multicast
+// route, which is what makes a game's LAN list fill.
+//
+// Windows sends a multicast packet out one interface, the one with the best
+// route for 224.0.0.0/4, and joins a group on that same one. Every interface
+// has that route, so an app that does not name an interface, which is nearly
+// all of them, reaches whichever wins. Replicating multicast across the tunnel
+// achieves nothing if the game's announcement went out the Wi-Fi card instead.
+//
+// The cost is that it wins for everything else too: while this is on, nearby
+// speakers, printers and TVs stop being found, because mDNS and SSDP go down
+// the tunnel with the games. That is why it is a switch and not a constant.
+//
+// Only multicast and the group's own subnet are affected. This adapter carries
+// no default route, so nothing decides where ordinary internet traffic goes.
+func (d *Device) PreferForMulticast(prefer bool) error {
+	iface, err := d.luid.IPInterface(winipcfg.AddressFamily(windows.AF_INET))
+	if err != nil {
+		return fmt.Errorf("tun: read the adapter interface: %w", err)
+	}
+
+	if prefer {
+		iface.UseAutomaticMetric = false
+		iface.Metric = preferredMetric
+	} else {
+		iface.UseAutomaticMetric = true
+	}
+	if err := iface.Set(); err != nil {
+		return fmt.Errorf("tun: set the adapter metric: %w", err)
+	}
+
+	d.log.Info("multicast preference", "preferred", prefer)
+	return nil
 }
 
 // Read returns the next packet Windows wants sent. It blocks until there is

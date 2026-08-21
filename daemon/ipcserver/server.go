@@ -48,6 +48,8 @@ type Handler interface {
 	GetServer(ctx context.Context) (string, error)
 	SetServer(ctx context.Context, url string) error
 	TestServer(ctx context.Context, url string) (ipc.TestServerResult, error)
+	GetLanDiscovery(ctx context.Context) (bool, error)
+	SetLanDiscovery(ctx context.Context, enabled bool) error
 	ResetSettings(ctx context.Context) (string, error)
 }
 
@@ -360,6 +362,23 @@ func (s *Server) call(ctx context.Context, req ipc.Request) (any, error) {
 			return nil, badParams(err)
 		}
 		return s.handler.TestServer(ctx, params.URL)
+
+	case ipc.MethodGetLanDiscovery:
+		enabled, err := s.handler.GetLanDiscovery(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return ipc.LanDiscoveryResult{Enabled: enabled}, nil
+
+	case ipc.MethodSetLanDiscovery:
+		var params ipc.LanDiscoveryParams
+		if err := req.UnmarshalParams(&params); err != nil {
+			return nil, badParams(err)
+		}
+		if err := s.handler.SetLanDiscovery(ctx, params.Enabled); err != nil {
+			return nil, err
+		}
+		return ipc.LanDiscoveryResult{Enabled: params.Enabled}, nil
 
 	case ipc.MethodResetSettings:
 		url, err := s.handler.ResetSettings(ctx)

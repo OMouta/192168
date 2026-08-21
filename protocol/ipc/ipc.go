@@ -43,6 +43,12 @@ const (
 	MethodGetServer         Method = "GetServer"
 	MethodSetServer         Method = "SetServer"
 	MethodTestServer        Method = "TestServer"
+	// LAN discovery: replicating broadcast and multicast across the group, and
+	// pointing this machine's multicast at the tunnel while connected. It has
+	// a cost outside the app, so the user decides.
+	MethodGetLanDiscovery Method = "GetLanDiscovery"
+	MethodSetLanDiscovery Method = "SetLanDiscovery"
+
 	// MethodResetSettings puts local settings back to their defaults. The
 	// daemon owns those defaults, so the client asks rather than assuming.
 	MethodResetSettings Method = "ResetSettings"

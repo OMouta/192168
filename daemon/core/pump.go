@@ -45,7 +45,14 @@ func (c *Core) startAdapter(ctx context.Context, links *mesh.Mesh, virtualIP, su
 
 	c.mu.Lock()
 	c.device = device
+	lanDiscovery := c.settings.LanDiscovery
 	c.mu.Unlock()
+
+	if err := device.PreferForMulticast(lanDiscovery); err != nil {
+		// Games that find each other by scanning may not, and everything else
+		// works. Not worth failing a connect over.
+		c.log.Warn("cannot set the adapter's multicast preference", "error", err)
+	}
 
 	go c.pumpOut(ctx, device, links, address)
 	go c.pumpIn(ctx, device, links)
@@ -75,10 +82,15 @@ func (c *Core) pumpOut(ctx context.Context, device *tun.Device, links *mesh.Mesh
 		}
 
 		if forEveryone(destination, everyone) {
-			// No delivery report. On a real LAN nobody is owed one either, and
-			// a group with nobody else in it would otherwise log a line for
-			// every announcement a game makes.
-			links.Broadcast(packet)
+			// Read per packet rather than captured, so turning the switch off
+			// stops the copies at once instead of at the next connect.
+			//
+			// No delivery report either way. On a real LAN nobody is owed one,
+			// and a group with nobody else in it would otherwise log a line
+			// for every announcement a game makes.
+			if c.lanDiscovery() {
+				links.Broadcast(packet)
+			}
 			continue
 		}
 
@@ -126,6 +138,14 @@ func adapterAddress(virtualIP, subnet string) (netip.Prefix, error) {
 	}
 
 	return netip.PrefixFrom(addr, prefix.Bits()), nil
+}
+
+// lanDiscovery reports whether packets addressed to the whole LAN should be
+// copied to the group.
+func (c *Core) lanDiscovery() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.settings.LanDiscovery
 }
 
 // limitedBroadcast is 255.255.255.255, which means everyone reachable without

@@ -14,15 +14,23 @@ const settingsFile = "settings.json"
 type settings struct {
 	ServerURL string `json:"serverUrl"`
 
+	// LanDiscovery replicates broadcast and multicast to the group and gives
+	// the tunnel the machine's multicast route, so games that find servers by
+	// scanning the LAN find the group. On by default: it is the difference
+	// between a LAN list with your friends in it and an empty one, which is
+	// what people expect the app to do.
+	LanDiscovery bool `json:"lanDiscovery"`
+
 	path string
 }
 
-// loadSettings reads the settings in dir, falling back to the default server on
-// first run.
+// loadSettings reads the settings in dir, falling back to the defaults for
+// anything the file does not set, which on first run is all of them.
 func loadSettings(dir, defaultServer string) (*settings, error) {
 	s := &settings{
-		ServerURL: defaultServer,
-		path:      filepath.Join(dir, settingsFile),
+		ServerURL:    defaultServer,
+		LanDiscovery: true,
+		path:         filepath.Join(dir, settingsFile),
 	}
 
 	raw, err := os.ReadFile(s.path)

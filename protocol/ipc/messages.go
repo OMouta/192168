@@ -60,6 +60,18 @@ type GetServerResult struct {
 	URL string `json:"url"`
 }
 
+// LanDiscoveryResult reports whether LAN discovery is on. Both GetLanDiscovery
+// and SetLanDiscovery return it, so a client always renders what the daemon
+// actually settled on rather than what it asked for.
+type LanDiscoveryResult struct {
+	Enabled bool `json:"enabled"`
+}
+
+// LanDiscoveryParams turns LAN discovery on or off.
+type LanDiscoveryParams struct {
+	Enabled bool `json:"enabled"`
+}
+
 // TestServerResult is what the Settings screen shows after a connection test.
 // Reachable false with a Message is the normal way a test fails, rather than an
 // error response, because the user asked a question and got an answer.

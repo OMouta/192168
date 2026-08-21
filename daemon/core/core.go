@@ -293,6 +293,45 @@ func (c *Core) SetServer(ctx context.Context, url string) error {
 	return nil
 }
 
+// GetLanDiscovery reports whether the group is treated as a real LAN for the
+// purpose of games that find each other by scanning one.
+func (c *Core) GetLanDiscovery(context.Context) (bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.settings.LanDiscovery, nil
+}
+
+// SetLanDiscovery turns LAN discovery on or off, and applies it now rather than
+// at the next connect. Somebody who turns it off because their speakers went
+// missing wants them back without disconnecting first.
+func (c *Core) SetLanDiscovery(_ context.Context, enabled bool) error {
+	c.mu.Lock()
+	if c.settings.LanDiscovery == enabled {
+		c.mu.Unlock()
+		return nil
+	}
+	c.settings.LanDiscovery = enabled
+	device := c.device
+	err := c.settings.save()
+	c.mu.Unlock()
+
+	if err != nil {
+		return err
+	}
+
+	// Replication reads the setting on every packet, so it is already in
+	// effect. The multicast route is a property of the adapter, and only there
+	// is one to change.
+	if device != nil {
+		if err := device.PreferForMulticast(enabled); err != nil {
+			c.log.Warn("cannot change the adapter's multicast preference", "error", err)
+		}
+	}
+
+	c.log.Info("lan discovery changed", "enabled", enabled)
+	return nil
+}
+
 // TestServer checks whether an address is a server this app can use. A server
 // that cannot be reached is an answer rather than an error, because the user
 // asked a question.
@@ -349,14 +388,17 @@ func toGroup(m api.Membership, active bool) ipc.Group {
 var _ ipcserver.Handler = (*Core)(nil)
 
 // ResetSettings puts the daemon back to how it shipped: the default server,
-// and no active connection. The device keeps its identity, since forgetting
-// that would drop every group this machine belongs to.
+// LAN discovery on, and no active connection. The device keeps its identity,
+// since forgetting that would drop every group this machine belongs to.
 func (c *Core) ResetSettings(ctx context.Context) (string, error) {
 	c.mu.Lock()
 	fallback := c.defaultServer
 	c.mu.Unlock()
 
 	if err := c.SetServer(ctx, fallback); err != nil {
+		return "", err
+	}
+	if err := c.SetLanDiscovery(ctx, true); err != nil {
 		return "", err
 	}
 	c.log.Info("settings reset", "serverUrl", fallback)

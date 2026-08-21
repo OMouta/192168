@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -119,6 +120,16 @@ func (h *fakeHandler) SetServer(_ context.Context, url string) error {
 func (h *fakeHandler) TestServer(_ context.Context, url string) (ipc.TestServerResult, error) {
 	h.record("TestServer:" + url)
 	return h.testRes, h.failWith
+}
+
+func (h *fakeHandler) GetLanDiscovery(context.Context) (bool, error) {
+	h.record("GetLanDiscovery")
+	return true, h.failWith
+}
+
+func (h *fakeHandler) SetLanDiscovery(_ context.Context, enabled bool) error {
+	h.record(fmt.Sprintf("SetLanDiscovery:%t", enabled))
+	return h.failWith
 }
 
 func (h *fakeHandler) ResetSettings(context.Context) (string, error) {
@@ -285,6 +296,8 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 		{ipc.MethodGetServer, nil},
 		{ipc.MethodSetServer, ipc.ServerParams{URL: "https://lan.example.com"}},
 		{ipc.MethodTestServer, ipc.ServerParams{URL: "https://lan.example.com"}},
+		{ipc.MethodGetLanDiscovery, nil},
+		{ipc.MethodSetLanDiscovery, ipc.LanDiscoveryParams{Enabled: false}},
 		{ipc.MethodResetSettings, nil},
 	} {
 		if res := s.call(call.method, call.params); !res.OK {
@@ -304,6 +317,8 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 		"GetServer",
 		"SetServer:https://lan.example.com",
 		"TestServer:https://lan.example.com",
+		"GetLanDiscovery",
+		"SetLanDiscovery:false",
 		"ResetSettings",
 	}
 	got := h.recorded()
