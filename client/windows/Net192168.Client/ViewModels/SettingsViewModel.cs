@@ -86,6 +86,63 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    private bool _lanDiscovery = true;
+
+    /// <summary>
+    /// Whether the group is treated as a real LAN, so a game that only finds
+    /// servers by scanning one finds the group.
+    ///
+    /// It lives in the daemon, not the registry, because both halves of it do:
+    /// copying broadcast and multicast to everyone, and pointing this machine's
+    /// multicast at the tunnel. The second is what a user might want back, so
+    /// the switch applies at once rather than at the next connect.
+    /// </summary>
+    public bool LanDiscovery
+    {
+        get => _lanDiscovery;
+        set
+        {
+            if (_lanDiscovery == value)
+            {
+                return;
+            }
+            _lanDiscovery = value;
+            OnPropertyChanged();
+            _ = ApplyLanDiscoveryAsync(value);
+        }
+    }
+
+    /// <summary>
+    /// Moves the switch to what the daemon says without telling it back.
+    /// </summary>
+    private void ShowLanDiscovery(bool enabled)
+    {
+        if (_lanDiscovery == enabled)
+        {
+            return;
+        }
+        _lanDiscovery = enabled;
+        OnPropertyChanged(nameof(LanDiscovery));
+    }
+
+    /// <summary>
+    /// Tells the daemon, and puts the switch back if it would not. A switch
+    /// that stays where it was put while nothing changed is the worst outcome.
+    /// </summary>
+    private async Task ApplyLanDiscoveryAsync(bool enabled)
+    {
+        try
+        {
+            await _daemon.SetLanDiscoveryAsync(enabled);
+        }
+        catch (DaemonException e)
+        {
+            _lanDiscovery = !enabled;
+            OnPropertyChanged(nameof(LanDiscovery));
+            Status = ErrorCopy.Describe(e);
+        }
+    }
+
     /// <summary>Whether the app opens when the user signs in.</summary>
     public bool StartsWithWindows
     {
@@ -115,6 +172,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             var server = await _daemon.GetServerAsync();
             ServerUrl = server.Url;
+            ShowLanDiscovery((await _daemon.GetLanDiscoveryAsync()).Enabled);
         }
         catch (DaemonException e)
         {
@@ -278,6 +336,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             var server = await _daemon.ResetSettingsAsync();
             ServerUrl = server.Url;
+            ShowLanDiscovery((await _daemon.GetLanDiscoveryAsync()).Enabled);
             Status = "Settings are back to their defaults.";
         }
         catch (DaemonException e)

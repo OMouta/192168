@@ -175,6 +175,12 @@ public sealed class Daemon
     public Task SetServerAsync(string url)
         => _client.CallAsync("SetServer", new ServerParams(url), _lifetime.Token);
 
+    public Task<LanDiscoveryResult> GetLanDiscoveryAsync()
+        => _client.CallAsync<LanDiscoveryResult>("GetLanDiscovery", null, _lifetime.Token);
+
+    public Task<LanDiscoveryResult> SetLanDiscoveryAsync(bool enabled)
+        => _client.CallAsync<LanDiscoveryResult>("SetLanDiscovery", new LanDiscoveryParams(enabled), _lifetime.Token);
+
     public Task<TestServerResult> TestServerAsync(string url)
         => _client.CallAsync<TestServerResult>("TestServer", new ServerParams(url), _lifetime.Token);
 

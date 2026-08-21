@@ -81,6 +81,37 @@
                 </StackPanel>
 
                 <!--
+                    How the group behaves once you are on it. One switch, and it
+                    earns a caption: turning it on has an effect outside this
+                    app that nobody would guess from the headline.
+                -->
+                <StackPanel Spacing="8">
+                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Network" />
+
+                    <Border Style="{StaticResource Card}">
+                        <Grid Padding="12,10" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Style="{StaticResource RowText}">
+                                <TextBlock Text="Let games find each other" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="Games that scan the network for servers see your group. While you are connected, nearby speakers and printers may not be found." />
+                            </StackPanel>
+
+                            <ToggleSwitch
+                                Grid.Column="1"
+                                MinWidth="0"
+                                VerticalAlignment="Center"
+                                IsOn="{x:Bind ViewModel.LanDiscovery, Mode=TwoWay}"
+                                OffContent=""
+                                OnContent="" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!--
                     What the service is doing, and the two things that can be done
                     about it. Gone entirely in a development build, where the
                     daemon runs in a console and none of it applies.

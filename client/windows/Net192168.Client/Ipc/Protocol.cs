@@ -105,6 +105,11 @@ public sealed record GetServerResult
     public string Url { get; init; } = "";
 }
 
+public sealed record LanDiscoveryResult
+{
+    public bool Enabled { get; init; }
+}
+
 public sealed record TestServerResult
 {
     public bool Reachable { get; init; }
@@ -121,6 +126,9 @@ public sealed record GroupParams(string GroupId);
 public sealed record SetNicknameParams(string GroupId, string Nickname);
 
 public sealed record ServerParams(string Url);
+
+/// <summary>Turns LAN discovery on or off.</summary>
+public sealed record LanDiscoveryParams(bool Enabled);
 
 /// <summary>Names one person in one group.</summary>
 public sealed record MemberParams(string GroupId, string DeviceId);
