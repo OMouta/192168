@@ -408,7 +408,11 @@ func (m *Mesh) sendData(peer *Peer, packet []byte) error {
 		return err
 	}
 
-	return m.deliver(peer, out)
+	if err := m.deliver(peer, out); err != nil {
+		return err
+	}
+	peer.sent.Add(1)
+	return nil
 }
 
 // deliver puts one finished packet on a link, down the wire when the link has a

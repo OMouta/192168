@@ -169,6 +169,50 @@ func TestPeersExchangePackets(t *testing.T) {
 	}
 }
 
+// A link opens with a handshake and a keepalive on it. Counting those would
+// have every row claiming traffic before anybody had played anything.
+func TestTrafficCountsGamePacketsOnly(t *testing.T) {
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
+	introduce(t, a, b)
+
+	waitForState(t, a, b.deviceID, ipc.PeerDirect)
+	waitForState(t, b, a.deviceID, ipc.PeerDirect)
+
+	if sent, received := link(t, a, b.deviceID).Traffic(); sent != 0 || received != 0 {
+		t.Fatalf("an open link with no game on it counted %d sent and %d received", sent, received)
+	}
+
+	if err := a.mesh.Send(netip.MustParseAddr("10.69.0.2"), []byte("a game packet")); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	select {
+	case <-b.mesh.Inbound():
+	case <-time.After(5 * time.Second):
+		t.Fatal("the packet never arrived")
+	}
+
+	if sent, received := link(t, a, b.deviceID).Traffic(); sent != 1 || received != 0 {
+		t.Errorf("the sender counted %d sent and %d received, want 1 and 0", sent, received)
+	}
+	if sent, received := link(t, b, a.deviceID).Traffic(); sent != 0 || received != 1 {
+		t.Errorf("the receiver counted %d sent and %d received, want 0 and 1", sent, received)
+	}
+}
+
+// link finds one node's view of another.
+func link(t *testing.T, n *node, deviceID string) *Peer {
+	t.Helper()
+
+	for _, peer := range n.mesh.Peers() {
+		if peer.DeviceID == deviceID {
+			return peer
+		}
+	}
+	t.Fatalf("%s has no link to %s", n.deviceID, deviceID)
+	return nil
+}
+
 func TestLatencyIsMeasured(t *testing.T) {
 	a := newNode(t, "dev_aaa", "10.69.0.1")
 	b := newNode(t, "dev_bbb", "10.69.0.2")

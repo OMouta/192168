@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/OMouta/192168/protocol/ipc"
@@ -56,6 +57,11 @@ type Peer struct {
 	lastProbe     time.Time
 	lastHandshake time.Time
 	handshakes    int
+
+	// sent and received count data packets each way. Atomic because every game
+	// packet takes this path and the numbers are read once a second.
+	sent     atomic.Uint64
+	received atomic.Uint64
 }
 
 // ErrNoSession means the link is not open yet, so there is nowhere to send.
@@ -91,6 +97,12 @@ func (p *Peer) Latency() time.Duration {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.latency
+}
+
+// Traffic is how many data packets this link has carried each way. Handshakes
+// and keepalives are the app talking to itself, so they are left out.
+func (p *Peer) Traffic() (sent, received uint64) {
+	return p.sent.Load(), p.received.Load()
 }
 
 // Endpoint is where packets are being sent, empty until the server says.

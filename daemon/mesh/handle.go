@@ -330,6 +330,7 @@ func (m *Mesh) handleData(packet, ciphertext []byte, counter uint64, src source)
 	if err != nil {
 		return
 	}
+	peer.received.Add(1)
 	if src.relay != nil {
 		peer.answerVia(src.relay)
 	}
