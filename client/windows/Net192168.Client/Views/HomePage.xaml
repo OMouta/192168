@@ -231,13 +231,22 @@
             <TextBlock
                 Grid.Row="1"
                 Grid.Column="1"
-                Grid.ColumnSpan="2"
                 VerticalAlignment="Center"
                 FontFamily="Consolas"
                 FontSize="22"
                 Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                 IsTextSelectionEnabled="True"
                 Text="{x:Bind ViewModel.VirtualIp, Mode=OneWay}" />
+
+            <!--  The whole network at once, beside the address it went through.  -->
+            <TextBlock
+                Grid.Row="1"
+                Grid.Column="2"
+                VerticalAlignment="Center"
+                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Text="{x:Bind ViewModel.Traffic, Mode=OneWay}"
+                TextAlignment="Right" />
 
             <!--  The name everyone else sees, changed in place.  -->
             <StackPanel
@@ -335,6 +344,8 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
+                                <!--  Fixed, so the addresses beside it stay in a line as the numbers grow.  -->
+                                <ColumnDefinition Width="66" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="60" />
@@ -367,6 +378,14 @@
                             <TextBlock
                                 Grid.Column="2"
                                 VerticalAlignment="Center"
+                                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Text="{x:Bind Traffic, Mode=OneWay}"
+                                TextAlignment="Right" />
+
+                            <TextBlock
+                                Grid.Column="3"
+                                VerticalAlignment="Center"
                                 FontFamily="Consolas"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                 IsTextSelectionEnabled="True"
@@ -380,7 +399,7 @@
                                 row this narrow can hold side by side.
                             -->
                             <Button
-                                Grid.Column="3"
+                                Grid.Column="4"
                                 Width="28"
                                 Height="28"
                                 Padding="0"
@@ -426,7 +445,7 @@
                             </Button>
 
                             <TextBlock
-                                Grid.Column="4"
+                                Grid.Column="5"
                                 VerticalAlignment="Center"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                 Style="{StaticResource CaptionTextBlockStyle}"

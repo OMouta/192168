@@ -94,6 +94,11 @@ public sealed partial class PeerItem(string deviceId, HomeViewModel owner) : Obs
     [ObservableProperty]
     public partial string Status { get; set; } = "";
 
+    /// <summary>Packets each way with this person. A link can read Direct at
+    /// 20 ms and still carry nothing, and this is what says so.</summary>
+    [ObservableProperty]
+    public partial string Traffic { get; set; } = "";
+
     [ObservableProperty]
     public partial bool IsReachable { get; set; }
 
@@ -275,6 +280,10 @@ public sealed partial class HomeViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string? VirtualIp { get; set; }
+
+    /// <summary>Everything this device has sent and received on the network.</summary>
+    [ObservableProperty]
+    public partial string Traffic { get; set; } = "";
 
     [ObservableProperty]
     public partial bool HasGroups { get; set; }
@@ -499,6 +508,7 @@ public sealed partial class HomeViewModel : ObservableObject
         SetOwner(state.IsOwner);
         Nickname = state.Nickname;
         VirtualIp = state.VirtualIp;
+        Traffic = IsConnected ? Describe(state.PacketsSent, state.PacketsReceived) : "";
         GroupLabel = IsConnected ? state.GroupName : "No group connected";
         ConnectedLook = GroupLooks.For(state.GroupIcon, state.GroupColor);
         ListLabel = IsConnected ? "On this network" : "Your groups";
@@ -602,6 +612,7 @@ public sealed partial class HomeViewModel : ObservableObject
             row.Nickname = peer.Nickname;
             row.VirtualIp = peer.VirtualIp;
             row.Status = Describe(peer);
+            row.Traffic = Describe(peer.PacketsSent, peer.PacketsReceived);
             row.IsReachable = peer.State is PeerState.Direct or PeerState.Indirect;
             row.IsHere = peer.State != PeerState.Offline;
             row.IsOwner = peer.IsOwner;
@@ -660,5 +671,22 @@ public sealed partial class HomeViewModel : ObservableObject
         PeerState.Connecting => "Connecting",
         PeerState.Failed => "Unreachable",
         _ => "Offline",
+    };
+
+    /// <summary>The two counts on one line, sent first.</summary>
+    private static string Describe(ulong sent, ulong received) =>
+        $"\u2191{Compact(sent)} \u2193{Compact(received)}";
+
+    /// <summary>Four characters at most, because the column this goes in comes
+    /// out of the nickname beside it.</summary>
+    private static string Compact(ulong packets) => packets switch
+    {
+        < 1_000 => packets.ToString(),
+        // Short of the round number, so rounding up cannot produce a fifth
+        // character. 9,999 reads 10k rather than 10.0k.
+        < 9_950 => $"{packets / 1_000d:0.0}k",
+        < 1_000_000 => $"{packets / 1_000:0}k",
+        < 9_950_000 => $"{packets / 1_000_000d:0.0}M",
+        _ => $"{packets / 1_000_000:0}M",
     };
 }
