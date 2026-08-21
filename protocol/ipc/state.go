@@ -47,7 +47,12 @@ type State struct {
 	// decides whether the managing parts of the screen are there at all.
 	IsOwner bool       `json:"isOwner,omitempty"`
 	Peers   []PeerView `json:"peers"`
-	Message string     `json:"message,omitempty"`
+	// PacketsSent and PacketsReceived are counted at the adapter rather than per
+	// link, so they are not the sum of the rows. A packet addressed to the whole
+	// LAN is one here and one on every link.
+	PacketsSent     uint64 `json:"packetsSent,omitempty"`
+	PacketsReceived uint64 `json:"packetsReceived,omitempty"`
+	Message         string `json:"message,omitempty"`
 }
 
 // PeerView is one row of the active group screen.
@@ -59,6 +64,11 @@ type PeerView struct {
 	LatencyMS *int      `json:"latencyMs,omitempty"`
 	// IsOwner marks whoever runs the group, so the list says who to ask.
 	IsOwner bool `json:"isOwner,omitempty"`
+	// PacketsSent and PacketsReceived count the game's packets and not the
+	// handshakes or keepalives, so zero on an open link means nothing is using
+	// it.
+	PacketsSent     uint64 `json:"packetsSent,omitempty"`
+	PacketsReceived uint64 `json:"packetsReceived,omitempty"`
 }
 
 // Group is one saved membership as shown on the groups screen.

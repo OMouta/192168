@@ -65,6 +65,12 @@ public sealed record DaemonState
     /// enforces that; this only decides what is on screen.</summary>
     public bool IsOwner { get; init; }
     public IReadOnlyList<PeerView> Peers { get; init; } = [];
+
+    /// <summary>Counted at the adapter rather than per link, so it is not the
+    /// sum of the peers. A packet addressed to the whole LAN is one here and one
+    /// on every link.</summary>
+    public ulong PacketsSent { get; init; }
+    public ulong PacketsReceived { get; init; }
     public string? Message { get; init; }
 }
 
@@ -79,6 +85,11 @@ public sealed record PeerView
 
     /// <summary>Whoever runs the group, marked in the list.</summary>
     public bool IsOwner { get; init; }
+
+    /// <summary>The game's packets each way, without the handshakes or
+    /// keepalives, so zero on an open link means nothing is using it.</summary>
+    public ulong PacketsSent { get; init; }
+    public ulong PacketsReceived { get; init; }
 }
 
 /// <summary>One saved membership.</summary>
