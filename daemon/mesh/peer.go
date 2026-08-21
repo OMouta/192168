@@ -31,6 +31,15 @@ type Peer struct {
 	state    ipc.PeerState
 	latency  time.Duration
 
+	// via is the peer carrying this link's packets, nil while it is direct.
+	// The keys are still this link's own, so a relay moves bytes it cannot
+	// read.
+	via *Peer
+
+	// relaysTried names the peers already asked to carry this link, so a group
+	// of six does not spend forever asking the same one.
+	relaysTried map[string]bool
+
 	// sender is the id this side puts in its packet headers, and remoteSender
 	// is what the peer puts in its own. They are unrelated random numbers.
 	sender uint64
@@ -61,6 +70,7 @@ func newPeer(deviceID, nickname string, virtualIP netip.Addr, transportKey []byt
 		state:        ipc.PeerConnecting,
 		sender:       sender,
 		pending:      map[uint64]time.Time{},
+		relaysTried:  map[string]bool{},
 	}
 }
 
@@ -99,6 +109,7 @@ func (p *Peer) setEndpoint(endpoint netip.AddrPort) bool {
 	}
 	p.endpoint = endpoint
 	p.resetLocked()
+	p.goDirectLocked()
 	return true
 }
 
@@ -108,6 +119,58 @@ func (p *Peer) restart() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.resetLocked()
+	p.goDirectLocked()
+}
+
+// Via is the peer carrying this link, nil while it is direct.
+func (p *Peer) Via() *Peer {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.via
+}
+
+// relayThrough asks a peer to carry this link and starts the handshake over, so
+// the keys are agreed along the path that will carry them.
+func (p *Peer) relayThrough(relay *Peer) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.resetLocked()
+	p.via = relay
+	p.relaysTried[relay.DeviceID] = true
+}
+
+// answerVia routes this link back the way a packet from it arrived.
+//
+// It is only called for packets that have proved they are from this peer, so a
+// group member cannot put itself in the middle of somebody else's link by
+// claiming to have carried one.
+func (p *Peer) answerVia(relay *Peer) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.via == relay {
+		return
+	}
+	p.via = relay
+	p.relaysTried[relay.DeviceID] = true
+	if p.session != nil {
+		p.state = ipc.PeerIndirect
+	}
+}
+
+// triedRelay reports whether a peer has already been asked to carry this link.
+func (p *Peer) triedRelay(deviceID string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.relaysTried[deviceID]
+}
+
+// goDirectLocked forgets the relays, for when something changed that makes a
+// direct path worth trying again from scratch.
+func (p *Peer) goDirectLocked() {
+	p.via = nil
+	clear(p.relaysTried)
 }
 
 func (p *Peer) resetLocked() {
@@ -131,6 +194,9 @@ func (p *Peer) open(s *session.Session) {
 	p.replay = session.ReplayWindow{}
 	p.counter = 0
 	p.state = ipc.PeerDirect
+	if p.via != nil {
+		p.state = ipc.PeerIndirect
+	}
 	p.lastHeard = time.Now()
 }
 
