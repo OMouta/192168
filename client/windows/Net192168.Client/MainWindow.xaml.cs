@@ -1,5 +1,4 @@
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.UI;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -21,46 +20,32 @@ public sealed partial class MainWindow : Window
     private const int Width = 400;
     private const int Height = 560;
 
-    // What the window buttons take up on the right at 100% scale, used only if
-    // the window has not reported its own inset yet. Putting the gear under the
-    // close button is worse than leaving a gap.
-    private const double CaptionButtonsFallback = 144;
-
     public MainWindow()
     {
         InitializeComponent();
-
-        // The system title bar follows the system theme rather than the app's,
-        // so it comes out light on most machines. Extending into it keeps the
-        // top of the window dark and puts the wordmark level with the window
-        // buttons.
-        ExtendsContentIntoTitleBar = true;
-        SetTitleBar(TitleBarRow);
-
-        // The window buttons are drawn by Windows from the top of the window
-        // down, so the header only looks level with them when the row is
-        // exactly as tall as they are. Tall is 48, which TitleBarRow matches.
-        // Left at Standard the buttons are 32 and sit six pixels high of the
-        // wordmark and the gear.
-        AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
 
         AppWindow.Title = "192168";
         AppWindow.SetIcon("Assets/icon.ico");
         AppWindow.Resize(new SizeInt32(Width, Height));
 
-        AppWindow.TitleBar.ButtonBackgroundColor = Colors.Transparent;
-        AppWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
-
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
-            // Maximising a window this dense would only stretch the gaps.
+            // No system title bar, so the header below is the whole top of the
+            // window and the buttons in it are the window's own.
+            //
+            // Windows draws minimise, maximise, and close as a set: asking for
+            // a window that cannot be maximised leaves the middle one there,
+            // greyed, taking up space to say no. Maximising a window this dense
+            // would only stretch the gaps, so it is not offered at all, and the
+            // two that do something are drawn in XAML instead.
+            presenter.SetBorderAndTitleBar(hasBorder: true, hasTitleBar: false);
             presenter.IsMaximizable = false;
             presenter.PreferredMinimumWidth = Width;
             presenter.PreferredMinimumHeight = 420;
         }
 
-        TitleBarRow.Loaded += (_, _) => LayOutTitleBar();
-        TitleBarRow.SizeChanged += (_, _) => LayOutTitleBar();
+        TitleBarRow.Loaded += (_, _) => LayOutDragRegions();
+        TitleBarRow.SizeChanged += (_, _) => LayOutDragRegions();
 
         ContentFrame.Navigated += OnNavigated;
 
@@ -214,64 +199,89 @@ public sealed partial class MainWindow : Window
         SettingsButton.Visibility = Show(title is null);
         BackButton.Visibility = Show(ContentFrame.CanGoBack);
 
-        LayOutTitleBar();
+        LayOutDragRegions();
     }
 
     private static Visibility Show(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>
-    /// Keeps the gear clear of the window buttons, and marks both header
-    /// buttons as places the window should not treat as a title bar.
+    /// Says which parts of the header the window can be dragged by.
     ///
-    /// Everything inside the element given to SetTitleBar is a drag handle, and
-    /// a button in there receives input it should not: the first version of this
-    /// opened the settings dialog by itself when the window was activated.
+    /// The window has no title bar of its own, so nothing up here is a drag
+    /// handle until it is named as one, and a region named over a button
+    /// swallows its clicks. What is left is the gaps between the buttons: the
+    /// wordmark, the screen's name, and the empty space beside them.
     /// </summary>
-    private void LayOutTitleBar()
+    private void LayOutDragRegions()
     {
-        if (Content?.XamlRoot is null)
+        if (Content?.XamlRoot is null || TitleBarRow.ActualWidth == 0)
         {
             return;
         }
 
         var scale = Content.XamlRoot.RasterizationScale;
-        var inset = AppWindow.TitleBar.RightInset / scale;
-        var margin = new Thickness(0, 0, (inset > 0 ? inset : CaptionButtonsFallback) + 4, 0);
-        if (SettingsButton.Margin != margin)
+        var height = TitleBarRow.ActualHeight;
+
+        List<RectInt32> caption = [];
+        var left = 0.0;
+
+        // In the order they sit across the row, so each button closes off the
+        // gap that ran up to it. Visible ones only: a button that is not there
+        // is space to drag by like any other.
+        foreach (var button in new FrameworkElement[] { BackButton, SettingsButton, MinimizeButton, CloseButton })
         {
-            SettingsButton.Margin = margin;
+            if (button.Visibility != Visibility.Visible || button.ActualWidth == 0)
+            {
+                continue;
+            }
+
+            var bounds = button
+                .TransformToVisual(TitleBarRow)
+                .TransformBounds(new Rect(0, 0, button.ActualWidth, button.ActualHeight));
+
+            AddCaption(left, bounds.Left);
+            left = bounds.Right;
         }
-
-        // The rectangles below are read off the laid-out positions, so the
-        // margin above has to have taken effect first.
-        TitleBarRow.UpdateLayout();
-
-        List<RectInt32> passthrough = [];
-        Cut(BackButton);
-        Cut(SettingsButton);
+        AddCaption(left, TitleBarRow.ActualWidth);
 
         InputNonClientPointerSource
             .GetForWindowId(AppWindow.Id)
-            .SetRegionRects(NonClientRegionKind.Passthrough, [.. passthrough]);
+            .SetRegionRects(NonClientRegionKind.Caption, [.. caption]);
 
-        void Cut(FrameworkElement element)
+        // The full height of the row, so the strip above and below a button
+        // that is shorter than the row can still be dragged by.
+        void AddCaption(double from, double to)
         {
-            if (element.Visibility != Visibility.Visible || element.ActualWidth == 0)
+            if (to - from < 1)
             {
                 return;
             }
 
-            var bounds = element
-                .TransformToVisual(Content)
-                .TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
-
-            passthrough.Add(new RectInt32(
-                (int)(bounds.X * scale),
-                (int)(bounds.Y * scale),
-                (int)(bounds.Width * scale),
-                (int)(bounds.Height * scale)));
+            caption.Add(new RectInt32(
+                (int)(from * scale),
+                0,
+                (int)((to - from) * scale),
+                (int)(height * scale)));
         }
     }
+
+    private void OnMinimize(object sender, RoutedEventArgs e)
+    {
+        if (AppWindow.Presenter is OverlappedPresenter presenter)
+        {
+            presenter.Minimize();
+        }
+    }
+
+    /// <summary>
+    /// Hides, like every other way of closing this window does.
+    ///
+    /// Hiding rather than closing: Window.Close does not raise AppWindow's
+    /// Closing, so the handler that cancels it and hides never ran and the
+    /// button quit the app outright, taking the tray icon and the live
+    /// connection's only visible sign with it.
+    /// </summary>
+    private void OnClose(object sender, RoutedEventArgs e) => AppWindow.Hide();
 
     private void OnBack(object sender, RoutedEventArgs e)
     {

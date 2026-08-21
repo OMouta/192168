@@ -27,12 +27,13 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <!--
-                Anything clickable up here has to be cut out of the drag region
-                by hand, or the window swallows the click and acts on it in
-                surprising ways. See MainWindow.xaml.cs.
+                The window is dragged by the gaps between these buttons, worked
+                out from where they land. See MainWindow.xaml.cs.
             -->
             <Button
                 x:Name="BackButton"
@@ -79,6 +80,7 @@
                 Grid.Column="2"
                 Width="32"
                 Height="32"
+                Margin="0,0,4,0"
                 Padding="0"
                 VerticalAlignment="Center"
                 AutomationProperties.Name="Settings"
@@ -87,6 +89,53 @@
                 Click="OnSettings"
                 ToolTipService.ToolTip="Settings">
                 <FontIcon FontSize="14" Glyph="&#xE713;" />
+            </Button>
+
+            <!--
+                Ours rather than the system's. Windows draws the three together
+                or not at all, and a maximised window this dense would only
+                stretch the gaps, so the one that would sit there greyed out is
+                not drawn. Their size and their colours are Windows' own, so
+                they still read as the window's buttons rather than the app's.
+            -->
+            <Button
+                x:Name="MinimizeButton"
+                Grid.Column="3"
+                Width="46"
+                Height="48"
+                Padding="0"
+                AutomationProperties.Name="Minimize"
+                BorderThickness="0"
+                Click="OnMinimize"
+                CornerRadius="0"
+                ToolTipService.ToolTip="Minimize">
+                <Button.Resources>
+                    <SolidColorBrush x:Key="ButtonBackground" Color="Transparent" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#20FFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#12FFFFFF" />
+                </Button.Resources>
+                <FontIcon FontSize="10" Glyph="&#xE921;" />
+            </Button>
+
+            <Button
+                x:Name="CloseButton"
+                Grid.Column="4"
+                Width="46"
+                Height="48"
+                Padding="0"
+                AutomationProperties.Name="Close"
+                BorderThickness="0"
+                Click="OnClose"
+                CornerRadius="0"
+                ToolTipService.ToolTip="Close">
+                <Button.Resources>
+                    <SolidColorBrush x:Key="ButtonBackground" Color="Transparent" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#C42B1C" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#B12A1B" />
+                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White" />
+                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E0FFFFFF" />
+                </Button.Resources>
+                <FontIcon FontSize="10" Glyph="&#xE8BB;" />
             </Button>
         </Grid>
 
