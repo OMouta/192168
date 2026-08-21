@@ -5,20 +5,22 @@ using Net192168.Client.Ipc;
 namespace Net192168.Client.ViewModels;
 
 /// <summary>
-/// The two things an owner can change about a group itself. Who is in it is
-/// managed from the rows on the screen this came from, where the people are.
+/// What an owner can change about a group itself: what it is called, how it is
+/// shown, and the password the next person joins with. Who is in it is managed
+/// from the rows on the screen this came from, where the people are.
 /// </summary>
 public sealed partial class ManageGroupViewModel : ObservableObject
 {
     private readonly Daemon _daemon;
     private readonly string _groupId;
 
-    public ManageGroupViewModel(Daemon daemon, string groupId, string name)
+    public ManageGroupViewModel(Daemon daemon, string groupId, string name, string? icon, string? color)
     {
         _daemon = daemon;
         _groupId = groupId;
         Name = name;
         OriginalName = name;
+        Appearance = new GroupLookChoice(icon, color);
     }
 
     [ObservableProperty]
@@ -27,6 +29,12 @@ public sealed partial class ManageGroupViewModel : ObservableObject
     /// <summary>What the group was called on arrival, so Save can tell whether
     /// the name is worth sending.</summary>
     public string OriginalName { get; }
+
+    /// <summary>
+    /// The icon and colour, as the picker offers them. Its Look is the group as
+    /// the list will draw it, which is what the chip beside the name shows.
+    /// </summary>
+    public GroupLookChoice Appearance { get; }
 
     [ObservableProperty]
     public partial string Password { get; set; } = "";
@@ -87,7 +95,7 @@ public sealed partial class ManageGroupViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Applies whichever of the two was changed.
+    /// Applies whichever of these was changed.
     /// </summary>
     /// <returns>Whether the screen is finished with.</returns>
     [RelayCommand]
@@ -108,6 +116,10 @@ public sealed partial class ManageGroupViewModel : ObservableObject
             if (name != OriginalName)
             {
                 await _daemon.RenameGroupAsync(_groupId, name);
+            }
+            if (Appearance.Changed)
+            {
+                await _daemon.SetGroupAppearanceAsync(_groupId, Appearance.Icon.Key, Appearance.Color.Key);
             }
             if (password != "")
             {

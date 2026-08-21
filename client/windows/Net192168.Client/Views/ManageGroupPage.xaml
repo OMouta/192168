@@ -2,6 +2,7 @@
 <Page
     x:Class="Net192168.Client.Views.ManageGroupPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:views="using:Net192168.Client.Views"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--  Back and the title of this screen are in the window header.  -->
@@ -19,7 +20,34 @@
 
             <StackPanel Spacing="8">
                 <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Name" />
-                <TextBox Text="{x:Bind ViewModel.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                <!--
+                    The group as the list draws it, beside the name it is drawn
+                    with. The pickers below say what can be chosen; this says
+                    what the choice comes to, which is the thing being decided.
+                -->
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border
+                        Grid.Column="0"
+                        Width="32"
+                        Height="32"
+                        Background="{x:Bind ViewModel.Appearance.Look.Background, Mode=OneWay}"
+                        CornerRadius="8">
+                        <FontIcon
+                            FontSize="16"
+                            Foreground="{x:Bind ViewModel.Appearance.Look.Foreground, Mode=OneWay}"
+                            Glyph="{x:Bind ViewModel.Appearance.Look.Glyph, Mode=OneWay}" />
+                    </Border>
+
+                    <TextBox Grid.Column="1" Text="{x:Bind ViewModel.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+
+                <views:GroupLookPicker Margin="0,4,0,0" Choice="{x:Bind ViewModel.Appearance, Mode=OneWay}" />
             </StackPanel>
 
             <StackPanel Spacing="8">

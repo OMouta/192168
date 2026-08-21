@@ -29,16 +29,16 @@ public sealed partial class ManageGroupPage : Page
 
     /// <summary>
     /// The group is passed in rather than read back, because this screen is
-    /// reached from one that already knows which group is connected.
+    /// reached from one that already lists every group it could be about.
     /// </summary>
-    public sealed record Target(string GroupId, string Name);
+    public sealed record Target(string GroupId, string Name, string? Icon = null, string? Color = null);
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
 
         var target = e.Parameter as Target ?? new Target("", "");
-        ViewModel = new ManageGroupViewModel(App.Daemon, target.GroupId, target.Name);
+        ViewModel = new ManageGroupViewModel(App.Daemon, target.GroupId, target.Name, target.Icon, target.Color);
         Bindings.Update();
     }
 
