@@ -5,8 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/netip"
 	"time"
 )
+
+// ErrGroupFull means every address in the group's subnet is taken.
+var ErrGroupFull = errors.New("storage: group is full")
 
 // Group is a persistent private LAN.
 type Group struct {
@@ -35,6 +39,7 @@ type Membership struct {
 	DeviceID  string
 	Nickname  string
 	Subnet    string
+	VirtualIP string
 	Role      Role
 	CreatedAt time.Time
 }
@@ -149,24 +154,46 @@ func insertMembership(ctx context.Context, tx *sql.Tx, g Group, deviceID, nickna
 		return Membership{}, err
 	}
 
+	// Whatever address this device had here before, if it was ever a member.
+	// A revoked row keeps its address for exactly this reason.
+	var previous sql.NullString
+	err = tx.QueryRowContext(ctx,
+		`SELECT virtual_ip FROM memberships WHERE group_id = ? AND device_id = ?`,
+		g.ID, deviceID).Scan(&previous)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return Membership{}, fmt.Errorf("storage: read previous address: %w", err)
+	}
+
+	// The address is cleared on the way in and chosen below. Un-revoking a row
+	// that still names an address somebody else took in the meantime would
+	// collide with the uniqueness index instead.
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO memberships (id, group_id, device_id, nickname, created_at)
 		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT (group_id, device_id) DO UPDATE SET
 			nickname   = excluded.nickname,
-			revoked_at = NULL`,
+			revoked_at = NULL,
+			virtual_ip = NULL`,
 		id, g.ID, deviceID, nickname, now.Unix())
 	if err != nil {
 		return Membership{}, fmt.Errorf("storage: add membership: %w", err)
 	}
 
+	address, err := assignAddress(ctx, tx, g, deviceID, previous.String)
+	if err != nil {
+		return Membership{}, err
+	}
+
 	// The insert may have updated an existing row, so the authoritative ID
 	// comes back from a read rather than from the value just generated.
-	var created int64
+	var (
+		created int64
+		role    Role
+	)
 	err = tx.QueryRowContext(ctx, `
-		SELECT id, nickname, created_at FROM memberships WHERE group_id = ? AND device_id = ?`,
+		SELECT id, nickname, role, created_at FROM memberships WHERE group_id = ? AND device_id = ?`,
 		g.ID, deviceID,
-	).Scan(&id, &nickname, &created)
+	).Scan(&id, &nickname, &role, &created)
 	if err != nil {
 		return Membership{}, fmt.Errorf("storage: read membership: %w", err)
 	}
@@ -178,15 +205,88 @@ func insertMembership(ctx context.Context, tx *sql.Tx, g Group, deviceID, nickna
 		DeviceID:  deviceID,
 		Nickname:  nickname,
 		Subnet:    g.Subnet,
+		VirtualIP: address,
+		Role:      role,
 		CreatedAt: time.Unix(created, 0),
 	}, nil
+}
+
+// assignAddress gives a device its address in a group and returns it. The one
+// it had before comes back unless somebody claimed it while it was away.
+func assignAddress(ctx context.Context, tx *sql.Tx, g Group, deviceID, previous string) (string, error) {
+	taken, err := takenAddresses(ctx, tx, g.ID)
+	if err != nil {
+		return "", err
+	}
+
+	address := previous
+	if address == "" || taken[address] {
+		address, err = freeAddress(g.Subnet, taken)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE memberships SET virtual_ip = ? WHERE group_id = ? AND device_id = ?`,
+		address, g.ID, deviceID); err != nil {
+		return "", fmt.Errorf("storage: assign address: %w", err)
+	}
+	return address, nil
+}
+
+// takenAddresses is every address spoken for in a group. A revoked membership
+// keeps the value on its row but does not hold it, so leaving a group hands the
+// address to whoever joins next.
+func takenAddresses(ctx context.Context, tx *sql.Tx, groupID string) (map[string]bool, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT virtual_ip FROM memberships
+		WHERE group_id = ? AND revoked_at IS NULL AND virtual_ip IS NOT NULL`, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("storage: read assigned addresses: %w", err)
+	}
+	defer rows.Close()
+
+	taken := map[string]bool{}
+	for rows.Next() {
+		var ip string
+		if err := rows.Scan(&ip); err != nil {
+			return nil, fmt.Errorf("storage: scan assigned address: %w", err)
+		}
+		taken[ip] = true
+	}
+	return taken, rows.Err()
+}
+
+// freeAddress picks the lowest unused host address in the subnet. Lowest rather
+// than random keeps a small group's addresses readable, which matters when
+// someone is typing one into a game.
+func freeAddress(subnet string, taken map[string]bool) (string, error) {
+	prefix, err := netip.ParsePrefix(subnet)
+	if err != nil {
+		return "", fmt.Errorf("storage: bad subnet %q: %w", subnet, err)
+	}
+
+	// Skip the network address, and stop before the broadcast address.
+	candidate := prefix.Masked().Addr().Next()
+	for prefix.Contains(candidate) {
+		next := candidate.Next()
+		if !prefix.Contains(next) {
+			break // candidate is the broadcast address
+		}
+		if ip := candidate.String(); !taken[ip] {
+			return ip, nil
+		}
+		candidate = next
+	}
+	return "", ErrGroupFull
 }
 
 // MembershipsByDevice lists every group a device belongs to, which is what lets
 // it reconnect without the group password.
 func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Membership, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.id, m.group_id, g.name, m.nickname, g.subnet, m.role, m.created_at
+		SELECT m.id, m.group_id, g.name, m.nickname, g.subnet, m.virtual_ip, m.role, m.created_at
 		FROM memberships m
 		JOIN groups g ON g.id = m.group_id
 		WHERE m.device_id = ? AND m.revoked_at IS NULL
@@ -202,7 +302,7 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 			m       Membership
 			created int64
 		)
-		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.Nickname, &m.Subnet, &m.Role, &created); err != nil {
+		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.Nickname, &m.Subnet, &m.VirtualIP, &m.Role, &created); err != nil {
 			return nil, fmt.Errorf("storage: scan membership: %w", err)
 		}
 		m.DeviceID = deviceID
@@ -214,10 +314,11 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 
 // Member is one person in a group, whether or not they are connected.
 type Member struct {
-	DeviceID string
-	Nickname string
-	Role     Role
-	Online   bool
+	DeviceID  string
+	Nickname  string
+	VirtualIP string
+	Role      Role
+	Online    bool
 }
 
 // Members lists everyone in a group and says who is connected.
@@ -227,7 +328,7 @@ type Member struct {
 // is in the group rather than only who is here right now.
 func (s *Store) Members(ctx context.Context, groupID string) ([]Member, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.device_id, m.nickname, m.role, s.id IS NOT NULL
+		SELECT m.device_id, m.nickname, m.virtual_ip, m.role, s.id IS NOT NULL
 		FROM memberships m
 		LEFT JOIN sessions s ON s.membership_id = m.id
 		WHERE m.group_id = ? AND m.revoked_at IS NULL
@@ -240,7 +341,7 @@ func (s *Store) Members(ctx context.Context, groupID string) ([]Member, error) {
 	var out []Member
 	for rows.Next() {
 		var member Member
-		if err := rows.Scan(&member.DeviceID, &member.Nickname, &member.Role, &member.Online); err != nil {
+		if err := rows.Scan(&member.DeviceID, &member.Nickname, &member.VirtualIP, &member.Role, &member.Online); err != nil {
 			return nil, fmt.Errorf("storage: read member: %w", err)
 		}
 		out = append(out, member)
@@ -255,12 +356,12 @@ func (s *Store) Membership(ctx context.Context, groupID, deviceID string) (Membe
 		created int64
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT m.id, g.name, m.nickname, g.subnet, m.role, m.created_at
+		SELECT m.id, g.name, m.nickname, g.subnet, m.virtual_ip, m.role, m.created_at
 		FROM memberships m
 		JOIN groups g ON g.id = m.group_id
 		WHERE m.group_id = ? AND m.device_id = ? AND m.revoked_at IS NULL`,
 		groupID, deviceID,
-	).Scan(&m.ID, &m.GroupName, &m.Nickname, &m.Subnet, &m.Role, &created)
+	).Scan(&m.ID, &m.GroupName, &m.Nickname, &m.Subnet, &m.VirtualIP, &m.Role, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Membership{}, ErrNotFound
 	}

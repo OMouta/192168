@@ -184,7 +184,7 @@ func TestRejoiningClearsRevocation(t *testing.T) {
 	}
 }
 
-func TestSessionsGetTheLowestFreeAddress(t *testing.T) {
+func TestMembersGetTheLowestFreeAddress(t *testing.T) {
 	s := newStore(t)
 	ctx := t.Context()
 	newDevice(t, s, "dev_1")
@@ -202,28 +202,119 @@ func TestSessionsGetTheLowestFreeAddress(t *testing.T) {
 	}
 
 	want := []string{"10.69.0.1", "10.69.0.2", "10.69.0.3"}
-	var sessions []Session
 	for i, m := range []Membership{first, second, third} {
-		sess, err := s.CreateSession(ctx, m)
-		if err != nil {
-			t.Fatalf("CreateSession: %v", err)
+		if m.VirtualIP != want[i] {
+			t.Errorf("member %d got %q, want %q", i, m.VirtualIP, want[i])
 		}
-		if sess.VirtualIP != want[i] {
-			t.Errorf("session %d got %q, want %q", i, sess.VirtualIP, want[i])
-		}
-		sessions = append(sessions, sess)
+	}
+}
+
+// The whole point of the address living on the membership: somebody who hosts
+// tonight is at the same address tomorrow, whoever else connected first.
+func TestAnAddressSurvivesDisconnecting(t *testing.T) {
+	s := newStore(t)
+	ctx := t.Context()
+	newDevice(t, s, "dev_1")
+	newDevice(t, s, "dev_2")
+	g, host := newGroup(t, s, "dev_1", "friday night")
+
+	guest, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	if err != nil {
+		t.Fatalf("AddMembership: %v", err)
 	}
 
-	// A disconnect frees the address, and the next join takes it back.
-	if err := s.DeleteSession(ctx, sessions[1].ID); err != nil {
-		t.Fatalf("DeleteSession: %v", err)
-	}
-	sess, err := s.CreateSession(ctx, second)
+	hosting, err := s.CreateSession(ctx, host)
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	if sess.VirtualIP != "10.69.0.2" {
-		t.Errorf("reconnect got %q, want the freed 10.69.0.2", sess.VirtualIP)
+	if hosting.VirtualIP != "10.69.0.1" {
+		t.Fatalf("host got %q, want 10.69.0.1", hosting.VirtualIP)
+	}
+	if err := s.DeleteSession(ctx, hosting.ID); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+
+	// The next day, and the guest is in first. That used to take .1.
+	if _, err := s.CreateSession(ctx, guest); err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	again, err := s.CreateSession(ctx, host)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	if again.VirtualIP != "10.69.0.1" {
+		t.Errorf("host came back at %q, want 10.69.0.1", again.VirtualIP)
+	}
+}
+
+func TestLeavingFreesAnAddressAndRejoiningTakesItBack(t *testing.T) {
+	s := newStore(t)
+	ctx := t.Context()
+	newDevice(t, s, "dev_1")
+	newDevice(t, s, "dev_2")
+	newDevice(t, s, "dev_3")
+	g, _ := newGroup(t, s, "dev_1", "friday night")
+
+	left, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	if err != nil {
+		t.Fatalf("AddMembership: %v", err)
+	}
+	if err := s.RevokeMembership(ctx, g.ID, "dev_2"); err != nil {
+		t.Fatalf("RevokeMembership: %v", err)
+	}
+
+	// Nobody took it while they were away, so it is theirs again.
+	back, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	if err != nil {
+		t.Fatalf("AddMembership after leaving: %v", err)
+	}
+	if back.VirtualIP != left.VirtualIP {
+		t.Errorf("rejoined at %q, want the old %q", back.VirtualIP, left.VirtualIP)
+	}
+
+	// Somebody who leaves while a newcomer takes their address gets another
+	// one rather than a collision.
+	if err := s.RevokeMembership(ctx, g.ID, "dev_2"); err != nil {
+		t.Fatalf("RevokeMembership: %v", err)
+	}
+	newcomer, err := s.AddMembership(ctx, g, "dev_3", "pedro")
+	if err != nil {
+		t.Fatalf("AddMembership: %v", err)
+	}
+	if newcomer.VirtualIP != left.VirtualIP {
+		t.Fatalf("newcomer got %q, want the freed %q", newcomer.VirtualIP, left.VirtualIP)
+	}
+	moved, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	if err != nil {
+		t.Fatalf("AddMembership after losing an address: %v", err)
+	}
+	if moved.VirtualIP == left.VirtualIP || moved.VirtualIP == "" {
+		t.Errorf("rejoined at %q, want an address of their own", moved.VirtualIP)
+	}
+}
+
+func TestJoiningAFullGroupFails(t *testing.T) {
+	s := newStore(t)
+	ctx := t.Context()
+	newDevice(t, s, "dev_1")
+	newDevice(t, s, "dev_2")
+
+	id, err := NewID("grp")
+	if err != nil {
+		t.Fatalf("NewID: %v", err)
+	}
+	// A /30 holds two hosts, and the creator takes one of them.
+	g := Group{ID: id, Name: "tiny", PasswordVerifier: "verifier", Subnet: "10.69.0.0/30"}
+	if _, err := s.CreateGroup(ctx, g, "tiny", "dev_1", "creator"); err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+	if _, err := s.AddMembership(ctx, g, "dev_2", "joao"); err != nil {
+		t.Fatalf("AddMembership: %v", err)
+	}
+
+	newDevice(t, s, "dev_3")
+	if _, err := s.AddMembership(ctx, g, "dev_3", "pedro"); !errors.Is(err, ErrGroupFull) {
+		t.Errorf("AddMembership to a full group err = %v, want ErrGroupFull", err)
 	}
 }
 

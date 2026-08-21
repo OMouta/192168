@@ -5,15 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/netip"
 	"time"
 )
 
-// ErrGroupFull means every address in the group's subnet is taken.
-var ErrGroupFull = errors.New("storage: group is full")
-
 // Session is a device's live connection to a group. It exists only while
-// connected, and its virtual IP belongs to it only for that long.
+// connected. The address it reports is the membership's, which outlives it.
 type Session struct {
 	ID           string
 	GroupID      string
@@ -38,7 +34,10 @@ type Endpoint struct {
 	Port    int
 }
 
-// CreateSession connects a membership to its group and assigns a virtual IP.
+// CreateSession connects a membership to its group.
+//
+// It hands out no address. The membership already has one, given when the
+// device joined, so connecting first says nothing about which address you get.
 //
 // Connecting again replaces the old session rather than adding a second one. A
 // client that crashed and came back would otherwise sit in the peer list twice,
@@ -59,20 +58,11 @@ func (s *Store) CreateSession(ctx context.Context, m Membership) (Session, error
 		return Session{}, fmt.Errorf("storage: replace session: %w", err)
 	}
 
-	taken, err := takenAddresses(ctx, tx, m.GroupID)
-	if err != nil {
-		return Session{}, err
-	}
-	ip, err := freeAddress(m.Subnet, taken)
-	if err != nil {
-		return Session{}, err
-	}
-
 	now := time.Now()
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO sessions (id, group_id, membership_id, virtual_ip, connected_at, last_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		id, m.GroupID, m.ID, ip, now.Unix(), now.Unix()); err != nil {
+		INSERT INTO sessions (id, group_id, membership_id, connected_at, last_seen_at)
+		VALUES (?, ?, ?, ?, ?)`,
+		id, m.GroupID, m.ID, now.Unix(), now.Unix()); err != nil {
 		return Session{}, fmt.Errorf("storage: create session: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -84,7 +74,7 @@ func (s *Store) CreateSession(ctx context.Context, m Membership) (Session, error
 		GroupID:      m.GroupID,
 		MembershipID: m.ID,
 		DeviceID:     m.DeviceID,
-		VirtualIP:    ip,
+		VirtualIP:    m.VirtualIP,
 		ConnectedAt:  now,
 	}, nil
 }
@@ -97,7 +87,7 @@ func (s *Store) SessionByID(ctx context.Context, id string) (Session, error) {
 		connected int64
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT s.id, s.group_id, s.membership_id, m.device_id, s.virtual_ip, s.connected_at
+		SELECT s.id, s.group_id, s.membership_id, m.device_id, m.virtual_ip, s.connected_at
 		FROM sessions s
 		JOIN memberships m ON m.id = s.membership_id
 		WHERE s.id = ?`, id,
@@ -116,7 +106,7 @@ func (s *Store) SessionByID(ctx context.Context, id string) (Session, error) {
 // asking, since nobody needs to be told about themselves.
 func (s *Store) PeersInGroup(ctx context.Context, groupID, exceptDeviceID string) ([]SessionPeer, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.device_id, m.nickname, s.virtual_ip, d.transport_key, s.endpoint_address, s.endpoint_port
+		SELECT m.device_id, m.nickname, m.virtual_ip, d.transport_key, s.endpoint_address, s.endpoint_port
 		FROM sessions s
 		JOIN memberships m ON m.id = s.membership_id
 		JOIN devices d     ON d.id = m.device_id
@@ -169,7 +159,8 @@ func (s *Store) TouchSession(ctx context.Context, sessionID string) error {
 	return checkAffected(res)
 }
 
-// DeleteSession ends a session and frees its virtual IP.
+// DeleteSession ends a session. The address stays with the membership, so
+// disconnecting takes somebody off the peer list and nothing more.
 func (s *Store) DeleteSession(ctx context.Context, sessionID string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE id = ?`, sessionID)
 	if err != nil {
@@ -226,48 +217,6 @@ func (s *Store) ExpireSessions(ctx context.Context, olderThan time.Duration) ([]
 		return nil, fmt.Errorf("storage: commit: %w", err)
 	}
 	return stale, nil
-}
-
-func takenAddresses(ctx context.Context, tx *sql.Tx, groupID string) (map[string]bool, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT virtual_ip FROM sessions WHERE group_id = ?`, groupID)
-	if err != nil {
-		return nil, fmt.Errorf("storage: read assigned addresses: %w", err)
-	}
-	defer rows.Close()
-
-	taken := map[string]bool{}
-	for rows.Next() {
-		var ip string
-		if err := rows.Scan(&ip); err != nil {
-			return nil, fmt.Errorf("storage: scan assigned address: %w", err)
-		}
-		taken[ip] = true
-	}
-	return taken, rows.Err()
-}
-
-// freeAddress picks the lowest unused host address in the subnet. Lowest rather
-// than random keeps a small group's addresses stable and readable, which
-// matters when someone is typing one into a game.
-func freeAddress(subnet string, taken map[string]bool) (string, error) {
-	prefix, err := netip.ParsePrefix(subnet)
-	if err != nil {
-		return "", fmt.Errorf("storage: bad subnet %q: %w", subnet, err)
-	}
-
-	// Skip the network address, and stop before the broadcast address.
-	candidate := prefix.Masked().Addr().Next()
-	for prefix.Contains(candidate) {
-		next := candidate.Next()
-		if !prefix.Contains(next) {
-			break // candidate is the broadcast address
-		}
-		if ip := candidate.String(); !taken[ip] {
-			return ip, nil
-		}
-		candidate = next
-	}
-	return "", ErrGroupFull
 }
 
 func checkAffected(res sql.Result) error {
