@@ -25,8 +25,11 @@ Run anyway.
 Windows 10 or newer, 64-bit. Installing asks for administrator rights once, to
 set up the virtual network adapter. Nothing after that does.
 
-A game that can connect to a host by IP. Games that only find servers by
-scanning the local network do not see anyone in your group.
+A game that can connect to a host by IP. Games that find servers by scanning the
+local network also work: your group is treated as one. While that is on, and it
+is by default, discovery goes to your group instead of the room you are in, so
+nearby speakers and printers may not be found until you disconnect. There is a
+switch for it in Settings.
 
 ## Groups
 

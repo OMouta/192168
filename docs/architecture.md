@@ -135,9 +135,29 @@ punches again. Membership and UI state are untouched.
 
 ## Broadcast discovery
 
-The overlay is Layer 3. UDP broadcast, multicast, and mDNS do not cross it. Games
-where you type the host's IP work. Server browsers that scan the LAN find
-nothing, and fixing that means replicating broadcast packets to every peer.
+The overlay is Layer 3, so nothing carries a broadcast on its own: there is no
+shared segment for one to reach and no switch to flood a multicast to. A game
+where you type the host's IP works either way. A game with a LAN list needs two
+things, and both are behind one switch in Settings, on by default.
+
+The first is replication. A packet leaving the adapter for the group's broadcast
+address, for `255.255.255.255`, or for any multicast group is copied onto every
+open link instead of being routed to one peer. Copies only ever go out, so there
+is no loop: a replicated packet arriving from a peer is written to the adapter
+and no further.
+
+The second is which interface Windows picks. Multicast leaves by one interface,
+the one with the best route for `224.0.0.0/4`, and a group is joined on that same
+one. Every interface has that route, so an app that does not name one, which is
+nearly all of them, would announce over the Wi-Fi card and never reach the
+adapter at all. The daemon gives the adapter a metric of 1 while connected, so
+the tunnel wins.
+
+That is the invasive half, and it is why there is a switch. Winning multicast
+means winning it for everything, so mDNS and SSDP go down the tunnel too and
+nearby speakers, printers and TVs stop being found until you disconnect. Nothing
+else moves: the adapter carries no default route, so ordinary internet traffic
+never consults it.
 
 ## Versioning
 
