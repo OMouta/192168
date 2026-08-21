@@ -368,17 +368,19 @@
                                 <FontIcon FontSize="13" Glyph="&#xE712;" />
                                 <Button.Flyout>
                                     <MenuFlyout>
-                                        <!--  Away, and so without an address to copy.  -->
-                                        <MenuFlyoutItem
-                                            Command="{x:Bind CopyAddressCommand}"
-                                            Text="Copy address"
-                                            Visibility="{x:Bind IsHere, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                                        <!--
+                                            Here or not. The address belongs to
+                                            the person rather than to their
+                                            session, so it is worth copying
+                                            before they turn up.
+                                        -->
+                                        <MenuFlyoutItem Command="{x:Bind CopyAddressCommand}" Text="Copy address">
                                             <MenuFlyoutItem.Icon>
                                                 <FontIcon Glyph="&#xE8C8;" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
 
-                                        <MenuFlyoutSeparator Visibility="{x:Bind ShowManageSeparator, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                                        <MenuFlyoutSeparator Visibility="{x:Bind CanManage, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
 
                                         <MenuFlyoutItem
                                             Command="{x:Bind AskToMakeOwnerCommand}"
