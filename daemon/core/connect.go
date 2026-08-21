@@ -65,6 +65,10 @@ func (c *Core) runConnect(groupID string) {
 	// This work belongs to the daemon, not to the request that asked for it.
 	ctx, stop := context.WithCancel(c.ctx)
 
+	// The counts belong to the session, so a new one starts from nothing.
+	c.packetsOut.Store(0)
+	c.packetsIn.Store(0)
+
 	session, err := withClient(c, ctx, func(client *control.Client) (api.CreateSessionResponse, error) {
 		return client.Connect(ctx, groupID)
 	})
@@ -149,6 +153,8 @@ func (c *Core) failConnect(groupID string, err error) {
 	c.state.VirtualIP = ""
 	c.state.Message = message
 	c.state.IsOwner = false
+	c.state.PacketsSent = 0
+	c.state.PacketsReceived = 0
 	c.peers = map[string]*ipc.PeerView{}
 	state := c.snapshot()
 	c.mu.Unlock()
@@ -252,6 +258,8 @@ func (c *Core) finishDisconnect(session *activeSession, reason string) {
 	c.state.VirtualIP = ""
 	c.state.Message = reason
 	c.state.IsOwner = false
+	c.state.PacketsSent = 0
+	c.state.PacketsReceived = 0
 	c.peers = map[string]*ipc.PeerView{}
 	state := c.snapshot()
 	c.mu.Unlock()

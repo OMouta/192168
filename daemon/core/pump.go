@@ -88,8 +88,10 @@ func (c *Core) pumpOut(ctx context.Context, device *tun.Device, links *mesh.Mesh
 			// No delivery report either way. On a real LAN nobody is owed one,
 			// and a group with nobody else in it would otherwise log a line
 			// for every announcement a game makes.
-			if c.lanDiscovery() {
-				links.Broadcast(packet)
+			//
+			// One packet left this device however many copies went out.
+			if c.lanDiscovery() && links.Broadcast(packet) > 0 {
+				c.packetsOut.Add(1)
 			}
 			continue
 		}
@@ -99,7 +101,9 @@ func (c *Core) pumpOut(ctx context.Context, device *tun.Device, links *mesh.Mesh
 			// that nobody holds. Both are ordinary, and both look like packet
 			// loss to the game, which is what they are.
 			c.log.Debug("dropped an outgoing packet", "to", destination.String(), "error", err)
+			continue
 		}
+		c.packetsOut.Add(1)
 	}
 }
 
@@ -117,6 +121,7 @@ func (c *Core) pumpIn(ctx context.Context, device *tun.Device, links *mesh.Mesh)
 				c.log.Info("cannot write to the adapter", "error", err)
 				return
 			}
+			c.packetsIn.Add(1)
 		}
 	}
 }

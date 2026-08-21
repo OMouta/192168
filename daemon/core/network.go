@@ -51,7 +51,61 @@ func (c *Core) startNetwork(ctx context.Context, session *activeSession, peers [
 
 	go c.publishEndpoint(ctx, links, session.sessionID)
 	go c.watchGroup(ctx, session)
+	go c.watchTraffic(ctx, links)
 	go c.startAdapter(ctx, links, session.virtualIP, session.subnet)
+}
+
+// trafficInterval is how often the counts on screen are brought up to date. A
+// busy link moves thousands of packets a second, which nobody can read.
+const trafficInterval = time.Second
+
+// watchTraffic keeps the counts on screen in step with the links.
+//
+// A poll rather than an event, because the count changes once per packet. An
+// event each time would be the game's own traffic again, in JSON, down a pipe.
+func (c *Core) watchTraffic(ctx context.Context, links *mesh.Mesh) {
+	ticker := time.NewTicker(trafficInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if state, moved := c.readTraffic(links); moved {
+				c.emit(ipc.EventStateChanged, state)
+			}
+		}
+	}
+}
+
+// readTraffic copies the counters into the state and reports whether anything
+// moved, so a group sitting idle announces nothing.
+func (c *Core) readTraffic(links *mesh.Mesh) (ipc.State, bool) {
+	out, in := c.packetsOut.Load(), c.packetsIn.Load()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	moved := c.state.PacketsSent != out || c.state.PacketsReceived != in
+	c.state.PacketsSent, c.state.PacketsReceived = out, in
+
+	for _, peer := range links.Peers() {
+		view, known := c.peers[peer.DeviceID]
+		if !known {
+			continue
+		}
+		sent, received := peer.Traffic()
+		if view.PacketsSent != sent || view.PacketsReceived != received {
+			moved = true
+		}
+		view.PacketsSent, view.PacketsReceived = sent, received
+	}
+
+	if !moved {
+		return ipc.State{}, false
+	}
+	return c.snapshot(), true
 }
 
 const (

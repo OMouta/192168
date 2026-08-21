@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/OMouta/192168/daemon/control"
 	"github.com/OMouta/192168/daemon/identity"
@@ -55,6 +56,12 @@ type Core struct {
 
 	// device is the virtual adapter, alive for the same span.
 	device *tun.Device
+
+	// packetsOut and packetsIn count at the adapter rather than per link, so
+	// they keep counting across peers coming and going. A link is thrown away
+	// with the peer that left, and its count goes too.
+	packetsOut atomic.Uint64
+	packetsIn  atomic.Uint64
 }
 
 // activeSession is the group connection. There is at most one, because two
