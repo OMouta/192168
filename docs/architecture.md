@@ -94,22 +94,22 @@ Links are independent. One peer failing says nothing about the rest.
 
 ## Addressing
 
-An address belongs to a membership. The server hands one out when a device
-joins, the lowest free host address in the group's subnet, `10.69.0.0/24`, and
-it stays that device's for as long as it is a member. Connecting takes no
-address and disconnecting gives none back.
+An address belongs to a membership, not to a session. Joining a group gets a
+device the lowest free host address in the group's subnet, `10.69.0.0/24`, and
+it is that device's until the membership ends. Connecting takes no address and
+disconnecting hands none back.
 
-That is what makes a host worth writing down. Somebody who ran a server last
-night is at the same address tonight, whoever else connected first, and their
-friends can read it off the members list while they are still offline.
+So whoever hosted last night is at the same address tonight, no matter who
+connected first, and the rest of the group can read it off the members list
+while that person is still offline.
 
-Leaving a group frees the address for the next person to join. The row keeps
-the value while it is revoked, so somebody who leaves and comes back takes the
-same one again unless a newcomer claimed it in between. A group with no free
-addresses left refuses new members rather than new connections.
+Leaving frees the address for whoever joins next. A revoked membership keeps
+its address written down and stops holding it, so leaving and coming back gets
+the same one again unless a newcomer took it meanwhile. A group with no free
+addresses turns away new members rather than new connections.
 
-Addresses are unique inside a group and nowhere else. Only one group is active
-at a time, so two groups reusing a range never collide on the local routes.
+Addresses are unique inside a group and nowhere else. One group is active at a
+time, so two of them reusing a range never fight over the local routes.
 
 ## Routing
 

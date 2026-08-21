@@ -165,8 +165,8 @@ func insertMembership(ctx context.Context, tx *sql.Tx, g Group, deviceID, nickna
 	}
 
 	// The address is cleared on the way in and chosen below. Un-revoking a row
-	// that still names an address somebody else took in the meantime would
-	// collide with the uniqueness index instead.
+	// that still names an address somebody else took meanwhile would collide
+	// with the uniqueness index.
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO memberships (id, group_id, device_id, nickname, created_at)
 		VALUES (?, ?, ?, ?, ?)

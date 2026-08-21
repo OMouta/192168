@@ -359,9 +359,8 @@ func (c *Core) peerWentOffline(deviceID string) {
 	if known {
 		peer.State = ipc.PeerOffline
 		peer.LatencyMS = nil
-		// The address is not cleared. It belongs to their membership, not to
-		// the session that just ended, and it is what somebody needs to host
-		// again tomorrow.
+		// The address is not cleared. It belongs to their membership rather
+		// than to the session that just ended.
 	}
 	state := c.snapshot()
 	c.mu.Unlock()

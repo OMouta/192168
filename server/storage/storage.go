@@ -162,9 +162,9 @@ var migrations = []string{
 		WHERE g.id = memberships.group_id AND g.created_by_device_id = memberships.device_id
 	 )`,
 
-	// An address belongs to a membership rather than to a session. It is handed
-	// out at the door and stays the same, so somebody who hosted last night is
-	// at the address their friends already wrote into a game.
+	// An address belongs to a membership rather than to a session. It is given
+	// at the door and does not change, so a host keeps the address their
+	// friends already typed into a game.
 	`ALTER TABLE memberships ADD COLUMN virtual_ip TEXT`,
 
 	// Partial, so a revoked membership frees its address without losing it.
@@ -173,9 +173,9 @@ var migrations = []string{
 	`CREATE UNIQUE INDEX idx_memberships_address
 	 ON memberships(group_id, virtual_ip) WHERE revoked_at IS NULL`,
 
-	// Sessions no longer carry an address. Rebuilt rather than altered, since
-	// the address was half of a table constraint; a session lasts as long as
-	// somebody is connected, so there is nothing here worth carrying across.
+	// Sessions no longer carry an address. Rebuilt rather than altered because
+	// the address was half of a table constraint. Nothing is lost, since a
+	// session lasts only as long as somebody is connected.
 	`DROP TABLE sessions`,
 	`CREATE TABLE sessions (
 		id               TEXT PRIMARY KEY,

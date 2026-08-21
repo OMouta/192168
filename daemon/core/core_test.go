@@ -219,9 +219,8 @@ func TestPeersArriveKnownButNotYetReachable(t *testing.T) {
 	}
 }
 
-// Somebody in the group who is not connected still has an address. It is what
-// their friends need in order to reach them next time, and it used to be blank
-// until they showed up.
+// Somebody in the group who is not connected still has an address. It used to
+// be blank until they showed up.
 func TestAMemberWhoIsAwayHasAnAddress(t *testing.T) {
 	url := liveServer(t)
 	host, hostEvents := newCore(t, url)
@@ -256,8 +255,8 @@ func TestAMemberWhoIsAwayHasAnAddress(t *testing.T) {
 	}
 }
 
-// awaitPeers waits for the peer list to reach a size. The list is filled in by
-// a call the daemon makes on its own, so there is nothing to wait on but it.
+// awaitPeers waits for the peer list to reach a size. The daemon fills that
+// list from a call it makes on its own, so there is nothing else to wait on.
 func awaitPeers(t *testing.T, c *Core, want int) []ipc.PeerView {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)

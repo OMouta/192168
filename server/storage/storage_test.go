@@ -209,7 +209,7 @@ func TestMembersGetTheLowestFreeAddress(t *testing.T) {
 	}
 }
 
-// The whole point of the address living on the membership: somebody who hosts
+// The whole point of the address living on the membership. Somebody who hosts
 // tonight is at the same address tomorrow, whoever else connected first.
 func TestAnAddressSurvivesDisconnecting(t *testing.T) {
 	s := newStore(t)

@@ -119,8 +119,7 @@ const (
 // someone there is a link to; a member is someone who belongs.
 //
 // The address is here rather than only on Peer because it belongs to the
-// membership: somebody who is away still has one, and that is what makes it
-// worth showing.
+// membership. Somebody who is away still has one, and the app shows it.
 type Member struct {
 	DeviceID  string `json:"deviceId"`
 	Nickname  string `json:"nickname"`

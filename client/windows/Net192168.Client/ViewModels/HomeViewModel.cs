@@ -87,8 +87,8 @@ public sealed partial class PeerItem(string deviceId, HomeViewModel owner) : Obs
 
     /// <summary>
     /// False for someone who is in the group but not connected. Their row is
-    /// dimmed. The address is still theirs and still worth copying: it is what
-    /// you type in tomorrow when they are hosting.
+    /// dimmed. The address is still theirs and still worth copying, since it is
+    /// what you type in next time they host.
     /// </summary>
     [ObservableProperty]
     public partial bool IsHere { get; set; } = true;
