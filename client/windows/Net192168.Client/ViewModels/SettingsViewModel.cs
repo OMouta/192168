@@ -68,6 +68,24 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool CanManageService { get; set; }
 
+    /// <summary>
+    /// Whether the app looks for a newer version when it opens. It is the only
+    /// thing this app asks for that is not the coordination server.
+    /// </summary>
+    public bool ChecksForUpdates
+    {
+        get => Updates.Enabled;
+        set
+        {
+            if (Updates.Enabled == value)
+            {
+                return;
+            }
+            Updates.Enabled = value;
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>Whether the app opens when the user signs in.</summary>
     public bool StartsWithWindows
     {

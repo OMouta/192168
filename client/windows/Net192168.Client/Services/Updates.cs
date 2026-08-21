@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.Win32;
 
 namespace Net192168.Client.Services;
 
@@ -22,7 +23,31 @@ public static class Updates
 {
     private const string LatestRelease = "https://api.github.com/repos/OMouta/192168/releases/latest";
 
+    private const string SettingsKey = @"Software\192168";
+    private const string EnabledValue = "CheckForUpdates";
+
     private static readonly HttpClient Http = CreateClient();
+
+    /// <summary>
+    /// Whether to look at all.
+    ///
+    /// On unless turned off. It is the only thing this app sends anywhere that
+    /// is not the coordination server, so it is worth being able to say no to,
+    /// and worth it being one switch rather than a page of explanation.
+    /// </summary>
+    public static bool Enabled
+    {
+        get
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(SettingsKey);
+            return key?.GetValue(EnabledValue) is not int off || off != 0;
+        }
+        set
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(SettingsKey, writable: true);
+            key?.SetValue(EnabledValue, value ? 1 : 0, RegistryValueKind.DWord);
+        }
+    }
 
     /// <summary>The newer release, once one has been found. Null until then.</summary>
     public static Release? Available { get; private set; }
@@ -39,6 +64,11 @@ public static class Updates
     /// </summary>
     public static async Task CheckAsync()
     {
+        if (!Enabled)
+        {
+            return;
+        }
+
         var current = Parse(AppInfo.Version);
         if (current is null || current == new Version(0, 0, 0))
         {

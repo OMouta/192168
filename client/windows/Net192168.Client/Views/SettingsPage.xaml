@@ -154,6 +154,27 @@
 
                             <Border Style="{StaticResource RowDivider}" />
 
+                            <Grid Padding="12,6" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="Check for updates" />
+
+                                <ToggleSwitch
+                                    Grid.Column="1"
+                                    MinWidth="0"
+                                    IsOn="{x:Bind ViewModel.ChecksForUpdates, Mode=TwoWay}"
+                                    OffContent=""
+                                    OnContent="" />
+                            </Grid>
+
+                            <Border Style="{StaticResource RowDivider}" />
+
                             <!--
                                 Where the version and the links live. It is on
                                 the only screen that is not about connecting,

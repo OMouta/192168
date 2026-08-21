@@ -17,9 +17,15 @@ public sealed partial class ManageGroupPage : Page
 
     public ManageGroupViewModel ViewModel { get; private set; } = null!;
 
-    /// <summary>What the window header says. The name rather than "Group": there
-    /// can be several, and this screen changes exactly one of them.</summary>
-    public string Title { get; private set; } = "Group";
+    /// <summary>
+    /// What the window header says. The name rather than "Group": there can be
+    /// several groups, and this screen changes exactly one of them.
+    ///
+    /// Read off the navigation parameter, because the header is set while
+    /// navigating and this page has not been given the group yet.
+    /// </summary>
+    public static string TitleFor(object? parameter)
+        => parameter is Target target && target.Name != "" ? target.Name + " settings" : "Group";
 
     /// <summary>
     /// The group is passed in rather than read back, because this screen is
@@ -33,7 +39,6 @@ public sealed partial class ManageGroupPage : Page
 
         var target = e.Parameter as Target ?? new Target("", "");
         ViewModel = new ManageGroupViewModel(App.Daemon, target.GroupId, target.Name);
-        Title = target.Name == "" ? "Group" : target.Name + " settings";
         Bindings.Update();
     }
 

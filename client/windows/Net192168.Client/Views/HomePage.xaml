@@ -83,61 +83,55 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <Ellipse
+            <!--
+                Every row's button is in this column, so they line up down the
+                left edge beside the thing each one acts on.
+
+                Everybody can leave. Only the owner has anything to change, so
+                only the owner is offered the way in.
+            -->
+            <Button
                 Grid.Row="0"
                 Grid.Column="0"
-                Width="9"
-                Height="9"
-                Margin="0,0,10,0"
+                Width="28"
+                Height="28"
+                Margin="0,0,6,0"
+                Padding="0"
                 VerticalAlignment="Center"
-                Fill="{x:Bind ViewModel.IsConnected, Mode=OneWay, Converter={StaticResource ConnectionBrush}}" />
+                AutomationProperties.Name="Group"
+                Background="Transparent"
+                BorderThickness="0"
+                ToolTipService.ToolTip="Group">
+                <FontIcon
+                    FontSize="13"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Glyph="&#xE712;" />
+                <Button.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem
+                            Click="OnManageGroup"
+                            Text="Group settings"
+                            Visibility="{x:Bind ViewModel.IsOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE713;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Click="OnLeaveConnected" Text="Leave group">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE7E8;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
 
-            <StackPanel
+            <TextBlock
                 Grid.Row="0"
                 Grid.Column="1"
-                Orientation="Horizontal"
-                Spacing="4">
-                <TextBlock
-                    VerticalAlignment="Center"
-                    Style="{StaticResource BodyStrongTextBlockStyle}"
-                    Text="{x:Bind ViewModel.GroupLabel, Mode=OneWay}"
-                    TextTrimming="CharacterEllipsis" />
-
-                <!--
-                    Everybody can leave. Only the owner has anything to change,
-                    so only the owner is offered the way in.
-                -->
-                <Button
-                    Width="24"
-                    Height="24"
-                    Padding="0"
-                    AutomationProperties.Name="Group"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    ToolTipService.ToolTip="Group">
-                    <FontIcon
-                        FontSize="12"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Glyph="&#xE712;" />
-                    <Button.Flyout>
-                        <MenuFlyout>
-                            <MenuFlyoutItem
-                                Click="OnManageGroup"
-                                Text="Group settings"
-                                Visibility="{x:Bind ViewModel.IsOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                                <MenuFlyoutItem.Icon>
-                                    <FontIcon Glyph="&#xE713;" />
-                                </MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem Click="OnLeaveConnected" Text="Leave group">
-                                <MenuFlyoutItem.Icon>
-                                    <FontIcon Glyph="&#xE7E8;" />
-                                </MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                        </MenuFlyout>
-                    </Button.Flyout>
-                </Button>
-            </StackPanel>
+                VerticalAlignment="Center"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="{x:Bind ViewModel.GroupLabel, Mode=OneWay}"
+                TextTrimming="CharacterEllipsis" />
 
             <TextBlock
                 Grid.Row="0"
@@ -147,17 +141,11 @@
                 Style="{StaticResource CaptionTextBlockStyle}"
                 Text="{x:Bind ViewModel.Status, Mode=OneWay}" />
 
-            <!--  The address, which is the thing people type into games.  -->
-            <TextBlock
-                Grid.Row="1"
-                Grid.Column="1"
-                VerticalAlignment="Center"
-                FontFamily="Consolas"
-                FontSize="22"
-                Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                IsTextSelectionEnabled="True"
-                Text="{x:Bind ViewModel.VirtualIp, Mode=OneWay}" />
-
+            <!--
+                The address, which is the thing people type into games, with the
+                way to copy it beside it. Pushed to the far edge of the card the
+                button read as belonging to the row rather than to the address.
+            -->
             <!--
                 Copying leaves nothing behind on its own, so the button answers
                 for itself for a moment rather than putting a line of text
@@ -165,10 +153,12 @@
             -->
             <Button
                 Grid.Row="1"
-                Grid.Column="2"
-                Width="32"
-                Height="32"
+                Grid.Column="0"
+                Width="28"
+                Height="28"
+                Margin="0,0,6,0"
                 Padding="0"
+                VerticalAlignment="Center"
                 AutomationProperties.Name="Copy address"
                 Background="Transparent"
                 BorderThickness="0"
@@ -186,6 +176,17 @@
                         Visibility="{x:Bind ViewModel.JustCopied, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
                 </Grid>
             </Button>
+
+            <TextBlock
+                Grid.Row="1"
+                Grid.Column="1"
+                Grid.ColumnSpan="2"
+                VerticalAlignment="Center"
+                FontFamily="Consolas"
+                FontSize="22"
+                Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                IsTextSelectionEnabled="True"
+                Text="{x:Bind ViewModel.VirtualIp, Mode=OneWay}" />
 
             <!--  The name everyone else sees, changed in place.  -->
             <StackPanel
@@ -206,6 +207,24 @@
                     TextTrimming="CharacterEllipsis" />
             </StackPanel>
 
+            <!--  In the same column as the others, beside the name it changes.  -->
+            <Button
+                Grid.Row="2"
+                Grid.Column="0"
+                Width="28"
+                Height="28"
+                Margin="0,0,6,0"
+                Padding="0"
+                VerticalAlignment="Center"
+                AutomationProperties.Name="Change nickname"
+                Background="Transparent"
+                BorderThickness="0"
+                Click="OnEditNickname"
+                ToolTipService.ToolTip="Change your nickname"
+                Visibility="{x:Bind ViewModel.IsEditingNickname, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}">
+                <FontIcon FontSize="13" Glyph="&#xE70F;" />
+            </Button>
+
             <TextBox
                 x:Name="NicknameBox"
                 Grid.Row="2"
@@ -216,20 +235,6 @@
                 Text="{x:Bind ViewModel.NicknameDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                 Visibility="{x:Bind ViewModel.IsEditingNickname, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
 
-            <Button
-                Grid.Row="2"
-                Grid.Column="2"
-                Width="32"
-                Height="32"
-                Padding="0"
-                AutomationProperties.Name="Change nickname"
-                Background="Transparent"
-                BorderThickness="0"
-                Click="OnEditNickname"
-                ToolTipService.ToolTip="Change your nickname"
-                Visibility="{x:Bind ViewModel.IsEditingNickname, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}">
-                <FontIcon FontSize="13" Glyph="&#xE70F;" />
-            </Button>
         </Grid>
 
         <Grid Grid.Row="3">

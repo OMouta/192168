@@ -189,7 +189,9 @@ public sealed partial class MainWindow : Window
         {
             SettingsPage => "Settings",
             AboutPage => "About",
-            ManageGroupPage page => page.Title,
+            // From the parameter, not the page: the page sets its own title in
+            // OnNavigatedTo, which has not run by the time this does.
+            ManageGroupPage => ManageGroupPage.TitleFor(e.Parameter),
             GroupPage page => page.ViewModel.Title,
             _ => null,
         };
