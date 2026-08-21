@@ -96,11 +96,16 @@ public sealed partial class HomePage : Page
     private void OnJoin(object sender, RoutedEventArgs e)
         => Frame.Navigate(typeof(GroupPage), GroupPageMode.Join);
 
-    // Renaming and the join password. Who is in the group is managed from the
-    // rows themselves, where the people already are.
+    // The name, the look, and the join password. Who is in the group is managed
+    // from the rows themselves, where the people already are.
+    //
+    // The connected group is in the list like every other one, and its row is
+    // what the screen starts from. Without it there is a name and nothing else,
+    // which would put the picker back to the default look.
     private void OnManageGroup(object sender, RoutedEventArgs e)
-        => Frame.Navigate(typeof(ManageGroupPage),
-            new ManageGroupPage.Target(ViewModel.ConnectedGroupId, ViewModel.GroupLabel ?? ""));
+        => Frame.Navigate(typeof(ManageGroupPage), ViewModel.ConnectedGroup is GroupListItem group
+            ? Target(group)
+            : new ManageGroupPage.Target(ViewModel.ConnectedGroupId, ViewModel.GroupLabel ?? ""));
 
     // The same screen, reached from a group in the list rather than from the one
     // that is connected, so a group can be changed without joining it first.
@@ -108,9 +113,12 @@ public sealed partial class HomePage : Page
     {
         if (Group(sender) is GroupListItem group)
         {
-            Frame.Navigate(typeof(ManageGroupPage), new ManageGroupPage.Target(group.GroupId, group.Name ?? ""));
+            Frame.Navigate(typeof(ManageGroupPage), Target(group));
         }
     }
+
+    private static ManageGroupPage.Target Target(GroupListItem group)
+        => new(group.GroupId, group.Name ?? "", group.Icon, group.Color);
 
     // Leaving the group that is connected. The daemon disconnects on the way.
     private async void OnLeaveConnected(object sender, RoutedEventArgs e)

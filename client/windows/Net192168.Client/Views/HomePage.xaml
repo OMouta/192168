@@ -153,13 +153,40 @@
                 </Button.Flyout>
             </Button>
 
-            <TextBlock
+            <!--
+                The group's own icon and colour, the same ones its row in the
+                list wore, so the screen you land on after connecting is marked
+                as the group you picked.
+            -->
+            <Grid
                 Grid.Row="0"
                 Grid.Column="1"
-                VerticalAlignment="Center"
-                Style="{StaticResource BodyStrongTextBlockStyle}"
-                Text="{x:Bind ViewModel.GroupLabel, Mode=OneWay}"
-                TextTrimming="CharacterEllipsis" />
+                ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border
+                    Grid.Column="0"
+                    Width="28"
+                    Height="28"
+                    VerticalAlignment="Center"
+                    Background="{x:Bind ViewModel.ConnectedLook.Background, Mode=OneWay}"
+                    CornerRadius="7">
+                    <FontIcon
+                        FontSize="14"
+                        Foreground="{x:Bind ViewModel.ConnectedLook.Foreground, Mode=OneWay}"
+                        Glyph="{x:Bind ViewModel.ConnectedLook.Glyph, Mode=OneWay}" />
+                </Border>
+
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource BodyStrongTextBlockStyle}"
+                    Text="{x:Bind ViewModel.GroupLabel, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis" />
+            </Grid>
 
             <TextBlock
                 Grid.Row="0"
@@ -453,13 +480,35 @@
                         <Grid>
                             <Grid ColumnSpacing="6" Visibility="{x:Bind IsConfirmingLeave, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <StackPanel
+                                <!--
+                                    The group's own icon and colour, which is
+                                    what a row is found by once somebody is in
+                                    more than two groups. Every row has one:
+                                    a group nobody has chosen for gets the
+                                    default rather than a gap where the others
+                                    have something.
+                                -->
+                                <Border
                                     Grid.Column="0"
+                                    Width="32"
+                                    Height="32"
+                                    VerticalAlignment="Center"
+                                    Background="{x:Bind Look.Background, Mode=OneWay}"
+                                    CornerRadius="8">
+                                    <FontIcon
+                                        FontSize="15"
+                                        Foreground="{x:Bind Look.Foreground, Mode=OneWay}"
+                                        Glyph="{x:Bind Look.Glyph, Mode=OneWay}" />
+                                </Border>
+
+                                <StackPanel
+                                    Grid.Column="1"
                                     Margin="0,0,4,0"
                                     VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal" Spacing="5">
@@ -484,7 +533,7 @@
                                     not jump the moment it is pressed.
                                 -->
                                 <Button
-                                    Grid.Column="1"
+                                    Grid.Column="2"
                                     MinWidth="104"
                                     Click="OnConnect"
                                     IsEnabled="{x:Bind CanConnect, Mode=OneWay}"
@@ -508,7 +557,7 @@
                                     Connect where a mis-click would find it.
                                 -->
                                 <Button
-                                    Grid.Column="2"
+                                    Grid.Column="3"
                                     Width="32"
                                     Height="32"
                                     Padding="0"
