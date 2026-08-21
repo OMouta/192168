@@ -77,6 +77,9 @@ public sealed partial class MainWindow : Window
         App.Daemon.StateChanged += UpdateTray;
         UpdateTray();
 
+        App.Daemon.StateChanged += AnnounceArrivals;
+        AnnounceArrivals();
+
         // The installer kills whatever still holds the files it replaces, and a
         // killed process leaves its tray icon behind. Quit first.
         Updates.Installing += () => _ = QuitAsync(stopService: false);
@@ -109,6 +112,59 @@ public sealed partial class MainWindow : Window
         1 => "1 other online",
         _ => $"{peers} others online",
     };
+
+    /// <summary>Who was on the network last time the state changed. Arriving is
+    /// the event, so the difference is what matters and not the list.</summary>
+    private readonly HashSet<string> _here = [];
+
+    /// <summary>The group the set above belongs to, so joining a different one
+    /// starts over rather than announcing everybody in it.</summary>
+    private string _announcingFor = "";
+
+    /// <summary>
+    /// Says when somebody joins the network. The window is behind a game when
+    /// that happens, which is the whole point of it.
+    ///
+    /// Nobody is announced on the way in. Everyone already there would arrive at
+    /// once, which is a stack of notifications saying what the screen behind
+    /// them already says.
+    /// </summary>
+    private void AnnounceArrivals()
+    {
+        var state = App.Daemon.State;
+        if (state.Connection != ConnectionState.Connected)
+        {
+            _announcingFor = "";
+            _here.Clear();
+            return;
+        }
+
+        var arriving = _announcingFor == state.GroupId;
+        if (!arriving)
+        {
+            _announcingFor = state.GroupId ?? "";
+            _here.Clear();
+        }
+
+        foreach (var peer in state.Peers)
+        {
+            // Connecting counts. Somebody whose link is still being built is
+            // here, and waiting for it to open would hold the news back for
+            // however long their router takes.
+            if (peer.State == PeerState.Offline || !_here.Add(peer.DeviceId))
+            {
+                continue;
+            }
+            if (arriving)
+            {
+                Tray.ShowNotification($"{peer.Nickname} is here", $"On {state.GroupName}.");
+            }
+        }
+
+        // Dropping whoever left is what lets them be announced again when they
+        // come back, which for somebody whose connection is poor is the news.
+        _here.RemoveWhere(id => !state.Peers.Any(p => p.DeviceId == id && p.State != PeerState.Offline));
+    }
 
     /// <summary>
     /// Brings the window back from the tray. Showing is not enough on its own:
@@ -159,6 +215,7 @@ public sealed partial class MainWindow : Window
     {
         _exiting = true;
         App.Daemon.StateChanged -= UpdateTray;
+        App.Daemon.StateChanged -= AnnounceArrivals;
 
         // Quitting must not depend on the service agreeing to stop, or on the
         // stop returning at all.
