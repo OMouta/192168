@@ -32,17 +32,19 @@ const (
 	MethodDisconnect  Method = "Disconnect"
 	MethodSetNickname Method = "SetNickname"
 
-	// Managing a group. All four are the owner's alone, and the server is what
-	// says so: the app hides them from everyone else, and hiding is not
+	// Managing a group. Every one of these is the owner's alone, and the server
+	// is what says so: the app hides them from everyone else, and hiding is not
 	// enforcing.
-	MethodRemoveMember      Method = "RemoveMember"
-	MethodRenameGroup       Method = "RenameGroup"
-	MethodSetGroupPassword  Method = "SetGroupPassword"
-	MethodTransferOwnership Method = "TransferOwnership"
-	MethodDeleteGroup       Method = "DeleteGroup"
-	MethodGetServer         Method = "GetServer"
-	MethodSetServer         Method = "SetServer"
-	MethodTestServer        Method = "TestServer"
+	MethodRemoveMember       Method = "RemoveMember"
+	MethodRenameGroup        Method = "RenameGroup"
+	MethodSetGroupAppearance Method = "SetGroupAppearance"
+	MethodSetGroupPassword   Method = "SetGroupPassword"
+	MethodTransferOwnership  Method = "TransferOwnership"
+	MethodDeleteGroup        Method = "DeleteGroup"
+
+	MethodGetServer  Method = "GetServer"
+	MethodSetServer  Method = "SetServer"
+	MethodTestServer Method = "TestServer"
 	// LAN discovery: replicating broadcast and multicast across the group, and
 	// pointing this machine's multicast at the tunnel while connected. It has
 	// a cost outside the app, so the user decides.

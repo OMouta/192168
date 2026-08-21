@@ -37,8 +37,12 @@ type State struct {
 	ServerOnline bool            `json:"serverOnline"`
 	GroupID      string          `json:"groupId,omitempty"`
 	GroupName    string          `json:"groupName,omitempty"`
-	Nickname     string          `json:"nickname,omitempty"`
-	VirtualIP    string          `json:"virtualIp,omitempty"`
+	// GroupIcon and GroupColor are the connected group's look, so the screen
+	// showing it is marked the same way its row in the list was.
+	GroupIcon  string `json:"groupIcon,omitempty"`
+	GroupColor string `json:"groupColor,omitempty"`
+	Nickname   string `json:"nickname,omitempty"`
+	VirtualIP  string `json:"virtualIp,omitempty"`
 	// IsOwner says whether this device runs the connected group, which is what
 	// decides whether the managing parts of the screen are there at all.
 	IsOwner bool       `json:"isOwner,omitempty"`
@@ -59,8 +63,12 @@ type PeerView struct {
 
 // Group is one saved membership as shown on the groups screen.
 type Group struct {
-	GroupID       string `json:"groupId"`
-	Name          string `json:"name"`
+	GroupID string `json:"groupId"`
+	Name    string `json:"name"`
+	// Icon and Color are keys the client maps to a glyph and a colour, so the
+	// list can be read at a glance. Empty means the default look.
+	Icon          string `json:"icon,omitempty"`
+	Color         string `json:"color,omitempty"`
 	Nickname      string `json:"nickname"`
 	Active        bool   `json:"active"`
 	OnlineMembers *int   `json:"onlineMembers,omitempty"`

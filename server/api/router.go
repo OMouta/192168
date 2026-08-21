@@ -69,6 +69,7 @@ func New(cfg config.Config, store *storage.Store, log *slog.Logger) *Server {
 	mux.Handle("GET /api/groups/{groupId}/members", s.authenticated(s.handleListMembers))
 	mux.Handle("DELETE /api/groups/{groupId}/members/{deviceId}", s.authenticated(s.handleRemoveMember))
 	mux.Handle("PUT /api/groups/{groupId}/name", s.authenticated(s.handleRenameGroup))
+	mux.Handle("PUT /api/groups/{groupId}/appearance", s.authenticated(s.handleSetGroupAppearance))
 	mux.Handle("PUT /api/groups/{groupId}/password", s.authenticated(s.handleSetGroupPassword))
 	mux.Handle("PUT /api/groups/{groupId}/owner/{deviceId}", s.authenticated(s.handleTransferOwnership))
 	mux.Handle("DELETE /api/groups/{groupId}/membership", s.authenticated(s.handleLeaveGroup))

@@ -153,13 +153,7 @@ func (c *Core) GetGroups(ctx context.Context) ([]ipc.Group, error) {
 
 	groups := make([]ipc.Group, 0, len(memberships))
 	for _, m := range memberships {
-		groups = append(groups, ipc.Group{
-			GroupID:  m.GroupID,
-			Name:     m.GroupName,
-			Nickname: m.Nickname,
-			Active:   c.session != nil && c.session.groupID == m.GroupID,
-			IsOwner:  m.Role == api.RoleOwner,
-		})
+		groups = append(groups, toGroup(m, c.session != nil && c.session.groupID == m.GroupID))
 	}
 	return groups, nil
 }
@@ -175,7 +169,13 @@ func (c *Core) CreateGroup(ctx context.Context, params ipc.CreateGroupParams) (i
 	}
 
 	membership, err := withClient(c, ctx, func(client *control.Client) (api.Membership, error) {
-		return client.CreateGroup(ctx, params.Name, params.Password, params.Nickname)
+		return client.CreateGroup(ctx, control.NewGroup{
+			Name:     params.Name,
+			Password: params.Password,
+			Nickname: params.Nickname,
+			Icon:     params.Icon,
+			Color:    params.Color,
+		})
 	})
 	if err != nil {
 		return ipc.Group{}, err
@@ -377,6 +377,8 @@ func toGroup(m api.Membership, active bool) ipc.Group {
 	return ipc.Group{
 		GroupID:  m.GroupID,
 		Name:     m.GroupName,
+		Icon:     m.GroupIcon,
+		Color:    m.GroupColor,
 		Nickname: m.Nickname,
 		Active:   active,
 		IsOwner:  m.Role == api.RoleOwner,
@@ -454,6 +456,39 @@ func (c *Core) RenameGroup(ctx context.Context, params ipc.RenameGroupParams) er
 	return nil
 }
 
+// SetGroupAppearance changes the icon and colour a group is shown with, for
+// everyone in it.
+//
+// The keys are passed through rather than checked against a list. What an icon
+// looks like is the app's business, and a daemon that had to know every one of
+// them would have to be updated before the app could offer a new one.
+func (c *Core) SetGroupAppearance(ctx context.Context, params ipc.SetGroupAppearanceParams) error {
+	if params.GroupID == "" {
+		return &ipcserver.Failure{Code: "bad_request", Message: "Choose a group to change."}
+	}
+
+	_, err := withClient(c, ctx, func(client *control.Client) (struct{}, error) {
+		return struct{}{}, client.SetGroupAppearance(ctx, params.GroupID, params.Icon, params.Color)
+	})
+	if err != nil {
+		return err
+	}
+
+	// The connected screen wears the group's look too, so changing it while
+	// that group is up has to show there rather than at the next connect.
+	c.mu.Lock()
+	if c.session != nil && c.session.groupID == params.GroupID {
+		c.state.GroupIcon = params.Icon
+		c.state.GroupColor = params.Color
+	}
+	state := c.snapshot()
+	c.mu.Unlock()
+
+	c.log.Info("group appearance changed", "groupId", params.GroupID, "icon", params.Icon, "color", params.Color)
+	c.emit(ipc.EventStateChanged, state)
+	return nil
+}
+
 // SetGroupPassword changes the password a new member joins with.
 //
 // It removes nobody, and is not meant to. Once somebody is in, the device token
@@ -465,7 +500,7 @@ func (c *Core) SetGroupPassword(ctx context.Context, params ipc.SetGroupPassword
 
 	// The proof is derived from the group's name, so the name has to be the one
 	// the server has rather than whatever the screen last showed.
-	name, _, _, _ := c.describeGroup(ctx, params.GroupID)
+	name := c.describeGroup(ctx, params.GroupID).GroupName
 
 	_, err := withClient(c, ctx, func(client *control.Client) (struct{}, error) {
 		return struct{}{}, client.SetGroupPassword(ctx, params.GroupID, name, params.Password)

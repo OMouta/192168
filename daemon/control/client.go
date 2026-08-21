@@ -131,14 +131,27 @@ func (c *Client) Register(ctx context.Context, deviceID, name, publicKey, transp
 	return res.DeviceToken, nil
 }
 
+// NewGroup is everything creating one takes. A struct rather than a row of
+// strings: name, password, nickname, icon, and colour all look alike to a
+// compiler, and getting two of them the wrong way round is silent.
+type NewGroup struct {
+	Name     string
+	Password string
+	Nickname string
+	Icon     string
+	Color    string
+}
+
 // CreateGroup creates a group and joins it. The password is turned into a proof
 // here and never sent.
-func (c *Client) CreateGroup(ctx context.Context, name, password, nickname string) (api.Membership, error) {
+func (c *Client) CreateGroup(ctx context.Context, g NewGroup) (api.Membership, error) {
 	var m api.Membership
 	err := c.do(ctx, http.MethodPost, c.discovery.API+"/groups", api.CreateGroupRequest{
-		Name:          name,
-		PasswordProof: auth.DeriveGroupProof(password, name),
-		Nickname:      nickname,
+		Name:          g.Name,
+		PasswordProof: auth.DeriveGroupProof(g.Password, g.Name),
+		Nickname:      g.Nickname,
+		Icon:          g.Icon,
+		Color:         g.Color,
 	}, &m)
 	return m, err
 }
@@ -288,6 +301,12 @@ func (c *Client) RenameGroup(ctx context.Context, groupID, name string) error {
 		Name string `json:"name"`
 	}{Name: name}
 	return c.do(ctx, http.MethodPut, c.discovery.API+"/groups/"+groupID+"/name", body, nil)
+}
+
+// SetGroupAppearance changes the icon and colour the group is shown with.
+func (c *Client) SetGroupAppearance(ctx context.Context, groupID, icon, color string) error {
+	body := api.SetGroupAppearanceRequest{Icon: icon, Color: color}
+	return c.do(ctx, http.MethodPut, c.discovery.API+"/groups/"+groupID+"/appearance", body, nil)
 }
 
 // SetGroupPassword changes the password a new member joins with.

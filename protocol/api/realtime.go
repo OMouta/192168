@@ -37,9 +37,15 @@ type PeerOfflineData struct {
 
 // GroupUpdatedData accompanies EventGroupUpdated. Only the owner can cause one,
 // and everybody in the group needs to hear it.
+//
+// It describes the group as it now stands rather than only what changed, so a
+// listener can take it as it is instead of working out which fields the sender
+// meant.
 type GroupUpdatedData struct {
 	GroupID string `json:"groupId"`
 	Name    string `json:"name"`
+	Icon    string `json:"icon,omitempty"`
+	Color   string `json:"color,omitempty"`
 }
 
 // GroupDeletedData accompanies EventGroupDeleted. The group is gone, so anyone

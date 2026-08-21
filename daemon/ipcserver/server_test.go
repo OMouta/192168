@@ -92,6 +92,11 @@ func (h *fakeHandler) RenameGroup(_ context.Context, p ipc.RenameGroupParams) er
 	return h.failWith
 }
 
+func (h *fakeHandler) SetGroupAppearance(_ context.Context, p ipc.SetGroupAppearanceParams) error {
+	h.record("SetGroupAppearance:" + p.GroupID + ":" + p.Icon + ":" + p.Color)
+	return h.failWith
+}
+
 func (h *fakeHandler) SetGroupPassword(_ context.Context, p ipc.SetGroupPasswordParams) error {
 	h.record("SetGroupPassword:" + p.GroupID)
 	return h.failWith

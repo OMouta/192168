@@ -74,26 +74,28 @@ func (c *Core) runConnect(groupID string) {
 		return
 	}
 
-	groupName, nickname, subnet, owner := c.describeGroup(ctx, groupID)
+	membership := c.describeGroup(ctx, groupID)
 
 	c.mu.Lock()
 	c.session = &activeSession{
 		sessionID: session.SessionID,
 		groupID:   groupID,
-		groupName: groupName,
-		nickname:  nickname,
+		groupName: membership.GroupName,
+		nickname:  membership.Nickname,
 		virtualIP: session.VirtualIP,
-		subnet:    subnet,
+		subnet:    membership.Subnet,
 		stop:      stop,
 		done:      make(chan struct{}),
 	}
 	c.state.Connection = ipc.StateConnected
 	c.state.GroupID = groupID
-	c.state.GroupName = groupName
-	c.state.Nickname = nickname
+	c.state.GroupName = membership.GroupName
+	c.state.GroupIcon = membership.GroupIcon
+	c.state.GroupColor = membership.GroupColor
+	c.state.Nickname = membership.Nickname
 	c.state.VirtualIP = session.VirtualIP
 	c.state.Message = ""
-	c.state.IsOwner = owner
+	c.state.IsOwner = membership.Role == api.RoleOwner
 
 	// Peers start as connecting and are in the state before it is announced, so
 	// the first thing the UI draws already has the rows. The mesh moves each one
@@ -116,7 +118,7 @@ func (c *Core) runConnect(groupID string) {
 
 	c.emit(ipc.EventGroupConnected, ipc.GroupConnectedData{
 		GroupID:   groupID,
-		GroupName: groupName,
+		GroupName: membership.GroupName,
 		VirtualIP: session.VirtualIP,
 	})
 	c.emit(ipc.EventStateChanged, snapshot)
@@ -275,22 +277,26 @@ func (c *Core) finishDisconnect(session *activeSession, reason string) {
 	c.emit(ipc.EventStateChanged, state)
 }
 
-// describeGroup finds the name, nickname, and subnet for a group. The session
-// response carries none of them: the UI needs the first two for its title, and
-// the adapter needs the third to route the whole range rather than one address.
-func (c *Core) describeGroup(ctx context.Context, groupID string) (name, nickname, subnet string, owner bool) {
+// describeGroup finds this device's membership of a group. The session response
+// carries none of it: the UI needs the name, the look, and the nickname for its
+// title, and the adapter needs the subnet to route the whole range rather than
+// one address.
+//
+// A membership that cannot be read leaves a name to show, which is the group's
+// ID. Connecting has already worked by this point, and having nothing to call
+// the group is not a reason to undo it.
+func (c *Core) describeGroup(ctx context.Context, groupID string) api.Membership {
 	memberships, err := withClient(c, ctx, func(client *control.Client) ([]api.Membership, error) {
 		return client.Groups(ctx)
 	})
-	if err != nil {
-		return groupID, "", "", false
-	}
-	for _, m := range memberships {
-		if m.GroupID == groupID {
-			return m.GroupName, m.Nickname, m.Subnet, m.Role == api.RoleOwner
+	if err == nil {
+		for _, m := range memberships {
+			if m.GroupID == groupID {
+				return m
+			}
 		}
 	}
-	return groupID, "", "", false
+	return api.Membership{GroupID: groupID, GroupName: groupID}
 }
 
 // sortPeers puts everyone who is here first and orders both halves by address.

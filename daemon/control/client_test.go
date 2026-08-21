@@ -132,7 +132,7 @@ func TestFullFlowAgainstTheRealServer(t *testing.T) {
 	host, hostID := newDevice(t, url)
 	guest, guestID := newDevice(t, url)
 
-	group, err := host.CreateGroup(t.Context(), "Friday Night", "hunter2", "Tiago")
+	group, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night", Password: "hunter2", Nickname: "Tiago"})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestErrorsCarryTheServersCode(t *testing.T) {
 	host, _ := newDevice(t, url)
 	guest, _ := newDevice(t, url)
 
-	if _, err := host.CreateGroup(t.Context(), "Friday Night", "hunter2", "Tiago"); err != nil {
+	if _, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night", Password: "hunter2", Nickname: "Tiago"}); err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
 
@@ -238,7 +238,7 @@ func TestErrorsCarryTheServersCode(t *testing.T) {
 		{
 			name: "duplicate group name",
 			call: func() error {
-				_, err := host.CreateGroup(t.Context(), "Friday Night", "hunter2", "Tiago")
+				_, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night", Password: "hunter2", Nickname: "Tiago"})
 				return err
 			},
 			want: api.ErrGroupNameTaken,

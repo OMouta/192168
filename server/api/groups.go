@@ -25,6 +25,10 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request, devic
 		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "A group needs a name, a password, and a nickname.")
 		return
 	}
+	if !isAppearanceKey(req.Icon) || !isAppearanceKey(req.Color) {
+		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "That icon or colour will not work.")
+		return
+	}
 
 	verifier, err := auth.NewGroupVerifier(req.PasswordProof)
 	if err != nil {
@@ -40,6 +44,8 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request, devic
 	membership, err := s.store.CreateGroup(r.Context(), storage.Group{
 		ID:               id,
 		Name:             name,
+		Icon:             req.Icon,
+		Color:            req.Color,
 		PasswordVerifier: verifier,
 		Subnet:           DefaultSubnet,
 	}, auth.NormalizeGroupName(name), device.ID, nickname)
@@ -217,6 +223,8 @@ func toMembership(m storage.Membership) api.Membership {
 		MembershipID: m.ID,
 		GroupID:      m.GroupID,
 		GroupName:    m.GroupName,
+		GroupIcon:    m.GroupIcon,
+		GroupColor:   m.GroupColor,
 		Nickname:     m.Nickname,
 		Subnet:       m.Subnet,
 		VirtualIP:    m.VirtualIP,
@@ -265,8 +273,72 @@ func (s *Server) handleRenameGroup(w http.ResponseWriter, r *http.Request, devic
 	}
 	s.log.Info("group renamed", "groupId", groupID, "name", name, "by", device.ID)
 
-	s.hub.Broadcast(groupID, "", api.EventGroupUpdated, api.GroupUpdatedData{GroupID: groupID, Name: name})
+	s.announceGroup(r, groupID)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleSetGroupAppearance changes the icon and colour a group is shown with.
+//
+// Keys rather than a glyph and a hex colour. What they look like is the app's
+// business, so a server that has never heard of an icon can still carry it, and
+// a client that has never heard of one falls back to the default.
+func (s *Server) handleSetGroupAppearance(w http.ResponseWriter, r *http.Request, device storage.Device) {
+	var req api.SetGroupAppearanceRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	if !isAppearanceKey(req.Icon) || !isAppearanceKey(req.Color) {
+		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "That icon or colour will not work.")
+		return
+	}
+
+	groupID := r.PathValue("groupId")
+	if err := s.store.SetGroupAppearance(r.Context(), groupID, device.ID, req.Icon, req.Color); err != nil {
+		s.fail(w, r, err, api.ErrGroupNotFound, "You are not a member of that group.")
+		return
+	}
+	s.log.Info("group appearance changed", "groupId", groupID, "icon", req.Icon, "color", req.Color, "by", device.ID)
+
+	s.announceGroup(r, groupID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// announceGroup tells the group what it now is, after a change to the group
+// itself. Read back rather than assembled from the request, so the event
+// carries the whole group however little of it changed.
+func (s *Server) announceGroup(r *http.Request, groupID string) {
+	group, err := s.store.GroupByID(r.Context(), groupID)
+	if err != nil {
+		// The change went through; only the announcement did not. Everyone in
+		// the group picks it up the next time they list their groups.
+		s.log.Warn("cannot announce group change", "groupId", groupID, "error", err)
+		return
+	}
+
+	s.hub.Broadcast(groupID, "", api.EventGroupUpdated, api.GroupUpdatedData{
+		GroupID: group.ID,
+		Name:    group.Name,
+		Icon:    group.Icon,
+		Color:   group.Color,
+	})
+}
+
+// isAppearanceKey reports whether a key is one the client could have meant. The
+// set of icons and colours lives in the app, so this checks the shape rather
+// than the value: short, and nothing but lowercase letters, digits, and dashes.
+// Empty is allowed and means the default look.
+func isAppearanceKey(key string) bool {
+	if len(key) > 32 {
+		return false
+	}
+	for _, r := range key {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // handleSetGroupPassword changes the password a new member joins with.

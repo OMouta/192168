@@ -13,9 +13,15 @@ import (
 var ErrGroupFull = errors.New("storage: group is full")
 
 // Group is a persistent private LAN.
+//
+// Icon and Colour are how the group is told apart from the others in a list.
+// Both are short keys the app maps to a glyph and a colour, and both are empty
+// until somebody picks.
 type Group struct {
 	ID               string
 	Name             string
+	Icon             string
+	Color            string
 	PasswordVerifier string
 	Subnet           string
 	CreatedAt        time.Time
@@ -33,9 +39,12 @@ const (
 
 // Membership is one device's place in one group.
 type Membership struct {
-	ID        string
-	GroupID   string
-	GroupName string
+	ID         string
+	GroupID    string
+	GroupName  string
+	GroupIcon  string
+	GroupColor string
+
 	DeviceID  string
 	Nickname  string
 	Subnet    string
@@ -55,9 +64,9 @@ func (s *Store) CreateGroup(ctx context.Context, g Group, normalizedName, device
 
 	now := time.Now()
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO groups (id, name, name_normalized, password_verifier, subnet, created_by_device_id, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		g.ID, g.Name, normalizedName, g.PasswordVerifier, g.Subnet, deviceID, now.Unix())
+		INSERT INTO groups (id, name, name_normalized, icon, color, password_verifier, subnet, created_by_device_id, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		g.ID, g.Name, normalizedName, g.Icon, g.Color, g.PasswordVerifier, g.Subnet, deviceID, now.Unix())
 	if isUniqueViolation(err) {
 		return Membership{}, ErrConflict
 	}
@@ -86,14 +95,14 @@ func (s *Store) CreateGroup(ctx context.Context, g Group, normalizedName, device
 // finds one to join.
 func (s *Store) GroupByName(ctx context.Context, normalizedName string) (Group, error) {
 	return s.scanGroup(s.db.QueryRowContext(ctx, `
-		SELECT id, name, password_verifier, subnet, created_at
+		SELECT id, name, icon, color, password_verifier, subnet, created_at
 		FROM groups WHERE name_normalized = ?`, normalizedName))
 }
 
 // GroupByID looks a group up by ID.
 func (s *Store) GroupByID(ctx context.Context, id string) (Group, error) {
 	return s.scanGroup(s.db.QueryRowContext(ctx, `
-		SELECT id, name, password_verifier, subnet, created_at
+		SELECT id, name, icon, color, password_verifier, subnet, created_at
 		FROM groups WHERE id = ?`, id))
 }
 
@@ -102,7 +111,7 @@ func (s *Store) scanGroup(row *sql.Row) (Group, error) {
 		g       Group
 		created int64
 	)
-	err := row.Scan(&g.ID, &g.Name, &g.PasswordVerifier, &g.Subnet, &created)
+	err := row.Scan(&g.ID, &g.Name, &g.Icon, &g.Color, &g.PasswordVerifier, &g.Subnet, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Group{}, ErrNotFound
 	}
@@ -199,9 +208,12 @@ func insertMembership(ctx context.Context, tx *sql.Tx, g Group, deviceID, nickna
 	}
 
 	return Membership{
-		ID:        id,
-		GroupID:   g.ID,
-		GroupName: g.Name,
+		ID:         id,
+		GroupID:    g.ID,
+		GroupName:  g.Name,
+		GroupIcon:  g.Icon,
+		GroupColor: g.Color,
+
 		DeviceID:  deviceID,
 		Nickname:  nickname,
 		Subnet:    g.Subnet,
@@ -286,7 +298,7 @@ func freeAddress(subnet string, taken map[string]bool) (string, error) {
 // it reconnect without the group password.
 func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Membership, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.id, m.group_id, g.name, m.nickname, g.subnet, m.virtual_ip, m.role, m.created_at
+		SELECT m.id, m.group_id, g.name, g.icon, g.color, m.nickname, g.subnet, m.virtual_ip, m.role, m.created_at
 		FROM memberships m
 		JOIN groups g ON g.id = m.group_id
 		WHERE m.device_id = ? AND m.revoked_at IS NULL
@@ -302,7 +314,7 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 			m       Membership
 			created int64
 		)
-		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.Nickname, &m.Subnet, &m.VirtualIP, &m.Role, &created); err != nil {
+		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Nickname, &m.Subnet, &m.VirtualIP, &m.Role, &created); err != nil {
 			return nil, fmt.Errorf("storage: scan membership: %w", err)
 		}
 		m.DeviceID = deviceID
@@ -356,12 +368,12 @@ func (s *Store) Membership(ctx context.Context, groupID, deviceID string) (Membe
 		created int64
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT m.id, g.name, m.nickname, g.subnet, m.virtual_ip, m.role, m.created_at
+		SELECT m.id, g.name, g.icon, g.color, m.nickname, g.subnet, m.virtual_ip, m.role, m.created_at
 		FROM memberships m
 		JOIN groups g ON g.id = m.group_id
 		WHERE m.group_id = ? AND m.device_id = ? AND m.revoked_at IS NULL`,
 		groupID, deviceID,
-	).Scan(&m.ID, &m.GroupName, &m.Nickname, &m.Subnet, &m.VirtualIP, &m.Role, &created)
+	).Scan(&m.ID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Nickname, &m.Subnet, &m.VirtualIP, &m.Role, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Membership{}, ErrNotFound
 	}
@@ -490,6 +502,25 @@ func (s *Store) RenameGroup(ctx context.Context, groupID, ownerDeviceID, name, n
 		}
 		if err != nil {
 			return fmt.Errorf("storage: rename group: %w", err)
+		}
+		return nil
+	})
+}
+
+// SetGroupAppearance changes the icon and colour the group is shown with.
+//
+// Both at once, because they are picked together and read together: a colour
+// that arrives without the icon it was chosen against is a half-applied change
+// somebody has to fix.
+func (s *Store) SetGroupAppearance(ctx context.Context, groupID, ownerDeviceID, icon, color string) error {
+	return s.write(ctx, func(tx *sql.Tx) error {
+		if err := ownerOnly(ctx, tx, groupID, ownerDeviceID); err != nil {
+			return err
+		}
+
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE groups SET icon = ?, color = ? WHERE id = ?`, icon, color, groupID); err != nil {
+			return fmt.Errorf("storage: set group appearance: %w", err)
 		}
 		return nil
 	})

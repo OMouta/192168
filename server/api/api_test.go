@@ -642,6 +642,7 @@ func TestOnlyTheOwnerCanManageAGroup(t *testing.T) {
 	}{
 		{"remove a member", http.MethodDelete, "/api/groups/" + groupID + "/members/dev_owner", nil},
 		{"rename", http.MethodPut, "/api/groups/" + groupID + "/name", map[string]string{"name": "Theirs Now"}},
+		{"change the look", http.MethodPut, "/api/groups/" + groupID + "/appearance", papi.SetGroupAppearanceRequest{Icon: "star", Color: "pink"}},
 		{"change the password", http.MethodPut, "/api/groups/" + groupID + "/password", map[string]string{"passwordProof": auth.DeriveGroupProof("x", "y")}},
 		{"take ownership", http.MethodPut, "/api/groups/" + groupID + "/owner/dev_member", nil},
 	} {
@@ -660,6 +661,59 @@ func TestOnlyTheOwnerCanManageAGroup(t *testing.T) {
 		t.Fatalf("list groups: status %d", code)
 	}
 	if len(groups) != 1 || groups[0].GroupName != "Saturday Night" {
+		t.Fatalf("groups = %+v", groups)
+	}
+}
+
+// The look belongs to the group rather than to whoever picked it, so everybody
+// in it sees the same one.
+func TestTheGroupsLookReachesEveryMember(t *testing.T) {
+	h := newTestServer(t)
+	owner, member, groupID, _ := setUpGroup(t, h)
+
+	if code := call(t, h, http.MethodPut, "/api/groups/"+groupID+"/appearance", owner.token,
+		papi.SetGroupAppearanceRequest{Icon: "game", Color: "green"}, nil); code != http.StatusNoContent {
+		t.Fatalf("set appearance: status %d", code)
+	}
+
+	var groups []papi.Membership
+	if code := call(t, h, http.MethodGet, "/api/groups", member.token, nil, &groups); code != http.StatusOK {
+		t.Fatalf("list groups: status %d", code)
+	}
+	if len(groups) != 1 || groups[0].GroupIcon != "game" || groups[0].GroupColor != "green" {
+		t.Fatalf("groups = %+v", groups)
+	}
+
+	// The keys are the app's vocabulary, so the server checks their shape and
+	// not their meaning. Anything that could not have come from a picker is
+	// refused rather than stored for every client to puzzle over.
+	if code := call(t, h, http.MethodPut, "/api/groups/"+groupID+"/appearance", owner.token,
+		papi.SetGroupAppearanceRequest{Icon: "<script>", Color: "green"}, nil); code != http.StatusBadRequest {
+		t.Fatalf("set a nonsense icon: status %d, want 400", code)
+	}
+}
+
+// A group is made with its look rather than given one straight afterwards, so
+// it is never briefly something other than what its maker picked.
+func TestAGroupKeepsTheLookItWasMadeWith(t *testing.T) {
+	h := newTestServer(t)
+	owner := register(t, h, "dev_owner")
+
+	if code := call(t, h, http.MethodPost, "/api/groups", owner.token, papi.CreateGroupRequest{
+		Name:          "Sunday",
+		PasswordProof: auth.DeriveGroupProof("hunter2", "Sunday"),
+		Nickname:      "Tiago",
+		Icon:          "flag",
+		Color:         "orange",
+	}, nil); code != http.StatusCreated {
+		t.Fatalf("create: status %d", code)
+	}
+
+	var groups []papi.Membership
+	if code := call(t, h, http.MethodGet, "/api/groups", owner.token, nil, &groups); code != http.StatusOK {
+		t.Fatalf("list groups: status %d", code)
+	}
+	if len(groups) != 1 || groups[0].GroupIcon != "flag" || groups[0].GroupColor != "orange" {
 		t.Fatalf("groups = %+v", groups)
 	}
 }

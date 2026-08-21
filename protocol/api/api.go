@@ -54,10 +54,16 @@ type RegisterDeviceResponse struct {
 // CreateGroupRequest creates a new virtual LAN. PasswordProof comes out of the
 // client-side KDF in protocol/auth. The password itself never leaves the
 // machine.
+//
+// Icon and Color are the look the group is made with, in the same keys
+// SetGroupAppearanceRequest carries. Sent at creation rather than set after it,
+// so a group is never briefly something other than what its maker chose.
 type CreateGroupRequest struct {
 	Name          string `json:"name"`
 	PasswordProof string `json:"passwordProof"`
 	Nickname      string `json:"nickname"`
+	Icon          string `json:"icon,omitempty"`
+	Color         string `json:"color,omitempty"`
 }
 
 // JoinGroupRequest joins an existing group by name or ID.
@@ -75,14 +81,28 @@ type JoinGroupRequest struct {
 // VirtualIP is the address this device holds in the group. It is given when
 // the device joins and does not change, so it can be written into a game and
 // left there.
+//
+// GroupIcon and GroupColor are the look the group's owner picked, so a list of
+// groups can be told apart at a glance. Both are short keys the client maps to
+// a glyph and a colour; empty means it has not been chosen.
 type Membership struct {
 	MembershipID string `json:"membershipId"`
 	GroupID      string `json:"groupId"`
 	GroupName    string `json:"groupName"`
+	GroupIcon    string `json:"groupIcon,omitempty"`
+	GroupColor   string `json:"groupColor,omitempty"`
 	Nickname     string `json:"nickname"`
 	Subnet       string `json:"subnet"`
 	VirtualIP    string `json:"virtualIp"`
 	Role         string `json:"role"`
+}
+
+// SetGroupAppearanceRequest changes the icon and colour a group is shown with.
+// The owner's alone, and both are sent together because they are picked
+// together.
+type SetGroupAppearanceRequest struct {
+	Icon  string `json:"icon"`
+	Color string `json:"color"`
 }
 
 // CreateSessionResponse is returned when a device connects to a group. The
