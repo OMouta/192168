@@ -600,7 +600,7 @@ public sealed partial class HomeViewModel : ObservableObject
             row.Nickname = peer.Nickname;
             row.VirtualIp = peer.VirtualIp;
             row.Status = Describe(peer);
-            row.IsReachable = peer.State == PeerState.Direct;
+            row.IsReachable = peer.State is PeerState.Direct or PeerState.Indirect;
             row.IsHere = peer.State != PeerState.Offline;
             row.IsOwner = peer.IsOwner;
         }
@@ -644,13 +644,16 @@ public sealed partial class HomeViewModel : ObservableObject
     };
 
     /// <summary>
-    /// What a player is told about one peer. It says whether they can be
-    /// reached, not how the connection was made.
+    /// What a player is told about one peer: whether they can be reached, and
+    /// how quickly. The one detail of how worth saying is that somebody else is
+    /// carrying the link, because it explains the latency and it explains why
+    /// the link goes when that person does.
     /// </summary>
     private static string Describe(PeerView peer) => peer.State switch
     {
         PeerState.Direct when peer.LatencyMs is int ms => $"{ms} ms",
         PeerState.Direct => "Direct",
+        PeerState.Indirect when peer.LatencyMs is int ms => $"{ms} ms, relayed",
         PeerState.Indirect => "Relayed",
         PeerState.Connecting => "Connecting",
         PeerState.Failed => "Unreachable",
