@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/OMouta/192168/daemon/control"
+	"github.com/OMouta/192168/daemon/ipcserver"
 	"github.com/OMouta/192168/daemon/mesh"
 	"github.com/OMouta/192168/protocol/api"
 	"github.com/OMouta/192168/protocol/ipc"
@@ -398,6 +399,32 @@ func (c *Core) loadMembers(ctx context.Context, groupID string) {
 	c.mu.Unlock()
 
 	c.emit(ipc.EventStateChanged, state)
+}
+
+// RetryPeer attempts one link again, for someone who has changed something at
+// their end and wants to find out whether it worked.
+//
+// Only the link is thrown away. The session, the adapter and every other link
+// carry on, which is the difference between this and reconnecting.
+func (c *Core) RetryPeer(_ context.Context, params ipc.PeerParams) error {
+	if params.DeviceID == "" {
+		return &ipcserver.Failure{Code: "bad_request", Message: "Choose who to try again."}
+	}
+
+	c.mu.Lock()
+	links := c.mesh
+	_, known := c.peers[params.DeviceID]
+	c.mu.Unlock()
+
+	if links == nil || !known {
+		return &ipcserver.Failure{Code: "not_connected", Message: "That person is not on this network."}
+	}
+	if !links.RetryPeer(params.DeviceID) {
+		// In the list but with no link behind it, which is what somebody who is
+		// offline looks like. There is nothing to retry until they are back.
+		return &ipcserver.Failure{Code: "peer_offline", Message: "They are not connected right now."}
+	}
+	return nil
 }
 
 // peerWentOffline marks someone as away rather than taking them off the list.

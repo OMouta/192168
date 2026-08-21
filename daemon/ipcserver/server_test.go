@@ -82,6 +82,11 @@ func (h *fakeHandler) SetNickname(_ context.Context, p ipc.SetNicknameParams) er
 	return h.failWith
 }
 
+func (h *fakeHandler) RetryPeer(_ context.Context, p ipc.PeerParams) error {
+	h.record("RetryPeer:" + p.DeviceID)
+	return h.failWith
+}
+
 func (h *fakeHandler) RemoveMember(_ context.Context, p ipc.MemberParams) error {
 	h.record("RemoveMember:" + p.GroupID + ":" + p.DeviceID)
 	return h.failWith

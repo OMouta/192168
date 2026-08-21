@@ -40,6 +40,7 @@ type Handler interface {
 	Connect(ctx context.Context, groupID string) error
 	Disconnect(ctx context.Context) error
 	SetNickname(ctx context.Context, params ipc.SetNicknameParams) error
+	RetryPeer(ctx context.Context, params ipc.PeerParams) error
 	RemoveMember(ctx context.Context, params ipc.MemberParams) error
 	RenameGroup(ctx context.Context, params ipc.RenameGroupParams) error
 	SetGroupAppearance(ctx context.Context, params ipc.SetGroupAppearanceParams) error
@@ -307,6 +308,13 @@ func (s *Server) call(ctx context.Context, req ipc.Request) (any, error) {
 			return nil, badParams(err)
 		}
 		return nil, s.handler.SetNickname(ctx, params)
+
+	case ipc.MethodRetryPeer:
+		var params ipc.PeerParams
+		if err := req.UnmarshalParams(&params); err != nil {
+			return nil, badParams(err)
+		}
+		return nil, s.handler.RetryPeer(ctx, params)
 
 	case ipc.MethodRemoveMember:
 		var params ipc.MemberParams

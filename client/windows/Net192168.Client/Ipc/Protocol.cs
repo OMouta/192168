@@ -155,6 +155,10 @@ public sealed record LanDiscoveryParams(bool Enabled);
 /// <summary>Names one person in one group.</summary>
 public sealed record MemberParams(string GroupId, string DeviceId);
 
+/// <summary>One person on the connected network. No group, because only one is
+/// connected and a link belongs to that one.</summary>
+public sealed record PeerParams(string DeviceId);
+
 /// <summary>Changes what a group is called, for everyone in it.</summary>
 public sealed record RenameGroupParams(string GroupId, string Name);
 

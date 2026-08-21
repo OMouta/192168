@@ -411,6 +411,23 @@
                                 <Button.Flyout>
                                     <MenuFlyout>
                                         <!--
+                                            First, because a row that says
+                                            Unreachable is why this menu was
+                                            opened. Only there once the link has
+                                            been given up on: before that it is
+                                            still trying on its own.
+                                        -->
+                                        <MenuFlyoutItem
+                                            Command="{x:Bind RetryCommand}"
+                                            Text="Try again"
+                                            Visibility="{x:Bind CanRetry, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE72C;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator Visibility="{x:Bind CanRetry, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+                                        <!--
                                             Here or not. The address belongs to
                                             the person rather than to their
                                             session, so it is worth copying

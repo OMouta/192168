@@ -329,6 +329,31 @@ func (m *Mesh) RestartLinks() {
 	}
 }
 
+// RetryPeer throws away one link and starts over, for a user who has done
+// something about whatever was in the way.
+//
+// A link that has been given up on is not retried on its own: the punching
+// stopped, the handshake budget is spent, and nothing changes that but a new
+// endpoint from the server or a relay candidate turning up. This is the way to
+// ask again without disconnecting from the whole group.
+//
+// It reports whether there was such a peer.
+func (m *Mesh) RetryPeer(deviceID string) bool {
+	m.mu.RLock()
+	peer, ok := m.peers[deviceID]
+	m.mu.RUnlock()
+	if !ok {
+		return false
+	}
+
+	m.log.Info("retrying a peer", "deviceId", deviceID)
+	peer.restart()
+	m.report(peer)
+	m.punch(peer)
+	m.beginHandshake(peer)
+	return true
+}
+
 // RemovePeer forgets a device and everything about its link.
 func (m *Mesh) RemovePeer(deviceID string) {
 	m.mu.Lock()

@@ -31,6 +31,10 @@ const (
 	MethodConnect     Method = "ConnectGroup"
 	MethodDisconnect  Method = "Disconnect"
 	MethodSetNickname Method = "SetNickname"
+	// MethodRetryPeer asks for one link to be attempted again. A link that has
+	// been given up on does not retry on its own, so without this the only way
+	// back is to disconnect from the whole group.
+	MethodRetryPeer Method = "RetryPeer"
 
 	// Managing a group. All of these are the owner's alone, and the server is
 	// what says so: the app hides them from everyone else, and hiding is not

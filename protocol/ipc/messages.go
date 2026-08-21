@@ -163,6 +163,12 @@ type MemberParams struct {
 	DeviceID string `json:"deviceId"`
 }
 
+// PeerParams names one person on the connected network. No group, because only
+// one is connected and a link belongs to that one.
+type PeerParams struct {
+	DeviceID string `json:"deviceId"`
+}
+
 // RenameGroupParams changes what a group is called, for everyone in it.
 type RenameGroupParams struct {
 	GroupID string `json:"groupId"`

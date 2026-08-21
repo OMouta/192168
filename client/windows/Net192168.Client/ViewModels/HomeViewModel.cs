@@ -136,6 +136,18 @@ public sealed partial class PeerItem(string deviceId, HomeViewModel owner) : Obs
     [RelayCommand]
     private Task RemoveAsync() => Home.RemoveMemberAsync(this);
 
+    /// <summary>
+    /// True once the link has been given up on. Nothing retries it after that,
+    /// so this is what puts a way back on the row instead of leaving somebody
+    /// looking at Unreachable with nothing to press.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool CanRetry { get; set; }
+
+    /// <summary>Attempts the link again, leaving the rest of the group alone.</summary>
+    [RelayCommand]
+    private Task RetryAsync() => Home.RetryPeerAsync(this);
+
     /// <summary>Whoever runs the group, marked in the list so people know who to
     /// ask, and so the owner can see the mark move when they hand it over.</summary>
     [ObservableProperty]
@@ -585,6 +597,13 @@ public sealed partial class HomeViewModel : ObservableObject
         await RefreshAsync();
     }
 
+    /// <summary>Attempts one link again, leaving the session and the other
+    /// links alone.</summary>
+    public async Task RetryPeerAsync(PeerItem peer)
+    {
+        await Run(() => _daemon.RetryPeerAsync(peer.DeviceId));
+    }
+
     /// <summary>Takes someone out of the group, for good.</summary>
     public async Task RemoveMemberAsync(PeerItem peer)
     {
@@ -631,6 +650,7 @@ public sealed partial class HomeViewModel : ObservableObject
             row.Traffic = Describe(peer.PacketsSent, peer.PacketsReceived);
             row.IsReachable = peer.State is PeerState.Direct or PeerState.Indirect;
             row.IsHere = peer.State != PeerState.Offline;
+            row.CanRetry = peer.State == PeerState.Failed;
             row.IsOwner = peer.IsOwner;
         }
     }

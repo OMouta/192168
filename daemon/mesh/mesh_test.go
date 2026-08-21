@@ -213,6 +213,39 @@ func link(t *testing.T, n *node, deviceID string) *Peer {
 	return nil
 }
 
+// Being given up on is a dead end otherwise. Nothing retries a failed link on
+// its own, so this is the only way back that does not take the whole group down
+// with it.
+func TestRetryingAPeerOpensItAgain(t *testing.T) {
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
+	introduce(t, a, b)
+
+	waitForState(t, a, b.deviceID, ipc.PeerDirect)
+	waitForState(t, b, a.deviceID, ipc.PeerDirect)
+
+	// What giving up leaves behind: no session, and nothing that will try again.
+	peer := link(t, a, b.deviceID)
+	peer.fail()
+	if peer.State() != ipc.PeerFailed {
+		t.Fatalf("state = %s, want failed", peer.State())
+	}
+
+	if !a.mesh.RetryPeer(b.deviceID) {
+		t.Fatal("RetryPeer found no such peer")
+	}
+	// Retrying reports connecting on its way past, so the wait below is for the
+	// link opening again rather than for the state it was already in.
+	waitForState(t, a, b.deviceID, ipc.PeerDirect)
+}
+
+func TestRetryingSomebodyWhoIsNotHere(t *testing.T) {
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	if a.mesh.RetryPeer("dev_nobody") {
+		t.Error("RetryPeer claimed to have retried a peer it does not have")
+	}
+}
+
 func TestLatencyIsMeasured(t *testing.T) {
 	a := newNode(t, "dev_aaa", "10.69.0.1")
 	b := newNode(t, "dev_bbb", "10.69.0.2")

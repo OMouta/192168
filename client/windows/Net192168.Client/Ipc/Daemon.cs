@@ -184,6 +184,9 @@ public sealed class Daemon
     public Task<TestServerResult> TestServerAsync(string url)
         => _client.CallAsync<TestServerResult>("TestServer", new ServerParams(url), _lifetime.Token);
 
+    public Task RetryPeerAsync(string deviceId)
+        => _client.CallAsync("RetryPeer", new PeerParams(deviceId), _lifetime.Token);
+
     public Task RemoveMemberAsync(string groupId, string deviceId)
         => _client.CallAsync("RemoveMember", new MemberParams(groupId, deviceId), _lifetime.Token);
 
