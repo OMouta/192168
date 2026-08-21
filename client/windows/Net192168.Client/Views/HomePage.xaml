@@ -530,10 +530,28 @@
                                             ToolTipService.ToolTip="You own this group"
                                             Visibility="{x:Bind IsOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
                                     </StackPanel>
-                                    <TextBlock
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        Style="{StaticResource CaptionTextBlockStyle}"
-                                        Text="{x:Bind Nickname, Mode=OneWay}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <TextBlock
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Style="{StaticResource CaptionTextBlockStyle}"
+                                            Text="{x:Bind Nickname, Mode=OneWay}" />
+
+                                        <!--  Only where somebody is, so a quiet list stays quiet.  -->
+                                        <StackPanel
+                                            Orientation="Horizontal"
+                                            Spacing="5"
+                                            Visibility="{x:Bind IsAnyoneOnline, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                                            <Ellipse
+                                                Width="6"
+                                                Height="6"
+                                                VerticalAlignment="Center"
+                                                Fill="{x:Bind IsAnyoneOnline, Mode=OneWay, Converter={StaticResource ConnectionBrush}}" />
+                                            <TextBlock
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Style="{StaticResource CaptionTextBlockStyle}"
+                                                Text="{x:Bind Presence, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </StackPanel>
                                 </StackPanel>
 
                                 <!--

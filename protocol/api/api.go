@@ -94,6 +94,10 @@ type Membership struct {
 	Subnet       string `json:"subnet"`
 	VirtualIP    string `json:"virtualIp"`
 	Role         string `json:"role"`
+	// OnlineMembers is how many of the group are connected, counting this
+	// device. Absent where the server was not asked to count, which is not the
+	// same as nobody being there.
+	OnlineMembers *int `json:"onlineMembers,omitempty"`
 }
 
 // SetGroupAppearanceRequest changes the icon and colour a group is shown with.

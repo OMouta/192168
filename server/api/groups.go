@@ -220,15 +220,16 @@ func (s *Server) handleSetNickname(w http.ResponseWriter, r *http.Request, devic
 
 func toMembership(m storage.Membership) api.Membership {
 	return api.Membership{
-		MembershipID: m.ID,
-		GroupID:      m.GroupID,
-		GroupName:    m.GroupName,
-		GroupIcon:    m.GroupIcon,
-		GroupColor:   m.GroupColor,
-		Nickname:     m.Nickname,
-		Subnet:       m.Subnet,
-		VirtualIP:    m.VirtualIP,
-		Role:         string(m.Role),
+		MembershipID:  m.ID,
+		GroupID:       m.GroupID,
+		GroupName:     m.GroupName,
+		GroupIcon:     m.GroupIcon,
+		GroupColor:    m.GroupColor,
+		Nickname:      m.Nickname,
+		Subnet:        m.Subnet,
+		VirtualIP:     m.VirtualIP,
+		Role:          string(m.Role),
+		OnlineMembers: m.OnlineMembers,
 	}
 }
 

@@ -58,6 +58,22 @@ public sealed partial class MainWindow : Window
             AppWindow.Hide();
         };
 
+        // Who is online is why somebody opens this window, and the list is only
+        // fetched when the page is navigated to. Coming back from the tray is
+        // not a navigation, so the counts would be as old as the last visit.
+        //
+        // Only while disconnected, which is the only time that list is on
+        // screen. Alt-tabbing during a game asks the server for nothing.
+        Activated += (_, args) =>
+        {
+            if (args.WindowActivationState != WindowActivationState.Deactivated
+                && App.Daemon.State.Connection != ConnectionState.Connected
+                && ContentFrame.Content is HomePage home)
+            {
+                _ = home.RefreshAsync();
+            }
+        };
+
         App.Daemon.StateChanged += UpdateTray;
         UpdateTray();
 

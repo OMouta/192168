@@ -28,6 +28,10 @@ public sealed partial class HomePage : Page
         await ViewModel.RefreshAsync();
     }
 
+    /// <summary>Fetches the group list again, for the window coming back from
+    /// the tray, which is not a navigation.</summary>
+    public Task RefreshAsync() => ViewModel.RefreshAsync();
+
     private void OnEditNickname(object sender, RoutedEventArgs e)
     {
         ViewModel.StartEditingNicknameCommand.Execute(null);

@@ -50,6 +50,11 @@ type Membership struct {
 	VirtualIP string
 	Role      Role
 	CreatedAt time.Time
+
+	// OnlineMembers is how many of the group are connected right now, counting
+	// this device. Nil where it was not asked for, which is not the same as
+	// nobody being there.
+	OnlineMembers *int
 }
 
 // CreateGroup creates a group and makes its creator the first member, in one
@@ -296,8 +301,12 @@ func freeAddress(subnet string, taken map[string]bool) (string, error) {
 // MembershipsByDevice lists every group a device belongs to, which is what lets
 // it reconnect without the group password.
 func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Membership, error) {
+	// The session count comes along for the ride. It is what the list uses to
+	// say which groups are worth joining right now, and asking per group would
+	// be a query each.
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.id, m.group_id, g.name, g.icon, g.color, m.nickname, g.subnet, m.virtual_ip, m.role, m.created_at
+		SELECT m.id, m.group_id, g.name, g.icon, g.color, m.nickname, g.subnet, m.virtual_ip, m.role, m.created_at,
+		       (SELECT COUNT(*) FROM sessions s WHERE s.group_id = m.group_id)
 		FROM memberships m
 		JOIN groups g ON g.id = m.group_id
 		WHERE m.device_id = ? AND m.revoked_at IS NULL
@@ -312,12 +321,14 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 		var (
 			m       Membership
 			created int64
+			online  int
 		)
-		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Nickname, &m.Subnet, &m.VirtualIP, &m.Role, &created); err != nil {
+		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Nickname, &m.Subnet, &m.VirtualIP, &m.Role, &created, &online); err != nil {
 			return nil, fmt.Errorf("storage: scan membership: %w", err)
 		}
 		m.DeviceID = deviceID
 		m.CreatedAt = time.Unix(created, 0)
+		m.OnlineMembers = &online
 		out = append(out, m)
 	}
 	return out, rows.Err()

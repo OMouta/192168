@@ -388,6 +388,67 @@ func TestPeersInGroupLeavesOutTheCaller(t *testing.T) {
 	}
 }
 
+// The count is what the group list shows to say which groups are worth joining
+// right now, so it has to follow sessions rather than membership.
+func TestMembershipsCountWhoIsConnected(t *testing.T) {
+	s := newStore(t)
+	ctx := t.Context()
+	newDevice(t, s, "dev_1")
+	newDevice(t, s, "dev_2")
+	g, mine := newGroup(t, s, "dev_1", "friday night")
+
+	theirs, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	if err != nil {
+		t.Fatalf("AddMembership: %v", err)
+	}
+
+	if got := onlineIn(t, s, "dev_1", g.ID); got != 0 {
+		t.Errorf("a group nobody has connected to counted %d online", got)
+	}
+
+	if _, err := s.CreateSession(ctx, mine); err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	theirSession, err := s.CreateSession(ctx, theirs)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
+	// Counting yourself is deliberate. The list says how many are on the
+	// network, and you would be one of them.
+	if got := onlineIn(t, s, "dev_1", g.ID); got != 2 {
+		t.Errorf("both connected counted %d online, want 2", got)
+	}
+
+	if err := s.DeleteSession(ctx, theirSession.ID); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+	if got := onlineIn(t, s, "dev_1", g.ID); got != 1 {
+		t.Errorf("after one left, counted %d online, want 1", got)
+	}
+}
+
+// onlineIn reads one group's count out of a device's membership list.
+func onlineIn(t *testing.T, s *Store, deviceID, groupID string) int {
+	t.Helper()
+
+	memberships, err := s.MembershipsByDevice(t.Context(), deviceID)
+	if err != nil {
+		t.Fatalf("MembershipsByDevice: %v", err)
+	}
+	for _, m := range memberships {
+		if m.GroupID != groupID {
+			continue
+		}
+		if m.OnlineMembers == nil {
+			t.Fatalf("%s came back without a count", groupID)
+		}
+		return *m.OnlineMembers
+	}
+	t.Fatalf("%s is not in %s", deviceID, groupID)
+	return 0
+}
+
 func TestRevokingAMembershipEndsItsSession(t *testing.T) {
 	s := newStore(t)
 	ctx := t.Context()

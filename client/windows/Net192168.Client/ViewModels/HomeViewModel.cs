@@ -56,6 +56,21 @@ public sealed partial class GroupListItem : ObservableObject
 
     public string GroupId { get; init; } = "";
 
+    /// <summary>
+    /// How many of the group are connected right now. This is what makes the
+    /// list worth opening: you can see whether anyone is around without joining
+    /// each group to find out.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Presence))]
+    [NotifyPropertyChangedFor(nameof(IsAnyoneOnline))]
+    public partial int? OnlineMembers { get; set; }
+
+    /// <summary>Nothing for an empty group, so a quiet list stays quiet.</summary>
+    public bool IsAnyoneOnline => OnlineMembers is int n && n > 0;
+
+    public string Presence => IsAnyoneOnline ? $"{OnlineMembers} online" : "";
+
     /// <summary>Whether this device runs the group. It decides whether the row
     /// says so and offers a way into its settings.</summary>
     [ObservableProperty]
@@ -358,6 +373,7 @@ public sealed partial class HomeViewModel : ObservableObject
                     Icon = group.Icon,
                     Color = group.Color,
                     Nickname = group.Nickname,
+                    OnlineMembers = group.OnlineMembers,
                     IsOwner = group.IsOwner,
                 });
             }

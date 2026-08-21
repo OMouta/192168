@@ -382,13 +382,14 @@ func (c *Core) snapshot() ipc.State {
 
 func toGroup(m api.Membership, active bool) ipc.Group {
 	return ipc.Group{
-		GroupID:  m.GroupID,
-		Name:     m.GroupName,
-		Icon:     m.GroupIcon,
-		Color:    m.GroupColor,
-		Nickname: m.Nickname,
-		Active:   active,
-		IsOwner:  m.Role == api.RoleOwner,
+		GroupID:       m.GroupID,
+		Name:          m.GroupName,
+		Icon:          m.GroupIcon,
+		Color:         m.GroupColor,
+		Nickname:      m.Nickname,
+		Active:        active,
+		OnlineMembers: m.OnlineMembers,
+		IsOwner:       m.Role == api.RoleOwner,
 	}
 }
 
