@@ -10,9 +10,11 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"embed"
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 
 	_ "modernc.org/sqlite"
@@ -80,127 +82,41 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-// migrations run in order and never change once released. Adding a column means
-// adding an entry, not editing one.
-var migrations = []string{
-	`CREATE TABLE devices (
-		id            TEXT PRIMARY KEY,
-		public_key    TEXT NOT NULL UNIQUE,
-		transport_key TEXT NOT NULL,
-		name          TEXT NOT NULL,
-		created_at    INTEGER NOT NULL,
-		last_seen_at  INTEGER NOT NULL
-	)`,
+// migrations run in filename order, one statement per file. The number in the
+// name is the schema version, so a released file is never edited, renamed, or
+// renumbered: it has already run on databases still in use.
+//
+//go:embed migrations/*.sql
+var migrations embed.FS
 
-	// Tokens are stored hashed. A leaked database should not hand out live
-	// credentials, and the server never needs the original back.
-	`CREATE TABLE device_tokens (
-		token_hash TEXT PRIMARY KEY,
-		device_id  TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-		created_at INTEGER NOT NULL,
-		revoked_at INTEGER
-	)`,
-	`CREATE INDEX idx_device_tokens_device ON device_tokens(device_id)`,
+// migrationFiles lists the migrations in the order they apply. A name out of
+// sequence fails startup rather than skipping a version or repeating one.
+func migrationFiles() ([]fs.DirEntry, error) {
+	files, err := fs.ReadDir(migrations, "migrations")
+	if err != nil {
+		return nil, fmt.Errorf("storage: read migrations: %w", err)
+	}
 
-	// Registration nonces, kept only long enough to outlive the timestamp skew
-	// a registration is allowed, then pruned.
-	`CREATE TABLE register_nonces (
-		nonce   TEXT PRIMARY KEY,
-		seen_at INTEGER NOT NULL
-	)`,
-
-	`CREATE TABLE groups (
-		id                   TEXT PRIMARY KEY,
-		name                 TEXT NOT NULL,
-		name_normalized      TEXT NOT NULL UNIQUE,
-		password_verifier    TEXT NOT NULL,
-		subnet               TEXT NOT NULL,
-		created_by_device_id TEXT NOT NULL REFERENCES devices(id),
-		created_at           INTEGER NOT NULL
-	)`,
-
-	`CREATE TABLE memberships (
-		id         TEXT PRIMARY KEY,
-		group_id   TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-		device_id  TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-		nickname   TEXT NOT NULL,
-		created_at INTEGER NOT NULL,
-		revoked_at INTEGER,
-		UNIQUE (group_id, device_id)
-	)`,
-
-	// One session per membership, so connecting twice replaces the old one
-	// rather than leaving a ghost in the peer list. Virtual IPs are unique
-	// inside a group and only for as long as the session lives.
-	`CREATE TABLE sessions (
-		id               TEXT PRIMARY KEY,
-		group_id         TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-		membership_id    TEXT NOT NULL UNIQUE REFERENCES memberships(id) ON DELETE CASCADE,
-		virtual_ip       TEXT NOT NULL,
-		endpoint_address TEXT,
-		endpoint_port    INTEGER,
-		connected_at     INTEGER NOT NULL,
-		last_seen_at     INTEGER NOT NULL,
-		UNIQUE (group_id, virtual_ip)
-	)`,
-
-	// Who may manage a group. On the membership rather than the group, so it
-	// generalises to more than one person and survives being handed over
-	// without touching the group itself.
-	`ALTER TABLE memberships ADD COLUMN role TEXT NOT NULL DEFAULT 'member'`,
-
-	// Set apart from revoked_at, which only means not currently a member.
-	// Leaving is revoked and can be undone by joining again; being removed is
-	// both, and joining again does not undo it. Without the difference,
-	// removing somebody who knows the password does nothing at all.
-	`ALTER TABLE memberships ADD COLUMN banned_at INTEGER`,
-
-	// Groups that existed before roles did. Whoever made one owns it.
-	`UPDATE memberships SET role = 'owner'
-	 WHERE EXISTS (
-		SELECT 1 FROM groups g
-		WHERE g.id = memberships.group_id AND g.created_by_device_id = memberships.device_id
-	 )`,
-
-	// An address belongs to a membership rather than to a session. It is given
-	// at the door and does not change, so a host keeps the address their
-	// friends already typed into a game.
-	`ALTER TABLE memberships ADD COLUMN virtual_ip TEXT`,
-
-	// Partial, so a revoked membership frees its address without losing it.
-	// Somebody who leaves and comes back takes the same one again unless
-	// another member claimed it while they were gone.
-	`CREATE UNIQUE INDEX idx_memberships_address
-	 ON memberships(group_id, virtual_ip) WHERE revoked_at IS NULL`,
-
-	// Sessions no longer carry an address. Rebuilt rather than altered because
-	// the address was half of a table constraint. Nothing is lost, since a
-	// session lasts only as long as somebody is connected.
-	`DROP TABLE sessions`,
-	`CREATE TABLE sessions (
-		id               TEXT PRIMARY KEY,
-		group_id         TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-		membership_id    TEXT NOT NULL UNIQUE REFERENCES memberships(id) ON DELETE CASCADE,
-		endpoint_address TEXT,
-		endpoint_port    INTEGER,
-		connected_at     INTEGER NOT NULL,
-		last_seen_at     INTEGER NOT NULL
-	)`,
-
-	// A group's own look, so a list of them can be read at a glance rather than
-	// word by word. Keys rather than a glyph and a hex colour: the app owns the
-	// vocabulary, and a key it does not know falls back to the default.
-	`ALTER TABLE groups ADD COLUMN icon TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE groups ADD COLUMN color TEXT NOT NULL DEFAULT ''`,
+	for i, file := range files {
+		if prefix := fmt.Sprintf("%04d_", i+1); !strings.HasPrefix(file.Name(), prefix) {
+			return nil, fmt.Errorf("storage: migration %d is %q, which does not start with %q", i+1, file.Name(), prefix)
+		}
+	}
+	return files, nil
 }
 
 func (s *Store) migrate(ctx context.Context) error {
+	files, err := migrationFiles()
+	if err != nil {
+		return err
+	}
+
 	if _, err := s.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`); err != nil {
 		return fmt.Errorf("storage: create schema_version: %w", err)
 	}
 
 	var applied int
-	err := s.db.QueryRowContext(ctx, `SELECT version FROM schema_version`).Scan(&applied)
+	err = s.db.QueryRowContext(ctx, `SELECT version FROM schema_version`).Scan(&applied)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		if _, err := s.db.ExecContext(ctx, `INSERT INTO schema_version (version) VALUES (0)`); err != nil {
@@ -210,21 +126,28 @@ func (s *Store) migrate(ctx context.Context) error {
 		return fmt.Errorf("storage: read schema_version: %w", err)
 	}
 
-	for i := applied; i < len(migrations); i++ {
+	for i := applied; i < len(files); i++ {
+		name := files[i].Name()
+
+		statement, err := migrations.ReadFile("migrations/" + name)
+		if err != nil {
+			return fmt.Errorf("storage: read migration %s: %w", name, err)
+		}
+
 		tx, err := s.db.BeginTx(ctx, nil)
 		if err != nil {
-			return fmt.Errorf("storage: begin migration %d: %w", i+1, err)
+			return fmt.Errorf("storage: begin migration %s: %w", name, err)
 		}
-		if _, err := tx.ExecContext(ctx, migrations[i]); err != nil {
+		if _, err := tx.ExecContext(ctx, string(statement)); err != nil {
 			tx.Rollback()
-			return fmt.Errorf("storage: migration %d: %w", i+1, err)
+			return fmt.Errorf("storage: migration %s: %w", name, err)
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE schema_version SET version = ?`, i+1); err != nil {
 			tx.Rollback()
-			return fmt.Errorf("storage: record migration %d: %w", i+1, err)
+			return fmt.Errorf("storage: record migration %s: %w", name, err)
 		}
 		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("storage: commit migration %d: %w", i+1, err)
+			return fmt.Errorf("storage: commit migration %s: %w", name, err)
 		}
 	}
 	return nil
