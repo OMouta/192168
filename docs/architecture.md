@@ -93,12 +93,35 @@ Links are independent. One peer failing says nothing about the rest.
 
 ## Routing
 
-Members form a full mesh. Under ten peers that is cheap, and nothing in the
-middle forwards packets.
+Members form a full mesh. Under ten peers that is cheap.
 
-The daemon maps each peer's virtual IP to a route. A route is not a socket. Only
-`Direct` exists. `Via(peer)` and `Relay` have places in the protocol and hop
-limits reserved, and neither is implemented.
+The daemon maps each peer's virtual IP to a route. A route is not a socket.
+`Direct` is a peer's own address. `Via(peer)` is somebody else carrying for
+them. `Relay`, a hosted server doing the same, has a place in the protocol and
+is not implemented.
+
+## Peer-assisted routing
+
+Two NATs sometimes will not open to each other however long both sides punch.
+When that happens the group is usually still one hop apart: both of them can
+reach somebody, even if they cannot reach each other.
+
+A link that has spent its direct attempts asks each peer with an open link, in
+turn, to carry it. What crosses that peer is `MsgForward`: the two virtual
+addresses, a hop limit, and the packet itself. The packet inside is an ordinary
+transport packet between the two ends, so the handshake, the keepalives, the
+latency and the game traffic all take the road without knowing which road it
+is, and the peer in the middle moves bytes it does not hold the keys to.
+
+The hop limit is what stops a mistake becoming a packet that circles forever. A
+daemon only passes a packet to a link it holds directly, so one hop is all this
+arranges; the field carries more, so a longer path would not be a change to the
+format.
+
+A relayed packet is a full packet inside a second envelope, which is 45 bytes
+past what an ordinary path carries without fragmenting. A full size packet is
+therefore split once on its way through. That is what the fallback costs, and it
+is a better deal than two people who cannot reach each other at all.
 
 ## Transport
 
