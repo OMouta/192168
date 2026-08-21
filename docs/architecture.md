@@ -20,11 +20,12 @@ Three things stay separate.
 **Device identity.** One per installation. A random device ID and two key pairs.
 The private halves never leave the machine.
 
-**Membership.** A device's place in a group. You create it by joining with the
-group password. After that the device token gets you back in.
+**Membership.** A device's place in a group, and the virtual IP it holds there.
+You create it by joining with the group password. After that the device token
+gets you back in.
 
-**Session.** Exists only while connected. Holds the assigned virtual IP, the
-current endpoint candidates, and the peer list.
+**Session.** Exists only while connected. Holds the current endpoint candidates
+and the peer list.
 
 One session at a time. Switching groups disconnects the first one first.
 
@@ -82,7 +83,7 @@ is its own process, so closing the window leaves the tunnel up.
 
 1. Client sends `ConnectGroup`.
 2. Daemon opens a session on the server with its device token.
-3. Server assigns a virtual IP in the group's subnet, `10.69.0.0/24`.
+3. Server answers with the address this membership holds.
 4. Daemon brings up the Wintun adapter and local routes.
 5. Daemon opens its UDP socket and finds its public endpoint through STUN.
 6. Daemon publishes that endpoint and reads the peer list.
@@ -90,6 +91,25 @@ is its own process, so closing the window leaves the tunnel up.
 8. Open sessions become routes for the adapter.
 
 Links are independent. One peer failing says nothing about the rest.
+
+## Addressing
+
+An address belongs to a membership. The server hands one out when a device
+joins, the lowest free host address in the group's subnet, `10.69.0.0/24`, and
+it stays that device's for as long as it is a member. Connecting takes no
+address and disconnecting gives none back.
+
+That is what makes a host worth writing down. Somebody who ran a server last
+night is at the same address tonight, whoever else connected first, and their
+friends can read it off the members list while they are still offline.
+
+Leaving a group frees the address for the next person to join. The row keeps
+the value while it is revoked, so somebody who leaves and comes back takes the
+same one again unless a newcomer claimed it in between. A group with no free
+addresses left refuses new members rather than new connections.
+
+Addresses are unique inside a group and nowhere else. Only one group is active
+at a time, so two groups reusing a range never collide on the local routes.
 
 ## Routing
 
