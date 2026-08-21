@@ -53,6 +53,11 @@ public sealed record DaemonState
     public bool ServerOnline { get; init; }
     public string? GroupId { get; init; }
     public string? GroupName { get; init; }
+
+    /// <summary>The connected group's look, so the screen showing it is marked
+    /// the same way its row in the list was.</summary>
+    public string? GroupIcon { get; init; }
+    public string? GroupColor { get; init; }
     public string? Nickname { get; init; }
     public string? VirtualIp { get; init; }
 
@@ -81,6 +86,11 @@ public sealed record Group
 {
     public string GroupId { get; init; } = "";
     public string Name { get; init; } = "";
+
+    /// <summary>The look the owner picked, as keys the app maps to a glyph and
+    /// a colour. Empty means the default one.</summary>
+    public string Icon { get; init; } = "";
+    public string Color { get; init; } = "";
     public string Nickname { get; init; } = "";
     public bool Active { get; init; }
     public int? OnlineMembers { get; init; }
@@ -117,7 +127,8 @@ public sealed record TestServerResult
     public string? Message { get; init; }
 }
 
-public sealed record CreateGroupParams(string Name, string Password, string Nickname);
+/// <summary>Creates a group, with the look it is made with.</summary>
+public sealed record CreateGroupParams(string Name, string Password, string Nickname, string Icon, string Color);
 
 public sealed record JoinGroupParams(string Group, string Password, string Nickname);
 
@@ -135,6 +146,10 @@ public sealed record MemberParams(string GroupId, string DeviceId);
 
 /// <summary>Changes what a group is called, for everyone in it.</summary>
 public sealed record RenameGroupParams(string GroupId, string Name);
+
+/// <summary>Changes the icon and colour a group is shown with, for everyone in
+/// it. Both travel together, because they are picked together.</summary>
+public sealed record SetGroupAppearanceParams(string GroupId, string Icon, string Color);
 
 /// <summary>Changes the password a new member joins with.</summary>
 public sealed record SetGroupPasswordParams(string GroupId, string Password);

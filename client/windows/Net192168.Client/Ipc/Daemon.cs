@@ -143,10 +143,10 @@ public sealed class Daemon
         return result.Groups.ToArray();
     }
 
-    public async Task<Group> CreateGroupAsync(string name, string password, string nickname)
+    public async Task<Group> CreateGroupAsync(string name, string password, string nickname, string icon, string color)
     {
         var result = await _client.CallAsync<GroupResult>(
-            "CreateGroup", new CreateGroupParams(name, password, nickname), _lifetime.Token);
+            "CreateGroup", new CreateGroupParams(name, password, nickname, icon, color), _lifetime.Token);
         return result.Group;
     }
 
@@ -189,6 +189,9 @@ public sealed class Daemon
 
     public Task RenameGroupAsync(string groupId, string name)
         => _client.CallAsync("RenameGroup", new RenameGroupParams(groupId, name), _lifetime.Token);
+
+    public Task SetGroupAppearanceAsync(string groupId, string icon, string color)
+        => _client.CallAsync("SetGroupAppearance", new SetGroupAppearanceParams(groupId, icon, color), _lifetime.Token);
 
     public Task SetGroupPasswordAsync(string groupId, string password)
         => _client.CallAsync("SetGroupPassword", new SetGroupPasswordParams(groupId, password), _lifetime.Token);

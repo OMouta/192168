@@ -2,6 +2,7 @@
 <Page
     x:Class="Net192168.Client.Views.GroupPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:views="using:Net192168.Client.Views"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     KeyDown="OnKeyDown">
 
@@ -17,11 +18,50 @@
             Grid.Row="0"
             Margin="16,8,16,0"
             Spacing="14">
-            <TextBox
-                x:Name="NameBox"
-                Header="Group name"
-                PlaceholderText="Friday Night"
-                Text="{x:Bind ViewModel.GroupName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <!--
+                Making one: the chip is what the group will look like in the
+                list, beside the name it will be listed under. Joining one shows
+                neither, because the group already is something and this is not
+                the screen that decides it.
+            -->
+            <StackPanel Spacing="4">
+                <!--  Its own line rather than the box's header, so it lines up with the labels below it whether or not the chip is there.  -->
+                <TextBlock Margin="0,0,0,4" Text="{x:Bind ViewModel.NameLabel}" />
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!--  The margin is on the chip rather than the grid: joining leaves no gap where it would have been.  -->
+                    <Border
+                        Grid.Column="0"
+                        Width="32"
+                        Height="32"
+                        Margin="0,0,10,0"
+                        VerticalAlignment="Center"
+                        Background="{x:Bind ViewModel.Appearance.Look.Background, Mode=OneWay}"
+                        CornerRadius="8"
+                        Visibility="{x:Bind ViewModel.IsCreating, Converter={StaticResource BooleanToVisibility}}">
+                        <FontIcon
+                            FontSize="16"
+                            Foreground="{x:Bind ViewModel.Appearance.Look.Foreground, Mode=OneWay}"
+                            Glyph="{x:Bind ViewModel.Appearance.Look.Glyph, Mode=OneWay}" />
+                    </Border>
+
+                    <TextBox
+                        x:Name="NameBox"
+                        Grid.Column="1"
+                        PlaceholderText="Friday Night"
+                        Text="{x:Bind ViewModel.GroupName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+
+                <views:GroupLookPicker
+                    Margin="0,4,0,0"
+                    Choice="{x:Bind ViewModel.Appearance}"
+                    Visibility="{x:Bind ViewModel.IsCreating, Converter={StaticResource BooleanToVisibility}}" />
+            </StackPanel>
 
             <!--
                 PasswordBox does not push its value on every keystroke the way a

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Net192168.Client.Views.GroupLookPicker"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:vm="using:Net192168.Client.ViewModels"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Both pickers are one row of everything on offer, which is why there are
+        eight of each: a group is told apart from the handful somebody is in,
+        not from every group there is.
+    -->
+    <StackPanel Spacing="4">
+        <GridView
+            Height="42"
+            Padding="0"
+            AutomationProperties.Name="Icon"
+            ItemsSource="{x:Bind Choice.Icons, Mode=OneWay}"
+            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+            SelectedItem="{x:Bind Choice.Icon, Mode=TwoWay}"
+            SelectionMode="Single">
+            <GridView.ItemContainerStyle>
+                <Style TargetType="GridViewItem">
+                    <!--
+                        A grid item will not go under 44 on its own, and eight of
+                        those are wider than this window: the last icon wrapped
+                        onto a row nobody could see.
+                    -->
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="MinHeight" Value="0" />
+                    <Setter Property="Width" Value="38" />
+                    <Setter Property="Height" Value="38" />
+                    <Setter Property="Margin" Value="0,0,4,0" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="HorizontalContentAlignment" Value="Center" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                </Style>
+            </GridView.ItemContainerStyle>
+            <GridView.ItemTemplate>
+                <DataTemplate x:DataType="vm:IconChoice">
+                    <FontIcon FontSize="16" Glyph="{x:Bind Glyph}" />
+                </DataTemplate>
+            </GridView.ItemTemplate>
+        </GridView>
+
+        <GridView
+            Height="38"
+            Padding="0"
+            AutomationProperties.Name="Colour"
+            ItemsSource="{x:Bind Choice.Colors, Mode=OneWay}"
+            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+            SelectedItem="{x:Bind Choice.Color, Mode=TwoWay}"
+            SelectionMode="Single">
+            <GridView.ItemContainerStyle>
+                <Style TargetType="GridViewItem">
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="MinHeight" Value="0" />
+                    <Setter Property="Width" Value="34" />
+                    <Setter Property="Height" Value="34" />
+                    <Setter Property="Margin" Value="0,0,4,0" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="HorizontalContentAlignment" Value="Center" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                </Style>
+            </GridView.ItemContainerStyle>
+            <GridView.ItemTemplate>
+                <DataTemplate x:DataType="vm:ColorChoice">
+                    <Ellipse
+                        Width="20"
+                        Height="20"
+                        Fill="{x:Bind Brush}" />
+                </DataTemplate>
+            </GridView.ItemTemplate>
+        </GridView>
+    </StackPanel>
+</UserControl>
