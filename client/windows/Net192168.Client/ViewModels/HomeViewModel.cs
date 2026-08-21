@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Dispatching;
 using Net192168.Client.Ipc;
+using Net192168.Client.Services;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace Net192168.Client.ViewModels;
@@ -195,11 +196,34 @@ public sealed partial class HomeViewModel : ObservableObject
 
         _daemon.StateChanged += Update;
         Update();
+
+        // The check runs once when the app opens and may land after this is
+        // built, so the banner appears when the answer does rather than only on
+        // the next launch.
+        Updates.Changed += ShowUpdate;
+        ShowUpdate();
+    }
+
+    private void ShowUpdate()
+    {
+        UpdateVersion = Updates.Available?.Version;
+        HasUpdate = UpdateVersion is not null;
     }
 
     public ObservableCollection<GroupListItem> Groups { get; } = [];
 
     public ObservableCollection<PeerItem> Peers { get; } = [];
+
+    /// <summary>Whether a newer version exists. Nothing is downloaded: the
+    /// banner says where to get it and the person decides.</summary>
+    [ObservableProperty]
+    public partial bool HasUpdate { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateMessage))]
+    public partial string? UpdateVersion { get; set; }
+
+    public string UpdateMessage => $"Version {UpdateVersion} is out. Settings, then About, has the download.";
 
     /// <summary>True while a group is up, which is what swaps the screen over.</summary>
     [ObservableProperty]

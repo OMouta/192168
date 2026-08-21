@@ -42,6 +42,22 @@
             Title="The background service is not running" />
 
         <!--
+            Closable, because a version being out is worth saying once and not
+            worth standing between somebody and a game.
+        -->
+        <InfoBar
+            Grid.Row="1"
+            Margin="12,8,12,0"
+            IsOpen="{x:Bind ViewModel.HasUpdate, Mode=TwoWay}"
+            Message="{x:Bind ViewModel.UpdateMessage, Mode=OneWay}"
+            Severity="Informational"
+            Title="There is a newer version">
+            <InfoBar.ActionButton>
+                <Button Click="OnOpenAbout" Content="Open About" />
+            </InfoBar.ActionButton>
+        </InfoBar>
+
+        <!--
             The panel somebody reads off to a friend: the address first, the
             name they are showing as, and how it is going. There is nothing to
             put in it while no group is up, so it is not there at all.

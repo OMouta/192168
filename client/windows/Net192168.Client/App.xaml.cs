@@ -94,6 +94,10 @@ public partial class App : Application
         // nothing if it was never installed, which is the development case.
         _ = EnsureServiceRunningAsync();
 
+        // Once, on the way in. It only looks: nothing is downloaded and nothing
+        // is replaced.
+        _ = Updates.CheckAsync();
+
         _window = new MainWindow();
         _window.Closed += (_, _) => Daemon.Shutdown();
 
