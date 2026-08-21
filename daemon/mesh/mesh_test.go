@@ -104,7 +104,12 @@ func introduce(t *testing.T, a, b *node) {
 
 func waitForState(t *testing.T, n *node, deviceID string, want ipc.PeerState) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	waitForStateWithin(t, n, deviceID, want, 10*time.Second)
+}
+
+func waitForStateWithin(t *testing.T, n *node, deviceID string, want ipc.PeerState, within time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(within)
 	for time.Now().Before(deadline) {
 		if n.states.get(deviceID) == want {
 			return
@@ -334,5 +339,59 @@ func TestRestartLinksRetriesAFailedPeer(t *testing.T) {
 
 	if got := a.states.get("dev_zzz"); got != ipc.PeerConnecting {
 		t.Errorf("a failed peer stayed %s after a restart, want %s", got, ipc.PeerConnecting)
+	}
+}
+
+// The point of peer-assisted routing: two people whose NATs will not open to
+// each other still end up on the same network, because somebody they can both
+// reach carries the link.
+//
+// A and C are pointed at addresses nothing answers on, which is what a NAT
+// neither side can punch looks like from here. Both reach B, so once A has
+// spent its direct attempts it asks B to carry the rest.
+func TestALinkOpensThroughAnotherPeer(t *testing.T) {
+	// The lower device id opens the handshake, so A is the one that runs out
+	// of direct attempts and goes looking for a way round.
+	a := newNode(t, "dev_aaa", "10.69.0.1")
+	b := newNode(t, "dev_bbb", "10.69.0.2")
+	c := newNode(t, "dev_ccc", "10.69.0.3")
+
+	introduce(t, a, b)
+	introduce(t, b, c)
+
+	// Documentation addresses, so the probes leave and nothing answers. A
+	// closed port on this machine would answer with an ICMP refusal, which is
+	// friendlier than the NAT this is standing in for.
+	nowhere := netip.MustParseAddrPort("192.0.2.1:9")
+	if err := a.mesh.AddPeer(c.deviceID, c.deviceID, c.virtualIP, c.keys.Public, nowhere); err != nil {
+		t.Fatalf("AddPeer: %v", err)
+	}
+	if err := c.mesh.AddPeer(a.deviceID, a.deviceID, a.virtualIP, a.keys.Public, nowhere); err != nil {
+		t.Fatalf("AddPeer: %v", err)
+	}
+
+	// Long enough for the direct attempts to be spent first, since going
+	// through somebody else is the fallback and not the first choice.
+	waitForStateWithin(t, a, c.deviceID, ipc.PeerIndirect, 30*time.Second)
+	waitForStateWithin(t, c, a.deviceID, ipc.PeerIndirect, 30*time.Second)
+
+	// And the link carries a packet, which is the only thing a user cares
+	// about. B moves it without ever holding the keys that opened it.
+	payload := []byte("through a friend")
+	if err := a.mesh.Send(c.virtualIP, payload); err != nil {
+		t.Fatalf("Send over a relayed link: %v", err)
+	}
+	select {
+	case got := <-c.mesh.Inbound():
+		if !bytes.Equal(got, payload) {
+			t.Errorf("received %q, want %q", got, payload)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("nothing arrived over the relayed link")
+	}
+
+	// The link that carried it is still the ordinary direct one it was.
+	if got := a.states.get(b.deviceID); got != ipc.PeerDirect {
+		t.Errorf("the relay's own link is %s, want %s", got, ipc.PeerDirect)
 	}
 }
