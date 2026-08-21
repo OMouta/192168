@@ -1,0 +1,411 @@
+/*
+   192168.lol
+
+   Dark, because the app is dark and this is a page about the app. The one
+   piece of colour is the wordmark, which is already loud enough, so the rest
+   of the page stays out of its way: neutral greys, hairline rules, and the
+   accent only on things you are meant to click.
+*/
+
+:root {
+  --bg: #0b0b0d;
+  --ink: #ffffff;
+  --ink-soft: rgba(255, 255, 255, 0.66);
+  --ink-faint: rgba(255, 255, 255, 0.42);
+  --line: rgba(255, 255, 255, 0.09);
+  --raised: rgba(255, 255, 255, 0.035);
+
+  /* The app's own accent, so the screenshots and the buttons agree. */
+  --accent: #ff639c;
+  --accent-lift: #ff7cad;
+
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", "Consolas", monospace;
+
+  --page: 1120px;
+  --gutter: clamp(20px, 5vw, 40px);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink-soft);
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.bar,
+.foot,
+main > section {
+  max-width: var(--page);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+main > section {
+  padding-block: clamp(72px, 9vw, 120px);
+}
+
+main > section + section {
+  border-top: 1px solid var(--line);
+}
+
+/* Small caps label above a section. Mono, because everything technical on
+   this page is mono and that is the whole system. */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 32px;
+}
+
+.ip {
+  font-family: var(--mono);
+  font-size: 0.95em;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- header */
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-block: 28px;
+}
+
+.bar__home img {
+  height: 30px;
+  width: auto;
+}
+
+.bar__link {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  color: var(--ink-faint);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.bar__link:hover {
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ hero */
+
+.hero {
+  display: grid;
+  gap: clamp(48px, 7vw, 88px);
+  align-items: center;
+  padding-block: clamp(48px, 7vw, 96px) clamp(72px, 9vw, 120px);
+}
+
+@media (min-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+h1 {
+  font-size: clamp(2.75rem, 6.5vw, 4.25rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+
+.lede {
+  margin-top: 24px;
+  max-width: 44ch;
+  font-size: 1.125rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 36px;
+}
+
+.fine {
+  margin-top: 18px;
+  font-size: 0.875rem;
+  color: var(--ink-faint);
+}
+
+.fine strong {
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+/* The window is 400x560 in real life and shown at close to that, which is the
+   honest size for a small utility and reads better than a stretched mock. */
+.hero__shot,
+.split__shot {
+  position: relative;
+  isolation: isolate;
+  justify-self: center;
+}
+
+.hero__shot img,
+.split__shot img {
+  position: relative;
+  z-index: 1;
+  width: 386px;
+  border-radius: 10px;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    0 30px 70px -20px rgba(0, 0, 0, 0.85);
+}
+
+.split__shot img {
+  width: 340px;
+}
+
+/* The iridescence off the wordmark, spilled behind the window so the shot is
+   lit by the logo rather than sitting on a flat rectangle. Only the hero gets
+   it; doing it twice makes it decoration instead of emphasis. */
+.hero__shot::before {
+  content: "";
+  position: absolute;
+  inset: -14%;
+  z-index: 0;
+  background:
+    radial-gradient(42% 42% at 22% 18%, rgba(122, 255, 214, 0.22), transparent 70%),
+    radial-gradient(46% 46% at 78% 82%, rgba(255, 99, 156, 0.24), transparent 70%);
+  filter: blur(46px);
+}
+
+/* --------------------------------------------------------------- buttons */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.button:hover {
+  background: var(--raised);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.button--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #17070e;
+  font-weight: 600;
+}
+
+.button--primary:hover {
+  background: var(--accent-lift);
+  border-color: var(--accent-lift);
+  color: #17070e;
+}
+
+/* ----------------------------------------------------------------- steps */
+
+.steps ol {
+  list-style: none;
+  display: grid;
+  gap: 40px;
+  margin: 0;
+  padding: 0;
+}
+
+@media (min-width: 760px) {
+  .steps ol {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 48px;
+  }
+}
+
+.steps li {
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+}
+
+.step__n {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+.steps h2,
+.facts h2 {
+  font-size: 1.1875rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+/* ----------------------------------------------------------------- facts */
+
+.facts__grid {
+  display: grid;
+  gap: 40px;
+}
+
+@media (min-width: 760px) {
+  .facts__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 48px 64px;
+  }
+}
+
+.facts article {
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+  max-width: 46ch;
+}
+
+/* ----------------------------------------------------------------- split */
+
+.split {
+  display: grid;
+  gap: clamp(48px, 7vw, 80px);
+  align-items: center;
+}
+
+@media (min-width: 900px) {
+  .split {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}
+
+.split__text h2 {
+  font-size: clamp(1.75rem, 3.2vw, 2.25rem);
+  margin-bottom: 20px;
+}
+
+.split__text > p {
+  max-width: 46ch;
+}
+
+/* ----------------------------------------------------------------- close */
+
+.close {
+  text-align: center;
+}
+
+/* The wordmark carries this section, so the line under it is a caption rather
+   than a second headline competing with it. */
+.close__mark {
+  height: clamp(64px, 11vw, 128px);
+  width: auto;
+  margin: 0 auto 28px;
+}
+
+.close h2 {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.025em;
+  margin-bottom: 32px;
+}
+
+.close .fine {
+  margin-inline: auto;
+  max-width: 42ch;
+}
+
+/* ---------------------------------------------------------------- footer */
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-block: 40px 56px;
+  border-top: 1px solid var(--line);
+}
+
+/* Text, not the mark. One sits large in the section directly above this. */
+.foot__mark {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  color: var(--ink-faint);
+}
+
+.foot nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+}
+
+.foot nav a {
+  color: var(--ink-faint);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.foot nav a:hover {
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ misc */
+
+a:focus-visible,
+.button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

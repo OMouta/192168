@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>192168 — Fake LANs for real friends</title>
+<meta name="description" content="192168 puts you and your friends on the same LAN from different networks, so you can play LAN games together. Free, open source, Windows.">
+
+<link rel="icon" href="assets/icon.png" type="image/png">
+<link rel="canonical" href="https://192168.lol/">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://192168.lol/">
+<meta property="og:title" content="192168 — Fake LANs for real friends">
+<meta property="og:description" content="Puts you and your friends on the same LAN from different networks. Everyone gets an address like 10.69.0.2, and any game that lets you type in a host address works from there.">
+<meta property="og:image" content="https://192168.lol/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<header class="bar">
+  <a class="bar__home" href="/" aria-label="192168">
+    <img src="assets/wordmark.png" alt="192168.lol" width="424" height="145">
+  </a>
+  <a class="bar__link" href="https://github.com/OMouta/192168">GitHub</a>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="hero__text">
+      <h1>Fake LANs<br>for real friends.</h1>
+      <p class="lede">
+        192168 puts you and your friends on the same LAN from different
+        networks, so you can play LAN games together. Everyone who connects
+        gets an address like <span class="ip">10.69.0.2</span>, and any game
+        that lets you type in a host address works from there.
+      </p>
+      <div class="actions">
+        <a class="button button--primary" href="https://github.com/OMouta/192168/releases/latest">
+          Download for Windows
+        </a>
+        <a class="button" href="https://github.com/OMouta/192168">Read the code</a>
+      </div>
+      <p class="fine">Windows 10 or newer, 64-bit. Free and MIT licensed. No account.</p>
+    </div>
+
+    <div class="hero__shot">
+      <img src="assets/app-connected.png" alt="The 192168 app connected to a group called Friday Night, listing four people and their addresses." width="386" height="553">
+    </div>
+  </section>
+
+  <section class="steps">
+    <p class="eyebrow">Getting started</p>
+    <ol>
+      <li>
+        <span class="step__n">01</span>
+        <h2>Create a group</h2>
+        <p>Give it a name and a password. That is the setup.</p>
+      </li>
+      <li>
+        <span class="step__n">02</span>
+        <h2>Send both to your friends</h2>
+        <p>They join once. After that, connecting is one click.</p>
+      </li>
+      <li>
+        <span class="step__n">03</span>
+        <h2>Play</h2>
+        <p>The app lists who is online and the address each of them got. Give
+        one to the game as the host.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section class="facts">
+    <p class="eyebrow">How it works</p>
+    <div class="facts__grid">
+      <article>
+        <h2>Traffic goes straight between players</h2>
+        <p>Two machines find a route to each other and send game packets over
+        UDP, encrypted with the Noise protocol. Nothing relays them.</p>
+      </article>
+      <article>
+        <h2>The server only introduces you</h2>
+        <p>It hands out the addresses and says who is online. Game packets
+        never reach it, and a session that is already up survives it going
+        down.</p>
+      </article>
+      <article>
+        <h2>Point it somewhere else</h2>
+        <p>Type another server's URL into Settings and the app uses that one.
+        Running your own is a container and a database.</p>
+      </article>
+      <article>
+        <h2>Read the code</h2>
+        <p>The client, the daemon and the server are all on GitHub under
+        MIT.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="split">
+    <div class="split__shot">
+      <img src="assets/app-groups.png" alt="The 192168 app listing three saved groups, each with a Connect button." width="386" height="553">
+    </div>
+    <div class="split__text">
+      <p class="eyebrow">Groups</p>
+      <h2>A group sticks around.</h2>
+      <p>You join with its name and password once, and after that the app
+      remembers you. Belong to as many groups as you like. One of them can be
+      connected at a time.</p>
+    </div>
+  </section>
+
+  <section class="close">
+    <img class="close__mark" src="assets/wordmark.png" alt="192168.lol" width="424" height="145">
+    <h2>Get your friends on the same network.</h2>
+    <a class="button button--primary" href="https://github.com/OMouta/192168/releases/latest">
+      Download for Windows
+    </a>
+    <p class="fine">
+      The installer is not signed, so Windows may warn before running it.
+      Choose <strong>More info</strong>, then <strong>Run anyway</strong>.
+    </p>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <p class="foot__mark">192168.lol</p>
+  <nav>
+    <a href="https://github.com/OMouta/192168">GitHub</a>
+    <a href="https://github.com/OMouta/192168/releases">Releases</a>
+    <a href="https://github.com/OMouta/192168/blob/main/docs/self-hosting.md">Self-hosting</a>
+    <a href="https://github.com/OMouta/192168/blob/main/LICENSE">MIT</a>
+  </nav>
+</footer>
+
+</body>
+</html>
