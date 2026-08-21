@@ -40,8 +40,9 @@ const (
 	// MsgClose tells the peer the session is going away, so the other side
 	// does not have to wait for a timeout.
 	MsgClose MessageType = 6
-	// MsgForward is reserved for peer-assisted routing. Its payload carries
-	// the final destination and a hop limit; it is not implemented yet.
+	// MsgForward carries somebody else's packet. Its payload names the two
+	// ends and how many more hops it may take, and what it wraps is an
+	// ordinary transport packet between those ends.
 	MsgForward MessageType = 7
 )
 
@@ -136,7 +137,20 @@ const (
 	// Windows hand us packets that fit.
 	TunnelMTU = 1400
 
-	// MaxPacketSize is the largest datagram this protocol produces, and the
-	// size a receive buffer has to be.
+	// MaxPacketSize is the largest packet this protocol produces for a peer.
 	MaxPacketSize = TunnelMTU + Overhead
+
+	// ForwardOverhead is what carrying somebody else's packet costs on top of
+	// the packet itself: our envelope, our tag, and the forward header.
+	ForwardOverhead = HeaderSize + AEADTagSize + ForwardHeaderSize
+
+	// MaxDatagramSize is the largest datagram that can arrive, and so the size
+	// a receive buffer has to be. A forwarded packet is the biggest thing on
+	// the wire, because it is a full packet inside a second envelope.
+	//
+	// It also goes past the 1500 an ordinary path carries, so a full size
+	// packet fragments once while it is being relayed. That is what the
+	// fallback costs, and it is a much better deal than the alternative, which
+	// is two people who cannot reach each other at all.
+	MaxDatagramSize = MaxPacketSize + ForwardOverhead
 )

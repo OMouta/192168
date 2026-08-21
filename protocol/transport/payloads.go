@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net/netip"
 )
 
 // ErrMalformedPayload means a packet had a valid envelope but its body did not
@@ -130,4 +131,63 @@ func DecodeHandshakeResponse(payload []byte) (HandshakeResponse, error) {
 		return HandshakeResponse{}, fmt.Errorf("%w: key exchange truncated", ErrMalformedPayload)
 	}
 	return HandshakeResponse{KeyExchange: rest[:keyLen]}, nil
+}
+
+// Forward is the body of MsgForward: one peer's packet on its way to another
+// peer through a third.
+//
+// What it carries is a complete transport packet between the two ends, already
+// sealed with keys only those two hold. The relay authenticates the hop it
+// received, reads the two addresses, and passes the rest on without being able
+// to open it. That is the difference between lending somebody a path and
+// reading their traffic.
+type Forward struct {
+	// HopLimit is how many more times this packet may be passed on. A relay
+	// that receives one at zero drops it, so a mistake in the routing costs a
+	// packet rather than becoming one that circles forever.
+	HopLimit uint8
+
+	// Source and Destination are virtual addresses rather than device ids
+	// because every daemon already indexes its peers by them, and because four
+	// bytes each is what the tunnel can afford: this header is paid on top of a
+	// packet that may already be full size.
+	Source      netip.Addr
+	Destination netip.Addr
+
+	// Packet is the transport packet being carried, envelope and all.
+	Packet []byte
+}
+
+// ForwardHeaderSize is the fixed part of a forward payload, in front of the
+// packet it carries.
+//
+//	hopLimit(1) | source(4) | destination(4)
+const ForwardHeaderSize = 9
+
+// Encode appends the forward to dst. Both addresses have to be IPv4, which
+// every virtual address in a group is.
+func (f Forward) Encode(dst []byte) ([]byte, error) {
+	if !f.Source.Is4() || !f.Destination.Is4() {
+		return nil, fmt.Errorf("transport: forward needs IPv4 addresses, got %s and %s", f.Source, f.Destination)
+	}
+
+	source, destination := f.Source.As4(), f.Destination.As4()
+	dst = append(dst, f.HopLimit)
+	dst = append(dst, source[:]...)
+	dst = append(dst, destination[:]...)
+	return append(dst, f.Packet...), nil
+}
+
+// DecodeForward parses the body of a forward packet. The returned Packet
+// aliases payload.
+func DecodeForward(payload []byte) (Forward, error) {
+	if len(payload) < ForwardHeaderSize+HeaderSize {
+		return Forward{}, fmt.Errorf("%w: forward is %d bytes, too short to carry a packet", ErrMalformedPayload, len(payload))
+	}
+	return Forward{
+		HopLimit:    payload[0],
+		Source:      netip.AddrFrom4([4]byte(payload[1:5])),
+		Destination: netip.AddrFrom4([4]byte(payload[5:9])),
+		Packet:      payload[ForwardHeaderSize:],
+	}, nil
 }
