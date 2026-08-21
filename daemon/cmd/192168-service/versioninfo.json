@@ -16,7 +16,7 @@
     "LegalCopyright": "MIT licensed. See LICENSE.",
     "OriginalFilename": "192168-service.exe",
     "ProductName": "192168",
-    "ProductVersion": "0.0.0-dev",
+    "ProductVersion": "0.0.1-dev",
     "Comments": "Creates the virtual network adapter 192168 uses to put you on a LAN with your friends."
   },
   "VarFileInfo": {

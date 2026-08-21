@@ -82,8 +82,25 @@ $clientExe = Join-Path $repo 'client\windows\Net192168.Client\bin\Debug\net10.0-
 $shell = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' }
 
 function Stop-Stack {
+    # Only what this script started, matched by where it was built rather than
+    # by name. An installed 192168 runs a service process with the same name as
+    # the daemon built here, as LocalSystem, so killing by name means trying to
+    # kill that and being told no.
+    $ours = @(
+        (Join-Path $binDir '192168-server.exe')
+        (Join-Path $binDir '192168-service.exe')
+        $clientExe
+    )
+
     foreach ($name in '192168-server', '192168-service', 'Net192168.Client') {
-        Get-Process -Name $name -ErrorAction SilentlyContinue | Stop-Process -Force
+        foreach ($process in Get-Process -Name $name -ErrorAction SilentlyContinue) {
+            # Reading the path of a process owned by another account fails, and
+            # a process this script cannot see inside is not one it started.
+            $path = try { $process.Path } catch { $null }
+            if ($path -and $ours -contains $path) {
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
     # The consoles outlive the process they were hosting, so they are tracked
     # by id and closed here rather than left as dead prompts.
@@ -242,6 +259,21 @@ else {
         catch { }
     }
     if (-not $ready) { throw "The server never answered on $serverUrl. Its console will say why." }
+}
+
+# One daemon can hold the control pipe. An installed 192168 runs one as a
+# service, and it takes the pipe before this build can, so the build would come
+# up unable to serve anything. Stopping it needs no elevation, by design.
+$installed = Get-Service -Name '192168' -ErrorAction SilentlyContinue
+if ($installed -and $installed.Status -ne 'Stopped') {
+    Write-Host 'Stopping the installed service, which is holding the control pipe.' -ForegroundColor Yellow
+    try {
+        Stop-Service -Name '192168' -Force -ErrorAction Stop
+    }
+    catch {
+        Write-Host "  could not stop it: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host '  this build will not be able to open the pipe.' -ForegroundColor Red
+    }
 }
 
 Write-Host 'Starting the daemon' -ForegroundColor Cyan

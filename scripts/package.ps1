@@ -53,9 +53,8 @@ $patch = [math]::Max($number.Build, 0)
 
 # Windows throws away a version resource whose numbers are all zero, and it
 # takes the description with it, which is the name the UAC prompt shows. The
-# default version in the repository is 0.0.0-dev, so this is the ordinary case
-# rather than an edge one. Only the numbers move: every string a person reads
-# still says what the version really is.
+# version in the repository is 0.0.1-dev so this never fires; it is here for a
+# tag that would otherwise produce a binary with no name on it.
 if ($major -eq 0 -and $minor -eq 0 -and $patch -eq 0) { $patch = 1 }
 
 $numericVersion = '{0}.{1}.{2}.0' -f $major, $minor, $patch

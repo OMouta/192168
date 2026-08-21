@@ -13,7 +13,7 @@
          Releases are built from a tag and package.ps1 passes that in, so this
          is only ever what a local build calls itself. It says dev so a build
          from a checkout cannot be mistaken for a release. -->
-    <Version>0.0.0-dev</Version>
+    <Version>0.0.1-dev</Version>
     <Product>192168</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/icon.ico</ApplicationIcon>
