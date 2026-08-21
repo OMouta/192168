@@ -335,7 +335,38 @@ func (m *Mesh) Send(destination netip.Addr, packet []byte) error {
 	if !ok {
 		return fmt.Errorf("mesh: nobody has %s", destination)
 	}
+	return m.sendData(peer, packet)
+}
 
+// Broadcast sends one IP packet to every peer whose link is open, and reports
+// how many got it.
+//
+// This is what a switch would have done with a broadcast frame. Nothing else
+// can: every link here is its own encrypted tunnel to one device, so a packet
+// addressed to the whole LAN has to be copied onto each of them by hand.
+//
+// A peer still handshaking is skipped rather than queued. Whatever sends
+// discovery traffic repeats it on a timer, so the next one reaches them, and a
+// queue would only deliver an announcement that had already gone stale.
+func (m *Mesh) Broadcast(packet []byte) int {
+	sent := 0
+	for _, peer := range m.Peers() {
+		err := m.sendData(peer, packet)
+		switch {
+		case err == nil:
+			sent++
+		case errors.Is(err, ErrNoSession):
+			// Connecting, or given up on. Ordinary, and not worth a line per
+			// packet on a path a game uses several times a second.
+		default:
+			m.log.Debug("cannot replicate a broadcast", "deviceId", peer.DeviceID, "error", err)
+		}
+	}
+	return sent
+}
+
+// sendData puts one IP packet on one open link.
+func (m *Mesh) sendData(peer *Peer, packet []byte) error {
 	current, counter, err := peer.nextCounter()
 	if err != nil {
 		return err

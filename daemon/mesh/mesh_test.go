@@ -246,6 +246,39 @@ func TestRemovingAPeerStopsRouting(t *testing.T) {
 	}
 }
 
+// A broadcast goes to everyone whose link is open, and nobody else. The peer
+// that is still connecting has no session to encrypt with, and skipping it has
+// to be quiet rather than an error, because a game sends discovery traffic
+// continuously.
+func TestBroadcastReachesEveryOpenLink(t *testing.T) {
+	a := newNode(t, "dev_aaa")
+	b := newNode(t, "dev_bbb")
+	introduce(t, a, b, "10.69.0.1", "10.69.0.2")
+	waitForState(t, a, b.deviceID, ipc.PeerDirect)
+	waitForState(t, b, a.deviceID, ipc.PeerDirect)
+
+	// A third device that will never answer, so its link stays unopened.
+	nowhere := netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), 1)
+	var absent [32]byte
+	if err := a.mesh.AddPeer("dev_ccc", "c", netip.MustParseAddr("10.69.0.3"), absent[:], nowhere); err != nil {
+		t.Fatalf("AddPeer: %v", err)
+	}
+
+	announcement := []byte("[MOTD]a world[/MOTD][AD]25565[/AD]")
+	if sent := a.mesh.Broadcast(announcement); sent != 1 {
+		t.Errorf("broadcast reached %d peers, want 1", sent)
+	}
+
+	select {
+	case got := <-b.mesh.Inbound():
+		if !bytes.Equal(got, announcement) {
+			t.Errorf("received %q, want %q", got, announcement)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the broadcast never arrived")
+	}
+}
+
 // What happens after a laptop changes network. The old session is useless to
 // both sides, so the link has to be rebuilt rather than carried over.
 func TestRestartLinksRebuildsAnOpenSession(t *testing.T) {
