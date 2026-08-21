@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"net/netip"
 
@@ -46,13 +47,15 @@ func (c *Core) startAdapter(ctx context.Context, links *mesh.Mesh, virtualIP, su
 	c.device = device
 	c.mu.Unlock()
 
-	go c.pumpOut(ctx, device, links)
+	go c.pumpOut(ctx, device, links, address)
 	go c.pumpIn(ctx, device, links)
 }
 
 // pumpOut takes what Windows wants to send and gives it to whoever owns the
-// destination address.
-func (c *Core) pumpOut(ctx context.Context, device *tun.Device, links *mesh.Mesh) {
+// destination address, or to everybody when it is addressed to the whole LAN.
+func (c *Core) pumpOut(ctx context.Context, device *tun.Device, links *mesh.Mesh, address netip.Prefix) {
+	everyone := broadcastOf(address)
+
 	for {
 		packet, err := device.Read(ctx)
 		if err != nil {
@@ -68,6 +71,14 @@ func (c *Core) pumpOut(ctx context.Context, device *tun.Device, links *mesh.Mesh
 		if !ok {
 			// IPv6, and anything else that is not an IPv4 packet. The overlay
 			// is IPv4 only, so there is nowhere for it to go.
+			continue
+		}
+
+		if forEveryone(destination, everyone) {
+			// No delivery report. On a real LAN nobody is owed one either, and
+			// a group with nobody else in it would otherwise log a line for
+			// every announcement a game makes.
+			links.Broadcast(packet)
 			continue
 		}
 
@@ -115,6 +126,35 @@ func adapterAddress(virtualIP, subnet string) (netip.Prefix, error) {
 	}
 
 	return netip.PrefixFrom(addr, prefix.Bits()), nil
+}
+
+// limitedBroadcast is 255.255.255.255, which means everyone reachable without
+// a router. Games that predate multicast discovery shout at this.
+var limitedBroadcast = netip.AddrFrom4([4]byte{255, 255, 255, 255})
+
+// forEveryone reports whether a destination is addressed to the whole LAN
+// rather than to one machine.
+//
+// A layer 3 tunnel carries none of these on its own: there is no shared segment
+// for a broadcast to reach and no switch to flood a multicast to, so a game
+// that finds servers by scanning finds nobody and the LAN list stays empty.
+// Copying the packet onto every link is what the missing segment would have
+// done.
+func forEveryone(destination, broadcast netip.Addr) bool {
+	return destination == broadcast || destination == limitedBroadcast || destination.IsMulticast()
+}
+
+// broadcastOf is the address that means everyone on a subnet: the network with
+// every host bit set, so 10.69.0.255 for 10.69.0.0/24.
+func broadcastOf(subnet netip.Prefix) netip.Addr {
+	if !subnet.Addr().Is4() {
+		return netip.Addr{}
+	}
+
+	raw := subnet.Masked().Addr().As4()
+	host := ^uint32(0) >> subnet.Bits()
+	binary.BigEndian.PutUint32(raw[:], binary.BigEndian.Uint32(raw[:])|host)
+	return netip.AddrFrom4(raw)
 }
 
 // destinationOf reads where an IPv4 packet is headed. Bytes 16 to 20 of the

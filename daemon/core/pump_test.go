@@ -61,6 +61,51 @@ func TestAdapterAddress(t *testing.T) {
 	}
 }
 
+func TestBroadcastOf(t *testing.T) {
+	tests := []struct {
+		subnet string
+		want   string
+	}{
+		// The address the adapter carries, not the network, because that is
+		// what pumpOut has to hand.
+		{subnet: "10.69.0.3/24", want: "10.69.0.255"},
+		{subnet: "10.69.0.0/16", want: "10.69.255.255"},
+		{subnet: "10.69.0.3/30", want: "10.69.0.3"},
+	}
+
+	for _, tt := range tests {
+		got := broadcastOf(netip.MustParsePrefix(tt.subnet))
+		if got != netip.MustParseAddr(tt.want) {
+			t.Errorf("broadcastOf(%s) = %v, want %s", tt.subnet, got, tt.want)
+		}
+	}
+}
+
+func TestForEveryone(t *testing.T) {
+	broadcast := netip.MustParseAddr("10.69.0.255")
+
+	everyone := []string{
+		"10.69.0.255",     // the group's broadcast address
+		"255.255.255.255", // everyone without a router
+		"224.0.2.60",      // Minecraft's LAN announcement
+		"224.0.0.251",     // mDNS
+		"239.255.255.250", // SSDP
+	}
+	for _, address := range everyone {
+		if !forEveryone(netip.MustParseAddr(address), broadcast) {
+			t.Errorf("%s was treated as one machine's address", address)
+		}
+	}
+
+	// A peer's own address still goes down that peer's link alone. Replicating
+	// it would deliver the same packet to everyone in the group.
+	for _, address := range []string{"10.69.0.1", "10.69.0.2", "10.69.0.254"} {
+		if forEveryone(netip.MustParseAddr(address), broadcast) {
+			t.Errorf("%s was treated as addressed to the whole group", address)
+		}
+	}
+}
+
 func TestDestinationOf(t *testing.T) {
 	// A minimal IPv4 header. Only the version nibble and the destination are
 	// read, so the rest is left as zeroes.
