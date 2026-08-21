@@ -30,6 +30,10 @@
                     Text="{x:Bind Version}" />
 
                 <!--
+                    Only here when there is a newer version, so the link has to
+                    say that itself. Under the version number and nothing else,
+                    "Get on GitHub" read as a place to find the source.
+
                     The release opens in a browser: the app looks for a new
                     version and does not fetch or install one.
                 -->
@@ -38,7 +42,7 @@
                     NavigateUri="{x:Bind UpdateUrl}"
                     Visibility="{x:Bind HasUpdate, Converter={StaticResource BooleanToVisibility}}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="Get on GitHub" />
+                        <TextBlock Text="Update available" />
                         <FontIcon FontSize="12" Glyph="&#xE8A7;" />
                     </StackPanel>
                 </HyperlinkButton>
