@@ -94,6 +94,11 @@ Filename: "{app}\{#ServiceExe}"; Parameters: "service install"; \
   StatusMsg: "Registering the background service..."; Flags: runhidden waituntilterminated
 Filename: "{app}\{#ClientExe}"; Description: "Open {#AppName}"; \
   Flags: nowait postinstall skipifsilent
+; A silent install is one the app asked for. It quit so this could replace its
+; executable, and silent mode has no finish page, so the checkbox above never
+; runs and nothing would start it again. As the signed-in user rather than the
+; administrator who approved the prompt.
+Filename: "{app}\{#ClientExe}"; Flags: nowait runasoriginaluser; Check: WizardSilent
 
 [UninstallRun]
 ; Stops the service, removes the adapter, deregisters it. Runs before the files

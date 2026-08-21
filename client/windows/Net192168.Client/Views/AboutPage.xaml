@@ -30,22 +30,43 @@
                     Text="{x:Bind Version}" />
 
                 <!--
-                    Only here when there is a newer version, so the link has to
-                    say that itself. Under the version number and nothing else,
-                    "Get on GitHub" read as a place to find the source.
-
-                    The release opens in a browser: the app looks for a new
-                    version and does not fetch or install one.
+                    Only here when there is a newer version, so the button has
+                    to name it itself. Under the version number and nothing
+                    else, "Get on GitHub" read as a place to find the source.
                 -->
-                <HyperlinkButton
+                <StackPanel
                     HorizontalAlignment="Center"
-                    NavigateUri="{x:Bind UpdateUrl}"
-                    Visibility="{x:Bind HasUpdate, Converter={StaticResource BooleanToVisibility}}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="Update available" />
-                        <FontIcon FontSize="12" Glyph="&#xE8A7;" />
-                    </StackPanel>
-                </HyperlinkButton>
+                    Spacing="8"
+                    Visibility="{x:Bind Update.HasUpdate, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                    <Button
+                        HorizontalAlignment="Center"
+                        Command="{x:Bind Update.InstallCommand}"
+                        Content="{x:Bind Update.Label, Mode=OneWay}"
+                        Style="{StaticResource AccentButtonStyle}" />
+
+                    <!--  The panel centres its children, so this needs a width.  -->
+                    <ProgressBar
+                        Width="220"
+                        Maximum="100"
+                        Value="{x:Bind Update.Percent, Mode=OneWay}"
+                        Visibility="{x:Bind Update.IsDownloading, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+                    <TextBlock
+                        MaxWidth="260"
+                        HorizontalAlignment="Center"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Text="{x:Bind Update.Status, Mode=OneWay}"
+                        TextAlignment="Center"
+                        TextWrapping="Wrap"
+                        Visibility="{x:Bind Update.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
+
+                    <HyperlinkButton
+                        HorizontalAlignment="Center"
+                        Content="Get it on GitHub"
+                        NavigateUri="{x:Bind Update.Url, Mode=OneWay}"
+                        Visibility="{x:Bind Update.HasFailed, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                </StackPanel>
             </StackPanel>
 
             <TextBlock

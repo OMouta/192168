@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Net192168.Client.Services;
+using Net192168.Client.ViewModels;
 
 namespace Net192168.Client.Views;
 
@@ -15,14 +15,8 @@ public sealed partial class AboutPage : Page
 
     public string Version => $"Version {AppInfo.Version}";
 
-    /// <summary>Whether there is a newer release to go and get.</summary>
-    public bool HasUpdate => Updates.Available is not null;
-
-    /// <summary>
-    /// The release page, opened in a browser. Downloading and installing an app
-    /// that installed a service is a bigger idea than this needs.
-    /// </summary>
-    public Uri UpdateUrl => new(Updates.Available?.Url ?? "https://github.com/OMouta/192168/releases");
+    /// <summary>The update, shared with the banner on home.</summary>
+    public UpdateViewModel Update => UpdateViewModel.Current;
 
     /// <summary>
     /// Opens the folder holding both logs, with the daemon's picked out. That

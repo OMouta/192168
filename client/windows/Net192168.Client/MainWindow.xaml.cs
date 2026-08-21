@@ -80,6 +80,10 @@ public sealed partial class MainWindow : Window
         App.Daemon.StateChanged += UpdateTray;
         UpdateTray();
 
+        // The installer kills whatever still holds the files it replaces, and a
+        // killed process leaves its tray icon behind. Quit first.
+        Updates.Installing += () => _ = QuitAsync(stopService: false);
+
         ContentFrame.Navigate(typeof(HomePage));
     }
 
@@ -146,7 +150,15 @@ public sealed partial class MainWindow : Window
     /// what says commands are the way across that boundary.
     /// </summary>
     [RelayCommand]
-    private async Task ExitAppAsync()
+    private Task ExitAppAsync() => QuitAsync(stopService: true);
+
+    /// <summary>
+    /// Quits. The service is stopped on the way out, because leaving it up
+    /// leaves live tunnels with no icon to stop them from. An update does not
+    /// stop it: the installer does that itself, and waiting for it here first
+    /// only makes the update slower.
+    /// </summary>
+    private async Task QuitAsync(bool stopService)
     {
         _exiting = true;
         App.Daemon.StateChanged -= UpdateTray;
@@ -155,7 +167,7 @@ public sealed partial class MainWindow : Window
         // stop returning at all.
         try
         {
-            if (DaemonService.IsAvailable)
+            if (stopService && DaemonService.IsAvailable)
             {
                 await Task.WhenAny(DaemonService.StopAsync(), Task.Delay(TimeSpan.FromSeconds(15)));
             }

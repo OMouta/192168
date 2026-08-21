@@ -43,22 +43,46 @@
 
         <!--
             Closable, because a version being out is worth saying once and not
-            worth standing between somebody and a game.
+            worth standing between somebody and a game. Not once the download
+            has started, because the app quits at the end of it and this is the
+            only thing that says so.
         -->
         <InfoBar
             Grid.Row="1"
             Margin="12,8,12,0"
+            IsClosable="{x:Bind ViewModel.Update.IsWorking, Mode=OneWay, Converter={StaticResource NotBoolean}}"
             IsOpen="{x:Bind ViewModel.HasUpdate, Mode=TwoWay}"
             Severity="Informational"
-            Title="{x:Bind ViewModel.UpdateTitle, Mode=OneWay}">
+            Title="{x:Bind ViewModel.Update.Title, Mode=OneWay}">
             <InfoBar.ActionButton>
-                <HyperlinkButton NavigateUri="{x:Bind ViewModel.UpdateUrl, Mode=OneWay}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="Get on GitHub" />
-                        <FontIcon FontSize="12" Glyph="&#xE8A7;" />
-                    </StackPanel>
-                </HyperlinkButton>
+                <Button
+                    Command="{x:Bind ViewModel.Update.InstallCommand}"
+                    Content="Update"
+                    Style="{StaticResource AccentButtonStyle}" />
             </InfoBar.ActionButton>
+
+            <InfoBar.Content>
+                <StackPanel
+                    Margin="0,0,0,12"
+                    Spacing="4"
+                    Visibility="{x:Bind ViewModel.Update.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}">
+                    <ProgressBar
+                        Maximum="100"
+                        Value="{x:Bind ViewModel.Update.Percent, Mode=OneWay}"
+                        Visibility="{x:Bind ViewModel.Update.IsDownloading, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                    <TextBlock
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Text="{x:Bind ViewModel.Update.Status, Mode=OneWay}"
+                        TextWrapping="Wrap" />
+
+                    <HyperlinkButton
+                        Padding="0,2"
+                        Content="Get it on GitHub"
+                        NavigateUri="{x:Bind ViewModel.Update.Url, Mode=OneWay}"
+                        Visibility="{x:Bind ViewModel.Update.HasFailed, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                </StackPanel>
+            </InfoBar.Content>
         </InfoBar>
 
         <!--

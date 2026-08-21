@@ -194,8 +194,8 @@ public sealed partial class HomeViewModel : ObservableObject
             _copyFeedback.Tick += (_, _) => JustCopied = false;
         }
 
-        _daemon.StateChanged += Update;
-        Update();
+        _daemon.StateChanged += ShowState;
+        ShowState();
 
         // The check runs once when the app opens and may land after this is
         // built, so the banner appears when the answer does rather than only on
@@ -204,31 +204,22 @@ public sealed partial class HomeViewModel : ObservableObject
         ShowUpdate();
     }
 
-    private void ShowUpdate()
-    {
-        UpdateVersion = Updates.Available?.Version;
-        HasUpdate = UpdateVersion is not null;
-        OnPropertyChanged(nameof(UpdateUrl));
-    }
+    private void ShowUpdate() => HasUpdate = Updates.Available is not null;
 
     public ObservableCollection<GroupListItem> Groups { get; } = [];
 
     public ObservableCollection<PeerItem> Peers { get; } = [];
 
-    /// <summary>Whether a newer version exists. Nothing is downloaded: the
-    /// banner says where to get it and the person decides.</summary>
+    /// <summary>
+    /// Whether the banner is up. This screen's own state, not the update's.
+    /// Closing it puts a version out of the way until the next launch, and
+    /// About still offers it.
+    /// </summary>
     [ObservableProperty]
     public partial bool HasUpdate { get; set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(UpdateTitle))]
-    public partial string? UpdateVersion { get; set; }
-
-    public string UpdateTitle => $"Version {UpdateVersion} is available";
-
-    /// <summary>The release page. The button goes there; nothing describes how
-    /// to get there in words.</summary>
-    public Uri UpdateUrl => new(Updates.Available?.Url ?? "https://github.com/OMouta/192168/releases");
+    /// <summary>The update, shared with About.</summary>
+    public UpdateViewModel Update => UpdateViewModel.Current;
 
     /// <summary>True while a group is up, which is what swaps the screen over.</summary>
     [ObservableProperty]
@@ -483,7 +474,7 @@ public sealed partial class HomeViewModel : ObservableObject
         }
     }
 
-    private void Update()
+    private void ShowState()
     {
         var state = _daemon.State;
 
