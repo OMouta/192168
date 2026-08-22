@@ -28,45 +28,6 @@
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     Style="{StaticResource CaptionTextBlockStyle}"
                     Text="{x:Bind Version}" />
-
-                <!--
-                    Only here when there is a newer version, so the button has
-                    to name it itself. Under the version number and nothing
-                    else, "Get on GitHub" read as a place to find the source.
-                -->
-                <StackPanel
-                    HorizontalAlignment="Center"
-                    Spacing="8"
-                    Visibility="{x:Bind Update.HasUpdate, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                    <Button
-                        HorizontalAlignment="Center"
-                        Command="{x:Bind Update.InstallCommand}"
-                        Content="{x:Bind Update.Label, Mode=OneWay}"
-                        Style="{StaticResource AccentButtonStyle}" />
-
-                    <!--  The panel centres its children, so this needs a width.  -->
-                    <ProgressBar
-                        Width="220"
-                        Maximum="100"
-                        Value="{x:Bind Update.Percent, Mode=OneWay}"
-                        Visibility="{x:Bind Update.IsDownloading, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
-
-                    <TextBlock
-                        MaxWidth="260"
-                        HorizontalAlignment="Center"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Style="{StaticResource CaptionTextBlockStyle}"
-                        Text="{x:Bind Update.Status, Mode=OneWay}"
-                        TextAlignment="Center"
-                        TextWrapping="Wrap"
-                        Visibility="{x:Bind Update.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
-
-                    <HyperlinkButton
-                        HorizontalAlignment="Center"
-                        Content="Get it on GitHub"
-                        NavigateUri="{x:Bind Update.Url, Mode=OneWay}"
-                        Visibility="{x:Bind Update.HasFailed, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
-                </StackPanel>
             </StackPanel>
 
             <TextBlock
@@ -114,57 +75,8 @@
                             NavigateUri="https://192168.lol" />
                     </Grid>
 
-                    <Border Style="{StaticResource RowDivider}" />
-
-                    <!--
-                        The one thing worth asking somebody for when the app
-                        misbehaves, so it is buttons rather than a path to copy
-                        out by hand. Export is first because it is the one to
-                        reach for when something is actually wrong.
-                    -->
-                    <Grid Padding="4,4,8,4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock
-                            Grid.Column="0"
-                            Style="{StaticResource RowLabel}"
-                            Text="App &amp; Network Logs" />
-                        <StackPanel
-                            Grid.Column="1"
-                            Orientation="Horizontal"
-                            Spacing="8">
-                            <Button
-                                x:Name="ExportLogs"
-                                Margin="0,4"
-                                Click="OnExportLogs"
-                                Content="Export" />
-                            <Button
-                                Margin="0,4"
-                                Click="OnShowLog"
-                                Content="Show" />
-                            <Button
-                                x:Name="ClearLogs"
-                                Margin="0,4"
-                                Click="OnClearLogs"
-                                Content="Clear" />
-                        </StackPanel>
-                    </Grid>
                 </StackPanel>
             </Border>
-
-            <!--
-                Only there once one of the buttons above has something to
-                report, so the card keeps the one shape every row in it has.
-            -->
-            <TextBlock
-                x:Name="LogStatus"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                Style="{StaticResource CaptionTextBlockStyle}"
-                TextAlignment="Center"
-                TextWrapping="Wrap"
-                Visibility="Collapsed" />
 
             <TextBlock
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"

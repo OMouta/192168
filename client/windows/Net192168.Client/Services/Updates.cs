@@ -107,15 +107,41 @@ public static class Updates
     public static event Action? Installing;
 
     /// <summary>
+    /// How the last check went, so a screen with a button on it can say
+    /// something afterwards. Never having looked is its own answer.
+    /// </summary>
+    public enum CheckOutcome
+    {
+        /// <summary>Nobody has looked yet.</summary>
+        Never,
+        /// <summary>Looked, and this is the newest there is.</summary>
+        UpToDate,
+        /// <summary>Looked, and there is something newer.</summary>
+        Behind,
+        /// <summary>Could not reach GitHub, or it did not answer usefully.</summary>
+        Unreachable,
+        /// <summary>A build from a checkout, which is not behind any release.</summary>
+        NotARelease,
+    }
+
+    /// <summary>How the last check went.</summary>
+    public static CheckOutcome LastCheck { get; private set; } = CheckOutcome.Never;
+
+    /// <summary>
     /// Asks GitHub what the newest release is.
     ///
-    /// Called once when the app opens. Checking more often would tell somebody
-    /// about a release in the middle of a game, which is the worst moment to
-    /// hear about one.
+    /// Called once when the app opens. Checking more often on its own would tell
+    /// somebody about a release in the middle of a game, which is the worst
+    /// moment to hear about one.
     /// </summary>
-    public static async Task CheckAsync()
+    /// <param name="asked">
+    /// True when somebody pressed a button rather than the app looking on its
+    /// own. An explicit ask goes ahead even with automatic checks turned off:
+    /// that switch is about the app reaching out unprompted, and this is not.
+    /// </param>
+    public static async Task CheckAsync(bool asked = false)
     {
-        if (!Enabled)
+        if (!Enabled && !asked)
         {
             return;
         }
@@ -124,6 +150,7 @@ public static class Updates
         if (current is null || current == new Version(0, 0, 0))
         {
             // A build from a checkout is not a release and is not behind one.
+            Settle(CheckOutcome.NotARelease);
             return;
         }
 
@@ -132,18 +159,23 @@ public static class Updates
             using var response = await Http.GetAsync(LatestRelease);
             if (!response.IsSuccessStatusCode)
             {
+                Settle(CheckOutcome.Unreachable);
                 return;
             }
 
             using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
             var root = payload.RootElement;
 
+            // A draft, or a release this cannot read, is the same answer as
+            // nothing newer: there is nothing here to offer anybody.
             if (root.TryGetProperty("draft", out var draft) && draft.GetBoolean())
             {
+                Settle(CheckOutcome.UpToDate);
                 return;
             }
             if (!root.TryGetProperty("tag_name", out var tag) || tag.GetString() is not string name)
             {
+                Settle(CheckOutcome.Unreachable);
                 return;
             }
 
@@ -153,6 +185,8 @@ public static class Updates
                 // Nothing newer, so an installer still in the temporary folder
                 // has already been applied.
                 Discard();
+                Available = null;
+                Settle(CheckOutcome.UpToDate);
                 return;
             }
 
@@ -162,12 +196,26 @@ public static class Updates
                 url ?? ReleasesPage,
                 FindInstaller(root),
                 Breaks(current, latest));
-            Changed?.Invoke();
+            Settle(CheckOutcome.Behind);
         }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException or JsonException)
         {
             App.Trace($"update check failed: {error.Message}");
+            Settle(CheckOutcome.Unreachable);
         }
+    }
+
+    /// <summary>
+    /// Records how a check went and tells whoever is listening.
+    ///
+    /// Raised on every outcome rather than only on finding something, so a
+    /// screen with a Check button can say "up to date" instead of going quiet
+    /// and leaving somebody to guess whether it did anything.
+    /// </summary>
+    private static void Settle(CheckOutcome outcome)
+    {
+        LastCheck = outcome;
+        Changed?.Invoke();
     }
 
     /// <summary>

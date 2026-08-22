@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Page
     x:Class="Net192168.Client.Views.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -25,179 +25,55 @@
             <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
+        <!--  Every tab is one of these, so switching between them changes nothing but the contents.  -->
+        <Style x:Key="Tab" TargetType="StackPanel">
+            <Setter Property="Margin" Value="16,12,16,16" />
+            <Setter Property="Spacing" Value="20" />
+        </Style>
     </Page.Resources>
 
     <!--  Back and the title of this screen are in the window header.  -->
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ScrollViewer Grid.Row="0">
-            <StackPanel Margin="16,8,16,16" Spacing="20">
+        <!--
+            Four groups that had been one scroll long enough to have to hunt
+            through. The window is narrow, so these are the widest four labels
+            that still fit on one line.
+        -->
+        <SelectorBar
+            x:Name="Tabs"
+            Grid.Row="0"
+            Margin="12,0,12,0"
+            SelectionChanged="OnTabChanged">
+            <SelectorBarItem IsSelected="True" Text="General" />
+            <SelectorBarItem Text="Network" />
+            <SelectorBarItem Text="Updates" />
+            <SelectorBarItem Text="About" />
+        </SelectorBar>
 
-                <!--  First, and the only thing here about the person rather than the machine.  -->
-                <StackPanel Spacing="8">
-                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Your name" />
+        <ScrollViewer x:Name="TabScroll" Grid.Row="1">
+            <!--  One at a time, stacked rather than swapped, so each keeps what was typed into it.  -->
+            <Grid>
 
-                    <TextBox Text="{x:Bind ViewModel.Nickname, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <!--  General: the person, and how the app behaves on this machine.  -->
+                <StackPanel x:Name="GeneralTab" Style="{StaticResource Tab}">
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Your name" />
 
-                    <TextBlock Style="{StaticResource RowCaption}" Text="What everyone in your groups sees." />
-                </StackPanel>
+                        <TextBox Text="{x:Bind ViewModel.Nickname, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                <StackPanel Spacing="8">
-                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Server" />
+                        <TextBlock Style="{StaticResource RowCaption}" Text="What everyone in your groups sees." />
+                    </StackPanel>
 
-                    <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Startup" />
 
-                        <TextBox
-                            x:Name="ServerBox"
-                            Grid.Column="0"
-                            PlaceholderText="https://192168.lol"
-                            Text="{x:Bind ViewModel.ServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <!--  Beside the field it belongs to, since it tests what is in it.  -->
-                        <Button
-                            Grid.Column="1"
-                            MinWidth="72"
-                            Command="{x:Bind ViewModel.TestCommand}"
-                            IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource NotBoolean}}">
-                            <StackPanel
-                                HorizontalAlignment="Center"
-                                Orientation="Horizontal"
-                                Spacing="8">
-                                <ProgressRing
-                                    Width="14"
-                                    Height="14"
-                                    IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
-                                    Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
-                                <TextBlock Text="Test" />
-                            </StackPanel>
-                        </Button>
-                    </Grid>
-
-                    <!--  Status only, and only once there is any. No standing paragraph.  -->
-                    <TextBlock
-                        Style="{StaticResource RowCaption}"
-                        Text="{x:Bind ViewModel.Status, Mode=OneWay}"
-                        Visibility="{x:Bind ViewModel.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
-                </StackPanel>
-
-                <!--
-                    How the group behaves once you are on it. One switch, and it
-                    earns a caption: turning it on has an effect outside this
-                    app that nobody would guess from the headline.
-                -->
-                <StackPanel Spacing="8">
-                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Network" />
-
-                    <Border Style="{StaticResource Card}">
-                        <Grid Padding="12,10" ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Column="0" Style="{StaticResource RowText}">
-                                <TextBlock Text="Let games find each other" />
-                                <TextBlock Style="{StaticResource RowCaption}" Text="Games that scan the network for servers see your group. While you are connected, nearby speakers and printers may not be found." />
-                            </StackPanel>
-
-                            <ToggleSwitch
-                                Grid.Column="1"
-                                MinWidth="0"
-                                VerticalAlignment="Center"
-                                IsOn="{x:Bind ViewModel.LanDiscovery, Mode=TwoWay}"
-                                OffContent=""
-                                OnContent="" />
-                        </Grid>
-                    </Border>
-
-                    <!--
-                        Off by default. The counters that go in the ordinary log
-                        run either way, so this is the extra detail rather than
-                        the difference between a useful report and none.
-                    -->
-                    <Border Style="{StaticResource Card}">
-                        <Grid Padding="12,10" ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Column="0" Style="{StaticResource RowText}">
-                                <TextBlock Text="Record every packet" />
-                                <TextBlock Style="{StaticResource RowCaption}" Text="Turn this on before reproducing a problem you want to report." />
-                            </StackPanel>
-
-                            <ToggleSwitch
-                                Grid.Column="1"
-                                MinWidth="0"
-                                VerticalAlignment="Center"
-                                IsOn="{x:Bind ViewModel.PacketLog, Mode=TwoWay}"
-                                OffContent=""
-                                OnContent="" />
-                        </Grid>
-                    </Border>
-                </StackPanel>
-
-                <!--
-                    What the service is doing, and the two things that can be done
-                    about it. Gone entirely in a development build, where the
-                    daemon runs in a console and none of it applies.
-                -->
-                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.CanManageService, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Background service" />
-
-                    <Border Style="{StaticResource Card}">
-                        <Grid Padding="12,10" ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Column="0" Style="{StaticResource RowText}">
-                                <TextBlock Text="{x:Bind ViewModel.ServiceHeadline, Mode=OneWay}" />
-                                <TextBlock Style="{StaticResource RowCaption}" Text="{x:Bind ViewModel.ServiceDetail, Mode=OneWay}" />
-                            </StackPanel>
-
-                            <StackPanel
-                                Grid.Column="1"
-                                VerticalAlignment="Center"
-                                Orientation="Horizontal"
-                                Spacing="8">
-                                <Button
-                                    Command="{x:Bind ViewModel.StopServiceCommand}"
-                                    Content="Stop"
-                                    IsEnabled="{x:Bind ViewModel.IsServiceRunning, Mode=OneWay}" />
-                                <Button
-                                    Command="{x:Bind ViewModel.InstallServiceCommand}"
-                                    Content="Install"
-                                    Visibility="{x:Bind ViewModel.IsServiceMissing, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
-                                <Button
-                                    Command="{x:Bind ViewModel.RemoveServiceCommand}"
-                                    Content="Remove"
-                                    Visibility="{x:Bind ViewModel.IsServiceInstalled, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-                </StackPanel>
-
-                <!--
-                    The app itself: when it opens, what it is, and how to get rid
-                    of it. None of it depends on the service, so it stays put
-                    even when there is no service to manage.
-                -->
-                <StackPanel Spacing="8">
-                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="App" />
-
-                    <Border Style="{StaticResource Card}">
-                        <StackPanel>
+                        <Border Style="{StaticResource Card}">
                             <Grid Padding="12,6" ColumnSpacing="12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -217,30 +93,306 @@
                                     OffContent=""
                                     OnContent="" />
                             </Grid>
+                        </Border>
+                    </StackPanel>
 
-                            <Border Style="{StaticResource RowDivider}" />
+                    <!--
+                        What the service is doing, and the two things that can be
+                        done about it. Gone entirely in a development build, where
+                        the daemon runs in a console and none of it applies.
+                    -->
+                    <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.CanManageService, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Background service" />
 
-                            <Grid Padding="12,6" ColumnSpacing="12">
+                        <Border Style="{StaticResource Card}">
+                            <Grid Padding="12,10" ColumnSpacing="12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock
-                                    Grid.Column="0"
+                                <StackPanel Grid.Column="0" Style="{StaticResource RowText}">
+                                    <TextBlock Text="{x:Bind ViewModel.ServiceHeadline, Mode=OneWay}" />
+                                    <TextBlock Style="{StaticResource RowCaption}" Text="{x:Bind ViewModel.ServiceDetail, Mode=OneWay}" />
+                                </StackPanel>
+
+                                <StackPanel
+                                    Grid.Column="1"
                                     VerticalAlignment="Center"
-                                    Text="Check for updates" />
+                                    Orientation="Horizontal"
+                                    Spacing="8">
+                                    <Button
+                                        Command="{x:Bind ViewModel.StopServiceCommand}"
+                                        Content="Stop"
+                                        IsEnabled="{x:Bind ViewModel.IsServiceRunning, Mode=OneWay}" />
+                                    <Button
+                                        Command="{x:Bind ViewModel.InstallServiceCommand}"
+                                        Content="Install"
+                                        Visibility="{x:Bind ViewModel.IsServiceMissing, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                                    <Button
+                                        Command="{x:Bind ViewModel.RemoveServiceCommand}"
+                                        Content="Remove"
+                                        Visibility="{x:Bind ViewModel.IsServiceInstalled, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!--
+                        The same line the Network tab shows. Saving, resetting
+                        and a missing daemon all report through one property, and
+                        the two tabs that can trigger any of them both need
+                        somewhere to put the answer.
+                    -->
+                    <TextBlock
+                        Style="{StaticResource RowCaption}"
+                        Text="{x:Bind ViewModel.Status, Mode=OneWay}"
+                        Visibility="{x:Bind ViewModel.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
+                </StackPanel>
+
+                <!--  Network: where this connects, and how the group behaves once it has.  -->
+                <StackPanel
+                    x:Name="NetworkTab"
+                    Style="{StaticResource Tab}"
+                    Visibility="Collapsed">
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Server" />
+
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox
+                                x:Name="ServerBox"
+                                Grid.Column="0"
+                                PlaceholderText="https://192168.lol"
+                                Text="{x:Bind ViewModel.ServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <!--  Beside the field it belongs to, since it tests what is in it.  -->
+                            <Button
+                                Grid.Column="1"
+                                MinWidth="72"
+                                Command="{x:Bind ViewModel.TestCommand}"
+                                IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource NotBoolean}}">
+                                <StackPanel
+                                    HorizontalAlignment="Center"
+                                    Orientation="Horizontal"
+                                    Spacing="8">
+                                    <ProgressRing
+                                        Width="14"
+                                        Height="14"
+                                        IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
+                                        Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                                    <TextBlock Text="Test" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <!--  Status only, and only once there is any. No standing paragraph.  -->
+                        <TextBlock
+                            Style="{StaticResource RowCaption}"
+                            Text="{x:Bind ViewModel.Status, Mode=OneWay}"
+                            Visibility="{x:Bind ViewModel.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Discovery" />
+
+                        <!--
+                            One switch, and it earns a caption: turning it on has
+                            an effect outside this app that nobody would guess
+                            from the headline.
+                        -->
+                        <Border Style="{StaticResource Card}">
+                            <Grid Padding="12,10" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" Style="{StaticResource RowText}">
+                                    <TextBlock Text="Let games find each other" />
+                                    <TextBlock Style="{StaticResource RowCaption}" Text="Games that scan the network for servers see your group. While you are connected, nearby speakers and printers may not be found." />
+                                </StackPanel>
 
                                 <ToggleSwitch
                                     Grid.Column="1"
                                     MinWidth="0"
+                                    VerticalAlignment="Center"
+                                    IsOn="{x:Bind ViewModel.LanDiscovery, Mode=TwoWay}"
+                                    OffContent=""
+                                    OnContent="" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!--
+                        Beside the logs it writes rather than with the network
+                        switches, since turning it on is something you do on the
+                        way to sending somebody a report.
+                    -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Diagnostics" />
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <Grid Padding="12,10" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Style="{StaticResource RowText}">
+                                        <TextBlock Text="Record every packet" />
+                                        <TextBlock Style="{StaticResource RowCaption}" Text="Turn this on before reproducing a problem you want to report." />
+                                    </StackPanel>
+
+                                    <ToggleSwitch
+                                        Grid.Column="1"
+                                        MinWidth="0"
+                                        VerticalAlignment="Center"
+                                        IsOn="{x:Bind ViewModel.PacketLog, Mode=TwoWay}"
+                                        OffContent=""
+                                        OnContent="" />
+                                </Grid>
+
+                                <Border Style="{StaticResource RowDivider}" />
+
+                                <Grid Padding="12,10" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        Text="Logs" />
+
+                                    <StackPanel
+                                        Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        Spacing="8">
+                                        <Button
+                                            x:Name="ExportLogs"
+                                            Click="OnExportLogs"
+                                            Content="Export" />
+                                        <Button Click="OnShowLogs" Content="Show" />
+                                        <Button
+                                            x:Name="ClearLogs"
+                                            Click="OnClearLogs"
+                                            Content="Clear" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!--  Only there once one of the buttons above has something to report.  -->
+                        <TextBlock
+                            x:Name="LogStatus"
+                            Style="{StaticResource RowCaption}"
+                            Visibility="Collapsed" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!--
+                    Updates: the switch, the check, and the offer, which used to
+                    be three places. Whether to look, looking now, and what was
+                    found are one question asked in three tenses.
+                -->
+                <StackPanel
+                    x:Name="UpdatesTab"
+                    Style="{StaticResource Tab}"
+                    Visibility="Collapsed">
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Version" />
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel Padding="12,12" Spacing="10">
+                                <TextBlock Text="{x:Bind Update.Headline, Mode=OneWay}" />
+
+                                <!--  Only for a release that needs taking, which is why it is worth a line.  -->
+                                <TextBlock
+                                    Style="{StaticResource RowCaption}"
+                                    Text="{x:Bind Update.Detail, Mode=OneWay}"
+                                    Visibility="{x:Bind Update.Detail, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
+
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button
+                                        Command="{x:Bind Update.InstallCommand}"
+                                        Content="{x:Bind Update.Label, Mode=OneWay}"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Visibility="{x:Bind Update.HasUpdate, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+                                    <Button Command="{x:Bind Update.CheckCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <ProgressRing
+                                                Width="14"
+                                                Height="14"
+                                                IsActive="{x:Bind Update.IsChecking, Mode=OneWay}"
+                                                Visibility="{x:Bind Update.IsChecking, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                                            <TextBlock Text="Check now" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+
+                                <ProgressBar
+                                    Maximum="100"
+                                    Value="{x:Bind Update.Percent, Mode=OneWay}"
+                                    Visibility="{x:Bind Update.IsDownloading, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+                                <!--  How the download is going, once one has been asked for.  -->
+                                <TextBlock
+                                    Style="{StaticResource RowCaption}"
+                                    Text="{x:Bind Update.Status, Mode=OneWay}"
+                                    Visibility="{x:Bind Update.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
+
+                                <!--  The way through when the installer will not run.  -->
+                                <HyperlinkButton
+                                    Padding="0,2"
+                                    Content="Get it on GitHub"
+                                    NavigateUri="{x:Bind Update.Url, Mode=OneWay}"
+                                    Visibility="{x:Bind Update.HasFailed, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Automatic" />
+
+                        <Border Style="{StaticResource Card}">
+                            <Grid Padding="12,10" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" Style="{StaticResource RowText}">
+                                    <TextBlock Text="Check for updates" />
+                                    <TextBlock Style="{StaticResource RowCaption}" Text="Looks once each time 192168 opens. Check now works either way." />
+                                </StackPanel>
+
+                                <ToggleSwitch
+                                    Grid.Column="1"
+                                    MinWidth="0"
+                                    VerticalAlignment="Center"
                                     IsOn="{x:Bind ViewModel.ChecksForUpdates, Mode=TwoWay}"
                                     OffContent=""
                                     OnContent="" />
                             </Grid>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
 
-                            <Border Style="{StaticResource RowDivider}" />
-
+                <!--  App: what it is, and how to be rid of it.  -->
+                <StackPanel
+                    x:Name="AppTab"
+                    Style="{StaticResource Tab}"
+                    Visibility="Collapsed">
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
                             <!--
                                 Where the version and the links live. It is on
                                 the only screen that is not about connecting,
@@ -302,10 +454,19 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
-            </StackPanel>
+            </Grid>
         </ScrollViewer>
 
-        <Grid Grid.Row="1" Padding="16,12">
+        <!--
+            Only under the two tabs that have anything to save. Everything else
+            in here applies the moment it is touched, and a Save button over a
+            screen with nothing to save invites the thought that something was
+            missed.
+        -->
+        <Grid
+            x:Name="SaveBar"
+            Grid.Row="2"
+            Padding="16,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />

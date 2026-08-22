@@ -25,12 +25,20 @@ public sealed partial class UpdateViewModel : ObservableObject
     /// <summary>Whether there is a newer version.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(InstallCommand))]
+    [NotifyPropertyChangedFor(nameof(Headline))]
     public partial bool HasUpdate { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Title))]
+    [NotifyPropertyChangedFor(nameof(Headline))]
     [NotifyPropertyChangedFor(nameof(Label))]
     public partial string? Version { get; set; }
+
+    /// <summary>
+    /// The one line at the top of the Updates tab, whichever way the last check
+    /// went. An app that is current has as much to say as one that is behind.
+    /// </summary>
+    public string Headline => HasUpdate ? Title : CheckSummary;
 
     public string Title => IsRequired
         ? $"Version {Version} is needed"
@@ -43,6 +51,7 @@ public sealed partial class UpdateViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Title))]
+    [NotifyPropertyChangedFor(nameof(Headline))]
     [NotifyPropertyChangedFor(nameof(Detail))]
     public partial bool IsRequired { get; set; }
 
@@ -86,6 +95,42 @@ public sealed partial class UpdateViewModel : ObservableObject
 
     private bool CanInstall() => HasUpdate && !IsWorking;
 
+    /// <summary>Whether a check is in flight, which is what greys the button.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CheckCommand))]
+    public partial bool IsChecking { get; set; }
+
+    /// <summary>
+    /// What the last check found, for the screen that has a button to run one.
+    ///
+    /// A check that comes back with nothing has to say so. Without this the
+    /// button looks like it did nothing, and the obvious next move is to press
+    /// it again.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Headline))]
+    public partial string CheckSummary { get; set; } = "";
+
+    /// <summary>
+    /// Looks now, whether or not the app is set to look on its own. Pressing a
+    /// button is not the app reaching out unprompted.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanCheck))]
+    private async Task CheckAsync()
+    {
+        IsChecking = true;
+        try
+        {
+            await Updates.CheckAsync(asked: true);
+        }
+        finally
+        {
+            IsChecking = false;
+        }
+    }
+
+    private bool CanCheck() => !IsChecking;
+
     private void Show()
     {
         Version = Updates.Available?.Version;
@@ -96,8 +141,25 @@ public sealed partial class UpdateViewModel : ObservableObject
         HasFailed = Updates.Stage is UpdateStage.Failed;
         Percent = Updates.Percent;
         Status = Describe();
+        CheckSummary = Summarise();
         OnPropertyChanged(nameof(Url));
     }
+
+    /// <summary>
+    /// One line about the last look, as opposed to <see cref="Status"/>, which
+    /// is about the download.
+    /// </summary>
+    private static string Summarise() => Updates.LastCheck switch
+    {
+        Updates.CheckOutcome.UpToDate => $"192168 {AppInfo.Version} is the latest version.",
+        Updates.CheckOutcome.Unreachable => "Could not reach GitHub to check.",
+        // A build from a checkout has no release to be behind, and saying so is
+        // more use than an error nobody can act on.
+        Updates.CheckOutcome.NotARelease => "This is a development build, so there is nothing to update to.",
+        // Never looked, or looked and found something, in which case the
+        // headline names the version rather than this.
+        _ => $"192168 {AppInfo.Version}",
+    };
 
     private static string? Describe() => Updates.Stage switch
     {
