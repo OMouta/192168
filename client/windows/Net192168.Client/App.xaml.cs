@@ -151,15 +151,37 @@ public partial class App : Application
         });
     }
 
-    /// <summary>The invite an activation carries, or null. Whether the string
-    /// is a real invite is the daemon's problem.</summary>
-    private static string? InviteFrom(AppActivationArguments? args)
+    /// <summary>
+    /// The invite an activation carries, or null. Whether the string is a real
+    /// invite is the daemon's problem.
+    ///
+    /// Both shapes, because unpackaged this is nearly always the second one.
+    /// Setup registers the scheme the ordinary way, as a shell open command
+    /// that runs the exe with the link as an argument, so Windows starts the
+    /// app rather than activating it and what arrives is a plain launch. A
+    /// protocol activation only turns up for a registration made through the
+    /// App SDK, which this does not use.
+    /// </summary>
+    private static string? InviteFrom(AppActivationArguments? args) => args?.Data switch
     {
         // Fully qualified. Importing this namespace would shadow the
         // LaunchActivatedEventArgs OnLaunched is handed.
-        return args?.Data is Windows.ApplicationModel.Activation.IProtocolActivatedEventArgs protocol
-            ? protocol.Uri.AbsoluteUri
-            : null;
+        Windows.ApplicationModel.Activation.IProtocolActivatedEventArgs protocol => protocol.Uri.AbsoluteUri,
+        Windows.ApplicationModel.Activation.ILaunchActivatedEventArgs launch => InviteIn(launch.Arguments),
+        _ => null,
+    };
+
+    /// <summary>
+    /// The invite inside one command line, or null.
+    ///
+    /// Taken from the scheme to the end rather than split into arguments: a
+    /// link has no spaces in it, and the string here holds the whole command
+    /// line, the path this exe was run from included.
+    /// </summary>
+    private static string? InviteIn(string? commandLine)
+    {
+        var at = commandLine?.IndexOf(InviteScheme, StringComparison.OrdinalIgnoreCase) ?? -1;
+        return at < 0 ? null : commandLine![at..].Trim().Trim('"');
     }
 
     /// <summary>
