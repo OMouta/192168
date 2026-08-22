@@ -14,10 +14,12 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/OMouta/192168/daemon/config"
 	"github.com/OMouta/192168/daemon/control"
 	"github.com/OMouta/192168/daemon/identity"
 	"github.com/OMouta/192168/daemon/ipcserver"
 	"github.com/OMouta/192168/daemon/mesh"
+	"github.com/OMouta/192168/daemon/netlog"
 	"github.com/OMouta/192168/daemon/tun"
 	"github.com/OMouta/192168/protocol/api"
 	"github.com/OMouta/192168/protocol/invite"
@@ -67,6 +69,14 @@ type Core struct {
 	// with the peer that left, and its count goes too.
 	packetsOut atomic.Uint64
 	packetsIn  atomic.Uint64
+
+	// packets is the account of what happened to traffic, as opposed to the
+	// two counters above, which are what the UI draws.
+	packets *netlog.Recorder
+
+	// mainLog is the daemon's own log file, kept so it can be emptied on
+	// request. Nil in the foreground, where the log is a console.
+	mainLog *config.RollingLog
 }
 
 // activeSession is the group connection. There is at most one, because two
@@ -96,6 +106,17 @@ func New(ctx context.Context, id *identity.Identity, dataDir, defaultServer stri
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
+	packets := netlog.New(log, config.PacketLogFile(dataDir))
+	if set.PacketLog {
+		// A log that was left on stays on across a restart, which is what
+		// somebody chasing something intermittent wants. Failing to open it is
+		// not worth refusing to start over.
+		if err := packets.SetEnabled(true); err != nil {
+			log.Warn("cannot open the packet log", "error", err)
+		}
+	}
+	go packets.Run(ctx)
+
 	return &Core{
 		log:           log,
 		identity:      id,
@@ -104,6 +125,7 @@ func New(ctx context.Context, id *identity.Identity, dataDir, defaultServer stri
 		defaultServer: defaultServer,
 		ctx:           ctx,
 		cancel:        cancel,
+		packets:       packets,
 		peers:         map[string]*ipc.PeerView{},
 		state: ipc.State{
 			Connection: ipc.StateDisconnected,
@@ -143,6 +165,18 @@ func (nopEvents) Broadcast(ipc.EventName, any) {}
 func (c *Core) Close() {
 	_ = c.Disconnect(context.Background())
 	c.cancel()
+	_ = c.packets.Close()
+}
+
+// SetLogs tells the core which log files it is allowed to empty.
+//
+// It is a setter rather than an argument because the log is opened before there
+// is a core to give it to: the first thing a daemon needs is somewhere to
+// report that it could not start.
+func (c *Core) SetLogs(main *config.RollingLog) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.mainLog = main
 }
 
 // GetState returns everything the UI needs to draw itself.
@@ -389,6 +423,67 @@ func (c *Core) SetLanDiscovery(_ context.Context, enabled bool) error {
 
 	c.log.Info("lan discovery changed", "enabled", enabled)
 	return nil
+}
+
+// GetPacketLog reports whether the packet log is on.
+func (c *Core) GetPacketLog(context.Context) (bool, error) {
+	return c.packets.Enabled(), nil
+}
+
+// SetPacketLog turns the packet log on or off, and reports what it settled on.
+//
+// A file that cannot be opened leaves the switch off rather than half on, and
+// says so, because a user who thinks they are recording and is not will come
+// back with the same problem and no more information than before.
+func (c *Core) SetPacketLog(_ context.Context, enabled bool) (bool, error) {
+	if err := c.packets.SetEnabled(enabled); err != nil {
+		c.log.Error("cannot open the packet log", "error", err)
+		return false, &ipcserver.Failure{
+			Code:    "log_unavailable",
+			Message: "Could not open the packet log, so it stays off.",
+		}
+	}
+
+	c.mu.Lock()
+	c.settings.PacketLog = enabled
+	err := c.settings.save()
+	c.mu.Unlock()
+	if err != nil {
+		return enabled, err
+	}
+
+	c.log.Info("packet log changed", "enabled", enabled)
+	return enabled, nil
+}
+
+// ClearLogs empties the logs the daemon owns and names what it emptied.
+//
+// The app cannot do this itself. These files are held open by a service running
+// as LocalSystem, and deleting one from outside appears to work while leaving
+// the daemon writing into a file that no longer has a name.
+//
+// The app's own log is the app's to clear, and is not touched here.
+func (c *Core) ClearLogs(context.Context) ([]string, error) {
+	c.mu.Lock()
+	main := c.mainLog
+	c.mu.Unlock()
+
+	cleared := make([]string, 0, 2)
+	if main != nil {
+		if err := main.Clear(); err != nil {
+			return nil, err
+		}
+		cleared = append(cleared, "daemon.log")
+	}
+	if err := c.packets.Clear(); err != nil {
+		return nil, err
+	}
+	cleared = append(cleared, "packets.log")
+
+	// After the truncation, so it is the first line in the empty file and the
+	// log says where it starts.
+	c.log.Info("logs cleared", "cleared", cleared)
+	return cleared, nil
 }
 
 // TestServer checks whether an address is a server this app can use. A server

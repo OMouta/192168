@@ -58,6 +58,16 @@ const (
 	MethodGetLanDiscovery Method = "GetLanDiscovery"
 	MethodSetLanDiscovery Method = "SetLanDiscovery"
 
+	// The packet log: a second file with a line for every packet worth seeing.
+	// It is for working out why one session misbehaved rather than for running
+	// all the time, so the user turns it on and off.
+	MethodGetPacketLog Method = "GetPacketLog"
+	MethodSetPacketLog Method = "SetPacketLog"
+
+	// MethodClearLogs empties the logs. The daemon holds them open, so it has
+	// to be the one that does it.
+	MethodClearLogs Method = "ClearLogs"
+
 	// MethodResetSettings puts local settings back to their defaults. The
 	// daemon owns those defaults, so the client asks rather than assuming.
 	MethodResetSettings Method = "ResetSettings"

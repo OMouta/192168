@@ -7,6 +7,7 @@ import (
 	"net/netip"
 
 	"github.com/OMouta/192168/daemon/mesh"
+	"github.com/OMouta/192168/daemon/netlog"
 	"github.com/OMouta/192168/daemon/tun"
 	"github.com/OMouta/192168/protocol"
 	"github.com/OMouta/192168/protocol/ipc"
@@ -55,7 +56,7 @@ func (c *Core) startAdapter(ctx context.Context, links *mesh.Mesh, virtualIP, su
 	}
 
 	go c.pumpOut(ctx, device, links, address)
-	go c.pumpIn(ctx, device, links, address.Addr())
+	go c.pumpIn(ctx, device, links, address)
 }
 
 // pumpOut takes what Windows wants to send and gives it to whoever owns the
@@ -78,20 +79,25 @@ func (c *Core) pumpOut(ctx context.Context, device *tun.Device, links *mesh.Mesh
 		if !ok {
 			// IPv6, and anything else that is not an IPv4 packet. The overlay
 			// is IPv4 only, so there is nowhere for it to go.
+			c.packets.Drop(netlog.NotIPv4)
 			continue
 		}
 
 		if forEveryone(destination, everyone) {
 			// Read per packet rather than captured, so turning the switch off
 			// stops the copies at once instead of at the next connect.
-			//
-			// No delivery report either way. On a real LAN nobody is owed one,
-			// and a group with nobody else in it would otherwise log a line
-			// for every announcement a game makes.
-			//
-			// One packet left this device however many copies went out.
-			if c.lanDiscovery() && links.Broadcast(packet) > 0 {
+			if !c.lanDiscovery() {
+				continue
+			}
+			// One packet left this device however many copies went out. The
+			// count of peers it reached is the thing worth knowing: zero means
+			// the announcement was made and nobody was there to hear it, which
+			// is a different problem from never having made it.
+			reached := links.Broadcast(packet)
+			c.packets.Shouted(destination, reached, len(packet))
+			if reached > 0 {
 				c.packetsOut.Add(1)
+				c.packets.Sent()
 			}
 			continue
 		}
@@ -99,16 +105,19 @@ func (c *Core) pumpOut(ctx context.Context, device *tun.Device, links *mesh.Mesh
 		if err := links.Send(destination, packet); err != nil {
 			// A peer whose link is not open yet, or an address in the subnet
 			// that nobody holds. Both are ordinary, and both look like packet
-			// loss to the game, which is what they are.
-			c.log.Debug("dropped an outgoing packet", "to", destination.String(), "error", err)
+			// loss to the game, which is what they are. Send has already
+			// counted it against the reason it failed for.
 			continue
 		}
 		c.packetsOut.Add(1)
+		c.packets.Sent()
 	}
 }
 
 // pumpIn takes what peers sent and hands it to Windows.
-func (c *Core) pumpIn(ctx context.Context, device *tun.Device, links *mesh.Mesh, local netip.Addr) {
+func (c *Core) pumpIn(ctx context.Context, device *tun.Device, links *mesh.Mesh, address netip.Prefix) {
+	local, everyone := address.Addr(), broadcastOf(address)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -117,17 +126,34 @@ func (c *Core) pumpIn(ctx context.Context, device *tun.Device, links *mesh.Mesh,
 			if !ok {
 				return
 			}
-			// Read per packet for the same reason the outgoing copies are:
-			// turning the switch off stops discovery in both directions at
-			// once rather than at the next connect.
-			if c.lanDiscovery() {
-				localiseMulticast(packet, local)
+
+			if destination, ok := destinationOf(packet); ok && forEveryone(destination, everyone) {
+				// The other end of what pumpOut replicated. One line at each
+				// end is what says whether an announcement crossed, which is
+				// the whole question behind a LAN list that stays empty.
+				c.packets.Overheard(sourceOf(packet), destination, len(packet))
+
+				// Read per packet for the same reason the outgoing copies are:
+				// turning the switch off stops discovery in both directions at
+				// once rather than at the next connect.
+				if c.lanDiscovery() {
+					localiseMulticast(packet, local)
+				}
 			}
-			if err := device.Write(packet); err != nil {
+
+			switch err := device.Write(packet); {
+			case err == nil:
+				c.packetsIn.Add(1)
+				c.packets.Received()
+			case errors.Is(err, tun.ErrDropped):
+				// Windows is not draining the adapter. The next packet may
+				// well fit, so this is a lost packet rather than a reason to
+				// stop carrying them.
+				c.packets.Drop(netlog.AdapterFull)
+			default:
 				c.log.Info("cannot write to the adapter", "error", err)
 				return
 			}
-			c.packetsIn.Add(1)
 		}
 	}
 }
@@ -279,6 +305,12 @@ func adjustChecksum(checksum uint16, was, now [4]byte) uint16 {
 		sum = sum&0xffff + sum>>16
 	}
 	return ^uint16(sum)
+}
+
+// sourceOf reads who sent an IPv4 packet. Only meaningful for one that has
+// already passed destinationOf, which is what checks it is long enough.
+func sourceOf(packet []byte) netip.Addr {
+	return netip.AddrFrom4([4]byte(packet[12:16]))
 }
 
 // destinationOf reads where an IPv4 packet is headed. Bytes 16 to 20 of the

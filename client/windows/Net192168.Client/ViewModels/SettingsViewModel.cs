@@ -153,6 +153,60 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    private bool _packetLog;
+
+    /// <summary>
+    /// Whether the daemon writes a line for every packet worth seeing.
+    ///
+    /// It is here rather than on by default because it is for catching one
+    /// misbehaving session, not for running all the time. The counters that
+    /// summarise into the ordinary log run either way, so leaving this off does
+    /// not mean a report arrives with nothing in it.
+    /// </summary>
+    public bool PacketLog
+    {
+        get => _packetLog;
+        set
+        {
+            if (_packetLog == value)
+            {
+                return;
+            }
+            _packetLog = value;
+            OnPropertyChanged();
+            _ = ApplyPacketLogAsync(value);
+        }
+    }
+
+    /// <summary>Moves the switch to what the daemon says without telling it back.</summary>
+    private void ShowPacketLog(bool enabled)
+    {
+        if (_packetLog == enabled)
+        {
+            return;
+        }
+        _packetLog = enabled;
+        OnPropertyChanged(nameof(PacketLog));
+    }
+
+    /// <summary>
+    /// Tells the daemon, and shows what it settled on rather than what was
+    /// asked. Opening the log can fail, and a switch reading on over a log that
+    /// is not being written is worse than one that refused to move.
+    /// </summary>
+    private async Task ApplyPacketLogAsync(bool enabled)
+    {
+        try
+        {
+            ShowPacketLog((await _daemon.SetPacketLogAsync(enabled)).Enabled);
+        }
+        catch (DaemonException e)
+        {
+            ShowPacketLog(!enabled);
+            Status = ErrorCopy.Describe(e);
+        }
+    }
+
     /// <summary>Whether the app opens when the user signs in.</summary>
     public bool StartsWithWindows
     {
@@ -185,6 +239,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             _savedNickname = _daemon.State.Nickname ?? "";
             Nickname = _savedNickname;
             ShowLanDiscovery((await _daemon.GetLanDiscoveryAsync()).Enabled);
+            ShowPacketLog((await _daemon.GetPacketLogAsync()).Enabled);
         }
         catch (DaemonException e)
         {
@@ -364,6 +419,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             var server = await _daemon.ResetSettingsAsync();
             ServerUrl = server.Url;
             ShowLanDiscovery((await _daemon.GetLanDiscoveryAsync()).Enabled);
+            ShowPacketLog((await _daemon.GetPacketLogAsync()).Enabled);
             Status = "Settings are back to their defaults.";
         }
         catch (DaemonException e)

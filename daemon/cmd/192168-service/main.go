@@ -51,15 +51,17 @@ func main() {
 	// the log goes.
 	asService := service.IsService()
 
-	log, closeLog, err := openLogger(asService)
+	log, file, err := openLogger(asService)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	defer closeLog()
+	if file != nil {
+		defer file.Close()
+	}
 
 	if asService {
-		if err := service.Run(func(ctx context.Context) error { return run(ctx, asService, log) }, log); err != nil {
+		if err := service.Run(func(ctx context.Context) error { return run(ctx, asService, log, file) }, log); err != nil {
 			log.Error("the service stopped", "error", err)
 			os.Exit(1)
 		}
@@ -69,7 +71,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := run(ctx, asService, log); err != nil {
+	if err := run(ctx, asService, log, file); err != nil {
 		log.Error("stopped", "error", err)
 		os.Exit(1)
 	}
@@ -78,7 +80,7 @@ func main() {
 // run is the daemon itself. It returns when ctx is cancelled, which is a signal
 // in the foreground and a stop request as a service, and not before the adapter
 // is down.
-func run(ctx context.Context, asService bool, log *slog.Logger) error {
+func run(ctx context.Context, asService bool, log *slog.Logger, mainLog *config.RollingLog) error {
 	cfg, err := config.Load(asService)
 	if err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)
@@ -95,6 +97,7 @@ func run(ctx context.Context, asService bool, log *slog.Logger) error {
 	}
 	// Closing the core takes the adapter down.
 	defer brain.Close()
+	brain.SetLogs(mainLog)
 
 	// The core and the IPC server need each other, so one is built first and
 	// told about the other.
@@ -167,15 +170,16 @@ func serviceCommand(args []string) int {
 	return 0
 }
 
-// openLogger builds the daemon logger and returns how to close it. A service
-// has no console, so its log is a file.
-func openLogger(asService bool) (*slog.Logger, func(), error) {
+// openLogger builds the daemon logger and returns the file behind it, which is
+// nil in the foreground. A service has no console, so its log is a file, and
+// that file is also the one the app can ask to have emptied.
+func openLogger(asService bool) (*slog.Logger, *config.RollingLog, error) {
 	options := &slog.HandlerOptions{Level: config.LogLevel()}
 
 	if !asService {
 		log := slog.New(slog.NewJSONHandler(os.Stdout, options))
 		captureStandardLog(log)
-		return log, func() {}, nil
+		return log, nil, nil
 	}
 
 	dataDir, err := config.DataDir(asService)
@@ -189,7 +193,7 @@ func openLogger(asService bool) (*slog.Logger, func(), error) {
 
 	log := slog.New(slog.NewJSONHandler(file, options))
 	captureStandardLog(log)
-	return log, func() { file.Close() }, nil
+	return log, file, nil
 }
 
 // captureStandardLog sends anything logged through the standard library into

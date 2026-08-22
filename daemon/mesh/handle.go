@@ -2,9 +2,11 @@ package mesh
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"time"
 
+	"github.com/OMouta/192168/daemon/netlog"
 	"github.com/OMouta/192168/daemon/stun"
 	"github.com/OMouta/192168/protocol"
 	"github.com/OMouta/192168/protocol/ipc"
@@ -36,8 +38,10 @@ func (m *Mesh) handle(packet []byte, from netip.AddrPort) {
 	header, payload, err := transport.Decode(packet)
 	if err != nil {
 		// Scanners and stray traffic reach any open port. Dropping quietly is
-		// the right answer, and logging every one would be a gift to whoever
-		// is scanning.
+		// the right answer, and a line each would be a gift to whoever is
+		// scanning. It is still counted: a peer running an incompatible
+		// version looks exactly like this, in bulk and from one address.
+		m.packets.Drop(netlog.Malformed, "from", from.String(), "error", err.Error())
 		return
 	}
 
@@ -75,6 +79,7 @@ func (m *Mesh) dispatch(header transport.Header, packet, payload []byte, src sou
 func (m *Mesh) handleForward(packet, ciphertext []byte, counter uint64, from netip.AddrPort) {
 	relay := m.peerAt(from)
 	if relay == nil {
+		m.packets.Drop(netlog.UnknownPeer, "from", from.String(), "what", "a forwarded packet")
 		m.noteStranger(from)
 		return
 	}
@@ -83,11 +88,13 @@ func (m *Mesh) handleForward(packet, ciphertext []byte, counter uint64, from net
 	// can ask this daemon to carry anything.
 	body, err := relay.accept(packet[:transport.HeaderSize], ciphertext, counter)
 	if err != nil {
+		m.packets.Drop(acceptReason(err), "deviceId", relay.DeviceID, "what", "a forwarded packet")
 		return
 	}
 
 	carried, err := transport.DecodeForward(body)
 	if err != nil {
+		m.packets.Drop(netlog.Malformed, "deviceId", relay.DeviceID, "what", "a forwarded packet")
 		return
 	}
 
@@ -106,11 +113,13 @@ func (m *Mesh) deliverForwarded(carried transport.Forward, relay *Peer) {
 	peer := m.byIP[carried.Source]
 	m.mu.RUnlock()
 	if peer == nil || peer == relay {
+		m.packets.Drop(netlog.Unroutable, "from", carried.Source.String(), "via", relay.DeviceID)
 		return
 	}
 
 	header, payload, err := transport.Decode(carried.Packet)
 	if err != nil {
+		m.packets.Drop(netlog.Malformed, "from", carried.Source.String(), "via", relay.DeviceID)
 		return
 	}
 	m.dispatch(header, carried.Packet, payload, source{peer: peer, relay: relay})
@@ -124,6 +133,7 @@ func (m *Mesh) deliverForwarded(carried transport.Forward, relay *Peer) {
 // dropped rather than passed round a ring forever.
 func (m *Mesh) passOn(carried transport.Forward, from *Peer) {
 	if carried.HopLimit == 0 {
+		m.packets.Drop(netlog.HopsExhausted, "to", carried.Destination.String(), "from", carried.Source.String())
 		return
 	}
 
@@ -131,12 +141,13 @@ func (m *Mesh) passOn(carried transport.Forward, from *Peer) {
 	target := m.byIP[carried.Destination]
 	m.mu.RUnlock()
 	if target == nil || target == from || target.State() != ipc.PeerDirect {
+		m.packets.Drop(netlog.Unroutable, "to", carried.Destination.String(), "from", carried.Source.String())
 		return
 	}
 
 	carried.HopLimit--
 	if err := m.forward(target, carried); err != nil {
-		m.log.Debug("cannot carry a packet for a peer", "deviceId", target.DeviceID, "error", err)
+		m.packets.Drop(reasonFor(err), "deviceId", target.DeviceID, "what", "carrying for a peer")
 	}
 }
 
@@ -322,12 +333,14 @@ func (m *Mesh) handleKeepalive(payload []byte, src source) {
 func (m *Mesh) handleData(packet, ciphertext []byte, counter uint64, src source) {
 	peer := src.peer
 	if peer == nil {
+		m.packets.Drop(netlog.UnknownPeer, "from", src.addr.String())
 		m.noteStranger(src.addr)
 		return
 	}
 
 	plaintext, err := peer.accept(packet[:transport.HeaderSize], ciphertext, counter)
 	if err != nil {
+		m.packets.Drop(acceptReason(err), "deviceId", peer.DeviceID)
 		return
 	}
 	peer.received.Add(1)
@@ -339,8 +352,24 @@ func (m *Mesh) handleData(packet, ciphertext []byte, counter uint64, src source)
 	case m.inbound <- plaintext:
 	default:
 		// The adapter is not keeping up. Dropping is what a real network does
-		// when a queue fills, and a game recovers from it.
-		m.log.Debug("inbound queue full, dropping a packet", "deviceId", peer.DeviceID)
+		// when a queue fills, and a game recovers from it. Worth counting
+		// because it is the one drop here that means this machine is the
+		// bottleneck rather than the network between them.
+		m.packets.Drop(netlog.QueueFull, "deviceId", peer.DeviceID)
+	}
+}
+
+// acceptReason sorts a rejected packet into why it was rejected. A link that
+// has not finished, a duplicate, and a packet the keys refused all arrive the
+// same way and mean entirely different things.
+func acceptReason(err error) netlog.Reason {
+	switch {
+	case errors.Is(err, ErrNoSession):
+		return netlog.NoSession
+	case errors.Is(err, ErrReplayed):
+		return netlog.Replayed
+	default:
+		return netlog.Undecryptable
 	}
 }
 

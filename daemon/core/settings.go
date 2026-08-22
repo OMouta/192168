@@ -21,6 +21,12 @@ type settings struct {
 	// what people expect the app to do.
 	LanDiscovery bool `json:"lanDiscovery"`
 
+	// PacketLog writes a line for every packet worth seeing to a second log.
+	// Off by default: it is for working out why a particular session misbehaved
+	// and costs a file that turns over quickly, so it is not something to leave
+	// running. The counters that end up in the ordinary log run either way.
+	PacketLog bool `json:"packetLog"`
+
 	path string
 }
 

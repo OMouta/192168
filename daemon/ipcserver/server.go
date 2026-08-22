@@ -53,6 +53,9 @@ type Handler interface {
 	TestServer(ctx context.Context, url string) (ipc.TestServerResult, error)
 	GetLanDiscovery(ctx context.Context) (bool, error)
 	SetLanDiscovery(ctx context.Context, enabled bool) error
+	GetPacketLog(ctx context.Context) (bool, error)
+	SetPacketLog(ctx context.Context, enabled bool) (bool, error)
+	ClearLogs(ctx context.Context) ([]string, error)
 	ResetSettings(ctx context.Context) (string, error)
 }
 
@@ -403,6 +406,33 @@ func (s *Server) call(ctx context.Context, req ipc.Request) (any, error) {
 			return nil, err
 		}
 		return ipc.LanDiscoveryResult{Enabled: params.Enabled}, nil
+
+	case ipc.MethodGetPacketLog:
+		enabled, err := s.handler.GetPacketLog(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return ipc.PacketLogResult{Enabled: enabled}, nil
+
+	case ipc.MethodSetPacketLog:
+		var params ipc.PacketLogParams
+		if err := req.UnmarshalParams(&params); err != nil {
+			return nil, badParams(err)
+		}
+		// The answer is what the daemon settled on, which is not always what
+		// was asked: opening the file can fail, and the switch then stays off.
+		enabled, err := s.handler.SetPacketLog(ctx, params.Enabled)
+		if err != nil {
+			return nil, err
+		}
+		return ipc.PacketLogResult{Enabled: enabled}, nil
+
+	case ipc.MethodClearLogs:
+		cleared, err := s.handler.ClearLogs(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return ipc.ClearLogsResult{Cleared: cleared}, nil
 
 	case ipc.MethodResetSettings:
 		url, err := s.handler.ResetSettings(ctx)

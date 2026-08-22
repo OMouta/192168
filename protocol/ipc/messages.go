@@ -92,6 +92,25 @@ type LanDiscoveryParams struct {
 	Enabled bool `json:"enabled"`
 }
 
+// PacketLogResult reports whether the packet log is on, for the same reason
+// LanDiscoveryResult does: opening the file can fail, and the client should
+// show what happened rather than what it asked for.
+type PacketLogResult struct {
+	Enabled bool `json:"enabled"`
+}
+
+// PacketLogParams turns the packet log on or off.
+type PacketLogParams struct {
+	Enabled bool `json:"enabled"`
+}
+
+// ClearLogsResult names the logs that were emptied, so the app can say what it
+// did rather than claiming more than happened. A log that was never written
+// is not listed and is not an error.
+type ClearLogsResult struct {
+	Cleared []string `json:"cleared"`
+}
+
 // TestServerResult is what the Settings screen shows after a connection test.
 // Reachable false with a Message is the normal way a test fails, rather than an
 // error response, because the user asked a question and got an answer.

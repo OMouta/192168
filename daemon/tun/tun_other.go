@@ -23,6 +23,10 @@ var ErrMissingDriver = errors.New("tun: the adapter driver is missing")
 // ErrClosed means the adapter is going away, or already has.
 var ErrClosed = errors.New("tun: adapter closed")
 
+// ErrDropped means the packet did not reach the adapter because it is backed
+// up. It is not a reason to stop writing.
+var ErrDropped = errors.New("tun: adapter ring full")
+
 // ErrUnsupported means this build has no adapter at all.
 var ErrUnsupported = errors.New("tun: virtual adapters are only supported on Windows")
 

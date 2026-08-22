@@ -36,6 +36,15 @@ public partial class App : Application
     /// </summary>
     public static Daemon Daemon { get; private set; } = null!;
 
+    /// <summary>
+    /// The main window, for the one thing that needs it: an unpackaged app has
+    /// to tell a file picker which window it belongs to, and a page has no way
+    /// to reach its own.
+    /// </summary>
+    public static Window Window => Current is App { _window: { } window }
+        ? window
+        : throw new InvalidOperationException("There is no window yet.");
+
     /// <summary>Where this app's log is written, beside the daemon's.</summary>
     public static string LogPath { get; } = ResolveLogPath();
 
@@ -180,18 +189,27 @@ public partial class App : Application
         }
     }
 
+    /// <summary>
+    /// How large this log may grow before it is rolled over. The same 8 MB the
+    /// daemon uses for its own, and like the daemon's, one old file is kept.
+    /// </summary>
+    private const long LogLimit = 8 * 1024 * 1024;
+
+    /// <summary>The one generation kept behind the current file.</summary>
+    public static string PreviousLogPath { get; } = LogPath + ".1";
+
+    /// <summary>
+    /// Serialises writing and rolling.
+    ///
+    /// Crashes arrive on whichever thread failed, and traces come from the IPC
+    /// reader as readily as from the UI. Without this, two of them at the wrong
+    /// moment would both try to move the file aside and one would lose.
+    /// </summary>
+    private static readonly Lock LogGate = new();
+
     /// <summary>Writes a diagnostic line to the same file as crashes.</summary>
-    public static void Trace(string message)
-    {
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
-            File.AppendAllText(LogPath, $"{DateTimeOffset.Now:O} {message}{Environment.NewLine}{Environment.NewLine}");
-        }
-        catch (IOException)
-        {
-        }
-    }
+    public static void Trace(string message) =>
+        Append($"{DateTimeOffset.Now:O} {message}{Environment.NewLine}{Environment.NewLine}");
 
     private static void Log(Exception? error)
     {
@@ -199,14 +217,44 @@ public partial class App : Application
         {
             return;
         }
-        try
+        Append($"{DateTimeOffset.Now:O}\n{error}\n\n");
+    }
+
+    private static void Append(string entry)
+    {
+        lock (LogGate)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
-            File.AppendAllText(LogPath, $"{DateTimeOffset.Now:O}\n{error}\n\n");
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
+
+                // Rolled before writing rather than after, so the check is
+                // against a size that is actually on disk.
+                var file = new FileInfo(LogPath);
+                if (file.Exists && file.Length + entry.Length > LogLimit)
+                {
+                    File.Move(LogPath, PreviousLogPath, overwrite: true);
+                }
+
+                File.AppendAllText(LogPath, entry);
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                // Losing the log is not worth a second crash on the way out.
+            }
         }
-        catch (IOException)
+    }
+
+    /// <summary>
+    /// Empties this app's log. The daemon's logs are the daemon's to clear,
+    /// since it holds them open.
+    /// </summary>
+    public static void ClearLog()
+    {
+        lock (LogGate)
         {
-            // Losing the log is not worth a second crash on the way out.
+            File.Delete(LogPath);
+            File.Delete(PreviousLogPath);
         }
     }
 }

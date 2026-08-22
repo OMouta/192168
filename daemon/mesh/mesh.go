@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/OMouta/192168/daemon/netlog"
 	"github.com/OMouta/192168/daemon/stun"
 	"github.com/OMouta/192168/protocol"
 	"github.com/OMouta/192168/protocol/ipc"
@@ -83,6 +84,11 @@ type Mesh struct {
 
 	conn *net.UDPConn
 
+	// packets is where a discarded packet is accounted for. Every drop in this
+	// package goes through it, because one thrown away in silence is
+	// indistinguishable from one that was never sent.
+	packets *netlog.Recorder
+
 	mu    sync.RWMutex
 	peers map[string]*Peer         // by device id
 	byIP  map[netip.Addr]*Peer     // by virtual ip, for outgoing packets
@@ -115,7 +121,7 @@ type Mesh struct {
 // virtualIP is this device's address in the group. It is only used to recognise
 // a forwarded packet that has arrived, so a mesh without one still carries
 // every direct link.
-func New(deviceID string, virtualIP netip.Addr, keys session.Keypair, events Events, log *slog.Logger) (*Mesh, error) {
+func New(deviceID string, virtualIP netip.Addr, keys session.Keypair, events Events, log *slog.Logger, packets *netlog.Recorder) (*Mesh, error) {
 	conn, err := net.ListenUDP("udp4", &net.UDPAddr{})
 	if err != nil {
 		return nil, fmt.Errorf("mesh: bind: %w", err)
@@ -123,6 +129,7 @@ func New(deviceID string, virtualIP netip.Addr, keys session.Keypair, events Eve
 
 	return &Mesh{
 		keys:        keys,
+		packets:     packets,
 		device:      deviceID,
 		log:         log,
 		events:      events,
@@ -387,9 +394,30 @@ func (m *Mesh) Send(destination netip.Addr, packet []byte) error {
 	peer, ok := m.byIP[destination]
 	m.mu.RUnlock()
 	if !ok {
+		m.packets.Drop(netlog.NoPeer, "to", destination.String())
 		return fmt.Errorf("mesh: nobody has %s", destination)
 	}
-	return m.sendData(peer, packet)
+
+	if err := m.sendData(peer, packet); err != nil {
+		m.packets.Drop(reasonFor(err), "deviceId", peer.DeviceID, "to", destination.String())
+		return err
+	}
+	return nil
+}
+
+// reasonFor sorts a send failure into what it means for the packet. The two
+// sentinels are the ordinary ones, and are told apart because they want
+// different answers: a link still handshaking will come good on its own, and
+// one with no path at all will not.
+func reasonFor(err error) netlog.Reason {
+	switch {
+	case errors.Is(err, ErrNoSession):
+		return netlog.NoSession
+	case errors.Is(err, ErrNoPath):
+		return netlog.NoPath
+	default:
+		return netlog.Undeliverable
+	}
 }
 
 // Broadcast sends one IP packet to every peer whose link is open, and reports
@@ -409,11 +437,12 @@ func (m *Mesh) Broadcast(packet []byte) int {
 		switch {
 		case err == nil:
 			sent++
-		case errors.Is(err, ErrNoSession), errors.Is(err, ErrNoPath):
-			// Connecting, or given up on. Ordinary, and not worth a line per
-			// packet on a path a game uses several times a second.
 		default:
-			m.log.Debug("cannot replicate a broadcast", "deviceId", peer.DeviceID, "error", err)
+			// Connecting, or given up on. Ordinary enough that it is not worth
+			// a line in the daemon's log for every announcement a game makes,
+			// and counted anyway: a group where nobody ever sees anybody
+			// else's game is this number climbing and nothing else moving.
+			m.packets.Drop(reasonFor(err), "deviceId", peer.DeviceID, "what", "replicating for the whole network")
 		}
 	}
 	return sent

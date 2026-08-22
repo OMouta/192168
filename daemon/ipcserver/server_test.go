@@ -147,6 +147,21 @@ func (h *fakeHandler) SetLanDiscovery(_ context.Context, enabled bool) error {
 	return h.failWith
 }
 
+func (h *fakeHandler) GetPacketLog(context.Context) (bool, error) {
+	h.record("GetPacketLog")
+	return false, h.failWith
+}
+
+func (h *fakeHandler) SetPacketLog(_ context.Context, enabled bool) (bool, error) {
+	h.record(fmt.Sprintf("SetPacketLog:%t", enabled))
+	return enabled, h.failWith
+}
+
+func (h *fakeHandler) ClearLogs(context.Context) ([]string, error) {
+	h.record("ClearLogs")
+	return []string{"daemon.log"}, h.failWith
+}
+
 func (h *fakeHandler) ResetSettings(context.Context) (string, error) {
 	h.record("ResetSettings")
 	return h.server, h.failWith
@@ -315,6 +330,9 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 		{ipc.MethodTestServer, ipc.ServerParams{URL: "https://lan.example.com"}},
 		{ipc.MethodGetLanDiscovery, nil},
 		{ipc.MethodSetLanDiscovery, ipc.LanDiscoveryParams{Enabled: false}},
+		{ipc.MethodGetPacketLog, nil},
+		{ipc.MethodSetPacketLog, ipc.PacketLogParams{Enabled: true}},
+		{ipc.MethodClearLogs, nil},
 		{ipc.MethodResetSettings, nil},
 	} {
 		if res := s.call(call.method, call.params); !res.OK {
@@ -338,6 +356,9 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 		"TestServer:https://lan.example.com",
 		"GetLanDiscovery",
 		"SetLanDiscovery:false",
+		"GetPacketLog",
+		"SetPacketLog:true",
+		"ClearLogs",
 		"ResetSettings",
 	}
 	got := h.recorded()

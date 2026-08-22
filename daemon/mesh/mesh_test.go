@@ -85,7 +85,7 @@ func newNode(t *testing.T, deviceID, virtualIP string) *node {
 	m, err := New(deviceID, address, keys, Events{
 		PeerStateChanged:   states.set,
 		PeerLatencyChanged: states.setLatency,
-	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

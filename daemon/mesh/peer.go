@@ -67,6 +67,12 @@ type Peer struct {
 // ErrNoSession means the link is not open yet, so there is nowhere to send.
 var ErrNoSession = errors.New("mesh: no session with that peer")
 
+// ErrReplayed means the counter on a packet has already been seen. It is not
+// a fault: UDP duplicates packets on its own, and an attacker replaying one is
+// exactly what the window is for. It is told apart from a decryption failure
+// because the two mean different things when they start piling up.
+var ErrReplayed = errors.New("mesh: replayed packet")
+
 // ErrNoPath means the peer has neither an address of its own nor anybody
 // carrying for it, so the packet has nowhere to go.
 var ErrNoPath = errors.New("mesh: no path to that peer")
@@ -273,7 +279,7 @@ func (p *Peer) accept(header, ciphertext []byte, counter uint64) ([]byte, error)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if !p.replay.Accept(counter) {
-		return nil, errors.New("mesh: replayed packet")
+		return nil, ErrReplayed
 	}
 	p.lastHeard = time.Now()
 	return plaintext, nil

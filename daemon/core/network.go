@@ -34,7 +34,7 @@ func (c *Core) startNetwork(ctx context.Context, session *activeSession, peers [
 	links, err := mesh.New(c.identity.DeviceID, virtualIP, c.identity.Transport, mesh.Events{
 		PeerStateChanged:   c.onPeerState,
 		PeerLatencyChanged: c.onPeerLatency,
-	}, c.log)
+	}, c.log, c.packets)
 	if err != nil {
 		c.log.Error("cannot open the peer socket", "error", err)
 		return

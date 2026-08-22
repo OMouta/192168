@@ -37,6 +37,10 @@ var ErrMissingDriver = errors.New("tun: wintun.dll is missing")
 // ErrClosed means the adapter is going away, or already has.
 var ErrClosed = errors.New("tun: adapter closed")
 
+// ErrDropped means the packet did not reach Windows because the adapter is
+// backed up. It is not a reason to stop writing: the next packet may well fit.
+var ErrDropped = errors.New("tun: adapter ring full")
+
 // Remove deletes the adapter if there is one.
 //
 // Uninstalling has to take the adapter with it, and a daemon that was killed
@@ -249,8 +253,11 @@ func (d *Device) Write(packet []byte) error {
 	if err != nil {
 		if errors.Is(err, windows.ERROR_BUFFER_OVERFLOW) {
 			// The ring is full because Windows is not draining it. Dropping is
-			// what a real link does, and a game recovers from it.
-			return nil
+			// what a real link does, and a game recovers from it, so this is
+			// not a failure the caller should stop for. It is still a lost
+			// packet and says so, because reporting it as a successful write
+			// is how a machine that cannot keep up looks like a network fault.
+			return ErrDropped
 		}
 		return fmt.Errorf("tun: allocate: %w", err)
 	}

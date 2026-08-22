@@ -153,6 +153,18 @@ public sealed record LanDiscoveryResult
     public bool Enabled { get; init; }
 }
 
+public sealed record PacketLogResult
+{
+    public bool Enabled { get; init; }
+}
+
+/// <summary>What was emptied. A log that was never written is not listed and is
+/// not a failure.</summary>
+public sealed record ClearLogsResult
+{
+    public IReadOnlyList<string> Cleared { get; init; } = [];
+}
+
 public sealed record TestServerResult
 {
     public bool Reachable { get; init; }
@@ -197,6 +209,9 @@ public sealed record ServerParams(string Url);
 
 /// <summary>Turns LAN discovery on or off.</summary>
 public sealed record LanDiscoveryParams(bool Enabled);
+
+/// <summary>Turns the packet log on or off.</summary>
+public sealed record PacketLogParams(bool Enabled);
 
 /// <summary>Names one person in one group.</summary>
 public sealed record MemberParams(string GroupId, string DeviceId);

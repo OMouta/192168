@@ -117,6 +117,34 @@
                                 OnContent="" />
                         </Grid>
                     </Border>
+
+                    <!--
+                        Off by default and worth turning on only while something
+                        is being chased. The counters that go in the ordinary log
+                        run either way, so this is the extra detail rather than
+                        the difference between a useful report and none.
+                    -->
+                    <Border Style="{StaticResource Card}">
+                        <Grid Padding="12,10" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Style="{StaticResource RowText}">
+                                <TextBlock Text="Record every packet" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="Writes a detailed log for working out why a session misbehaved. It turns over quickly, so leave it off unless you are chasing something." />
+                            </StackPanel>
+
+                            <ToggleSwitch
+                                Grid.Column="1"
+                                MinWidth="0"
+                                VerticalAlignment="Center"
+                                IsOn="{x:Bind ViewModel.PacketLog, Mode=TwoWay}"
+                                OffContent=""
+                                OnContent="" />
+                        </Grid>
+                    </Border>
                 </StackPanel>
 
                 <!--

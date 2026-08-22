@@ -190,6 +190,15 @@ public sealed class Daemon
     public Task<LanDiscoveryResult> SetLanDiscoveryAsync(bool enabled)
         => _client.CallAsync<LanDiscoveryResult>("SetLanDiscovery", new LanDiscoveryParams(enabled), _lifetime.Token);
 
+    public Task<PacketLogResult> GetPacketLogAsync()
+        => _client.CallAsync<PacketLogResult>("GetPacketLog", null, _lifetime.Token);
+
+    public Task<PacketLogResult> SetPacketLogAsync(bool enabled)
+        => _client.CallAsync<PacketLogResult>("SetPacketLog", new PacketLogParams(enabled), _lifetime.Token);
+
+    public Task<ClearLogsResult> ClearLogsAsync()
+        => _client.CallAsync<ClearLogsResult>("ClearLogs", null, _lifetime.Token);
+
     public Task<TestServerResult> TestServerAsync(string url)
         => _client.CallAsync<TestServerResult>("TestServer", new ServerParams(url), _lifetime.Token);
 
