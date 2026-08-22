@@ -32,10 +32,8 @@
   }
   main { width: 100%; max-width: 380px; text-align: center; }
   .mark {
-    font-family: var(--mono);
-    font-size: 13px;
-    letter-spacing: 0.08em;
-    color: var(--ink-faint);
+    height: 26px;
+    width: auto;
     margin-bottom: 40px;
   }
   h1 { margin: 0 0 6px; font-size: 26px; line-height: 1.2; color: var(--ink); }
@@ -73,7 +71,7 @@
 </head>
 <body>
 <main>
-  <p class="mark">192168</p>
+  <img class="mark" src="/assets/wordmark.png" alt="192168" width="424" height="145">
 {{if .Invite}}
   <h1>{{.Invite.GroupName}}</h1>
   <p class="who">{{.Members}} on this network</p>

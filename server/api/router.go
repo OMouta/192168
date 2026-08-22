@@ -65,6 +65,7 @@ func New(cfg config.Config, store *storage.Store, log *slog.Logger) *Server {
 	// nothing else to identify itself with.
 	mux.HandleFunc("GET /api/invites/{code}", s.handleInvite)
 	mux.HandleFunc("GET "+invite.Path+"{code}", s.handleInvitePage)
+	mux.HandleFunc("GET /assets/wordmark.png", s.handleWordmark)
 
 	mux.HandleFunc("POST /api/devices/register", s.handleRegisterDevice)
 

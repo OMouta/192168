@@ -978,3 +978,23 @@ func getPage(t *testing.T, h http.Handler, path string) page {
 	h.ServeHTTP(rec, req)
 	return page{status: rec.Code, body: rec.Body.String()}
 }
+
+// The page wears the wordmark the site and the app use, so a link does not land
+// somebody on a page that spells the name out in text.
+func TestTheInvitePageWearsTheWordmark(t *testing.T) {
+	h := newTestServer(t)
+
+	page := getPage(t, h, invite.Path+"nosuchco")
+	if !strings.Contains(page.body, `src="/assets/wordmark.png"`) {
+		t.Errorf("the page does not show the wordmark: %s", page.body)
+	}
+
+	image := getPage(t, h, "/assets/wordmark.png")
+	if image.status != http.StatusOK {
+		t.Fatalf("wordmark: status %d", image.status)
+	}
+	// A PNG, and the one that shipped rather than an empty file.
+	if !strings.HasPrefix(image.body, "\x89PNG") || len(image.body) < 1000 {
+		t.Errorf("wordmark is %d bytes starting %q", len(image.body), image.body[:min(8, len(image.body))])
+	}
+}
