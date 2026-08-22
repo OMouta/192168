@@ -17,6 +17,10 @@ import (
 	"github.com/OMouta/192168/server/storage"
 )
 
+// version is stamped in by the build. The server and the app ship on their own
+// tags, so a running server has to be able to say which one it is.
+var version = "dev"
+
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
@@ -25,6 +29,8 @@ func main() {
 		log.Error("invalid configuration", "error", err)
 		os.Exit(1)
 	}
+	cfg.Version = version
+	log.Info("starting", "version", version, "publicUrl", cfg.PublicURL)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

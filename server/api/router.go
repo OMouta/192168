@@ -114,8 +114,13 @@ func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleHealth is the readiness probe, and the one place to ask which build is
+// answering. The server and the app move on separate tags, so that matters.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":  "ok",
+		"version": s.cfg.Version,
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

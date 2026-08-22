@@ -26,6 +26,10 @@ type Config struct {
 	// DatabaseURL is the storage DSN. An empty value means the local SQLite
 	// default, which is enough for a small self-hosted instance.
 	DatabaseURL string
+	// Version is what this build calls itself, stamped in at build time. The
+	// server and the app ship on their own tags, so this is how you tell which
+	// server is answering.
+	Version string
 }
 
 // Load reads configuration from the environment and validates it.

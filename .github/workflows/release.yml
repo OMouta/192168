@@ -4,6 +4,9 @@
 #
 #   git tag v0.2.0 && git push origin v0.2.0
 #
+# This builds the Windows app and nothing else. The server has its own tag and
+# its own workflow, so a typo on the site does not need an app release.
+#
 # The tag is the version. It is stamped into the client, the service binary's
 # version resource, and the installer filename, so all three agree.
 #
@@ -14,7 +17,8 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    # The app only. The server ships on server-v* and deploys on its own.
+    tags: ["v[0-9]*"]
   # So the build can be exercised without cutting a release.
   workflow_dispatch:
     inputs:
@@ -112,20 +116,3 @@ jobs:
           files: build/*-setup.exe
           body_path: release-notes.md
 
-  # Railway watches the release branch rather than main, so the server moves
-  # when a version is cut instead of on every commit. This is what moves it.
-  #
-  # After the installer, so a tag that cannot be built does not reach the server
-  # everybody's client talks to. Forced, because the branch follows the tag
-  # wherever it is rather than the other way round.
-  server:
-    name: Point the release branch at this tag
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v4
-      - run: git push --force origin ${{ github.sha }}:refs/heads/release

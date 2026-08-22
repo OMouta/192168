@@ -1,0 +1,65 @@
+# Deploys the coordination server.
+#
+# Push a tag to deploy:
+#
+#   git tag server-v0.2.2 && git push origin server-v0.2.2
+#
+# Railway watches the release branch rather than main, so the server moves when
+# a version is cut instead of on every commit. This is what moves it. Forced,
+# because the branch follows the tag wherever it is rather than the other way
+# round.
+#
+# The server and the app share a major and a minor, and differ only in the
+# patch. The protocol changes on a minor, so a server and an app that disagree
+# there cannot talk. Patches are free on either side: a fix to the site or to a
+# handler does not need everybody to reinstall.
+
+name: Server
+
+on:
+  push:
+    tags: ['server-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The app's tags have to be here to compare against.
+          fetch-depth: 0
+
+      # A server behind the app on the protocol cannot serve it. Ahead is
+      # allowed: a minor bump tags the server first and the app moments later.
+      - name: Check it matches the app
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          server="${GITHUB_REF_NAME#server-v}"
+          app=$(git tag --list 'v[0-9]*' --sort=-v:refname | head -1)
+          app="${app#v}"
+
+          echo "server $server, app ${app:-none}"
+          if [ -z "$app" ]; then
+            echo "No app release yet, nothing to disagree with."
+            exit 0
+          fi
+
+          # Sorting the two major.minor pairs says which is older.
+          sm="${server%.*}" am="${app%.*}"
+          if [ "$sm" = "$am" ]; then
+            exit 0
+          fi
+          if [ "$(printf '%s\n%s\n' "$sm" "$am" | sort -V | head -1)" = "$sm" ]; then
+            echo "::error::Server $server is behind app $app. The protocol changed on $am; deploying $sm would break every client."
+            exit 1
+          fi
+          echo "::warning::Server $server is ahead of app $app. Tag the app before anybody updates."
+
+      - name: Point the release branch at this tag
+        run: git push --force origin ${{ github.sha }}:refs/heads/release

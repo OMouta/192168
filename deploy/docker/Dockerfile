@@ -7,7 +7,11 @@ RUN go mod download
 
 COPY protocol/ ./protocol/
 COPY server/ ./server/
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/192168-server ./server/cmd/192168-server
+
+# Stamped in so a running server can say which build it is. The app and the
+# server ship on separate tags, so "the latest version" is not one answer.
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o /out/192168-server ./server/cmd/192168-server
 
 # The database directory has to exist in the image and be owned by the user the
 # server runs as. Docker initializes a fresh named volume from whatever is at
