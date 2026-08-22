@@ -105,6 +105,17 @@ func register(t *testing.T, h http.Handler, id string) device {
 	return device{id: id, token: res.DeviceToken}
 }
 
+// name picks what a device is called. It is the device that carries a name, so
+// this is a call of its own rather than a field on a join.
+func name(t *testing.T, h http.Handler, d device, nickname string) {
+	t.Helper()
+	if code := call(t, h, http.MethodPut, "/api/me/nickname", d.token, papi.SetNicknameRequest{
+		Nickname: nickname,
+	}, nil); code != http.StatusNoContent {
+		t.Fatalf("name %s: status %d", d.id, code)
+	}
+}
+
 func TestRegistrationRejectsAReplay(t *testing.T) {
 	h := newTestServer(t)
 
@@ -210,12 +221,14 @@ func TestGroupAndSessionFlow(t *testing.T) {
 	h := newTestServer(t)
 	host := register(t, h, "dev_host")
 	guest := register(t, h, "dev_guest")
+	name(t, h, host, "Tiago")
+	name(t, h, guest, "João")
 
 	proof := auth.DeriveGroupProof("hunter2", "Friday Night")
 
 	var created papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: proof, Nickname: "Tiago",
+		Name: "Friday Night", PasswordProof: proof,
 	}, &created); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -226,7 +239,7 @@ func TestGroupAndSessionFlow(t *testing.T) {
 	// The name is matched loosely, so what someone types finds the group.
 	var joined papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups/join", guest.token, papi.JoinGroupRequest{
-		Group: "  friday night ", PasswordProof: proof, Nickname: "João",
+		Group: "  friday night ", PasswordProof: proof,
 	}, &joined); code != http.StatusOK {
 		t.Fatalf("join group: status %d", code)
 	}
@@ -243,7 +256,7 @@ func TestGroupAndSessionFlow(t *testing.T) {
 	if code := call(t, h, http.MethodGet, "/api/groups", guest.token, nil, &groups); code != http.StatusOK {
 		t.Fatalf("list groups: status %d", code)
 	}
-	if len(groups) != 1 || groups[0].Nickname != "João" {
+	if len(groups) != 1 || groups[0].GroupName != "Friday Night" {
 		t.Fatalf("groups = %+v", groups)
 	}
 
@@ -308,7 +321,7 @@ func TestJoiningWithTheWrongPasswordLooksLikeAMissingGroup(t *testing.T) {
 	guest := register(t, h, "dev_guest")
 
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
 	}, nil); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -317,10 +330,10 @@ func TestJoiningWithTheWrongPasswordLooksLikeAMissingGroup(t *testing.T) {
 	// nobody, or this endpoint becomes a way to enumerate groups.
 	var wrongPassword, missingGroup papi.Error
 	wrongCode := call(t, h, http.MethodPost, "/api/groups/join", guest.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: auth.DeriveGroupProof("wrong", "Friday Night"), Nickname: "João",
+		Group: "Friday Night", PasswordProof: auth.DeriveGroupProof("wrong", "Friday Night"),
 	}, &wrongPassword)
 	missingCode := call(t, h, http.MethodPost, "/api/groups/join", guest.token, papi.JoinGroupRequest{
-		Group: "No Such Group", PasswordProof: auth.DeriveGroupProof("hunter2", "No Such Group"), Nickname: "João",
+		Group: "No Such Group", PasswordProof: auth.DeriveGroupProof("hunter2", "No Such Group"),
 	}, &missingGroup)
 
 	if wrongCode != missingCode {
@@ -336,7 +349,7 @@ func TestDuplicateGroupNamesAreRejected(t *testing.T) {
 	host := register(t, h, "dev_host")
 
 	req := papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
 	}
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, req, nil); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
@@ -358,7 +371,7 @@ func TestSessionsBelongToOneDevice(t *testing.T) {
 
 	var group papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
 	}, &group); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -385,7 +398,7 @@ func TestConnectingWithoutMembershipIsRefused(t *testing.T) {
 
 	var group papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
 	}, &group); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -410,7 +423,7 @@ func TestEndpointValidation(t *testing.T) {
 
 	var group papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
 	}, &group); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -437,7 +450,7 @@ func TestJoinAttemptsAreRateLimited(t *testing.T) {
 	guest := register(t, h, "dev_guest")
 
 	req := papi.JoinGroupRequest{
-		Group: "No Such Group", PasswordProof: "proof", Nickname: "João",
+		Group: "No Such Group", PasswordProof: "proof",
 	}
 
 	var limited bool
@@ -485,12 +498,13 @@ func TestMembersListsEveryoneAndSaysWhoIsOnline(t *testing.T) {
 	host := register(t, h, "dev_host")
 	guest := register(t, h, "dev_guest")
 	absent := register(t, h, "dev_absent")
+	name(t, h, host, "Tiago")
 
 	proof := auth.DeriveGroupProof("hunter2", "Friday Night")
 
 	var created papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: proof, Nickname: "Tiago",
+		Name: "Friday Night", PasswordProof: proof,
 	}, &created); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -499,8 +513,9 @@ func TestMembersListsEveryoneAndSaysWhoIsOnline(t *testing.T) {
 		device   device
 		nickname string
 	}{{guest, "Joao"}, {absent, "Pedro"}} {
+		name(t, h, joiner.device, joiner.nickname)
 		if code := call(t, h, http.MethodPost, "/api/groups/join", joiner.device.token, papi.JoinGroupRequest{
-			Group: "Friday Night", PasswordProof: proof, Nickname: joiner.nickname,
+			Group: "Friday Night", PasswordProof: proof,
 		}, nil); code != http.StatusOK {
 			t.Fatalf("join as %s: status %d", joiner.nickname, code)
 		}
@@ -546,7 +561,7 @@ func TestMembersNeedsMembership(t *testing.T) {
 
 	var created papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
 	}, &created); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -562,11 +577,13 @@ func setUpGroup(t *testing.T, h *Server) (owner, member device, groupID, proof s
 
 	owner = register(t, h, "dev_owner")
 	member = register(t, h, "dev_member")
+	name(t, h, owner, "Tiago")
+	name(t, h, member, "Joao")
 	proof = auth.DeriveGroupProof("hunter2", "Friday Night")
 
 	var created papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", owner.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: proof, Nickname: "Tiago",
+		Name: "Friday Night", PasswordProof: proof,
 	}, &created); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -575,7 +592,7 @@ func setUpGroup(t *testing.T, h *Server) (owner, member device, groupID, proof s
 	}
 
 	if code := call(t, h, http.MethodPost, "/api/groups/join", member.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: proof, Nickname: "Joao",
+		Group: "Friday Night", PasswordProof: proof,
 	}, nil); code != http.StatusOK {
 		t.Fatalf("join: status %d", code)
 	}
@@ -606,7 +623,7 @@ func TestARemovedMemberCannotJoinAgain(t *testing.T) {
 	// be told apart from never having been let in.
 	var removed papi.Error
 	code := call(t, h, http.MethodPost, "/api/groups/join", member.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: proof, Nickname: "Joao",
+		Group: "Friday Night", PasswordProof: proof,
 	}, &removed)
 	if code != http.StatusForbidden || removed.Code != papi.ErrInvalidPassword {
 		t.Fatalf("rejoin after removal: status %d code %q, want 403 %s", code, removed.Code, papi.ErrInvalidPassword)
@@ -615,7 +632,7 @@ func TestARemovedMemberCannotJoinAgain(t *testing.T) {
 	// Leaving is a different thing and does come back.
 	other := register(t, h, "dev_other")
 	if code := call(t, h, http.MethodPost, "/api/groups/join", other.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: proof, Nickname: "Pedro",
+		Group: "Friday Night", PasswordProof: proof,
 	}, nil); code != http.StatusOK {
 		t.Fatalf("join: status %d", code)
 	}
@@ -623,7 +640,7 @@ func TestARemovedMemberCannotJoinAgain(t *testing.T) {
 		t.Fatalf("leave: status %d", code)
 	}
 	if code := call(t, h, http.MethodPost, "/api/groups/join", other.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: proof, Nickname: "Pedro",
+		Group: "Friday Night", PasswordProof: proof,
 	}, nil); code != http.StatusOK {
 		t.Fatalf("rejoin after leaving: status %d, want 200", code)
 	}
@@ -700,9 +717,9 @@ func TestAGroupKeepsTheLookItWasMadeWith(t *testing.T) {
 	if code := call(t, h, http.MethodPost, "/api/groups", owner.token, papi.CreateGroupRequest{
 		Name:          "Sunday",
 		PasswordProof: auth.DeriveGroupProof("hunter2", "Sunday"),
-		Nickname:      "Tiago",
-		Icon:          "flag",
-		Color:         "orange",
+
+		Icon:  "flag",
+		Color: "orange",
 	}, nil); code != http.StatusCreated {
 		t.Fatalf("create: status %d", code)
 	}
@@ -756,12 +773,12 @@ func TestChangingThePasswordKeepsEveryoneAndStopsTheOldOne(t *testing.T) {
 
 	stranger := register(t, h, "dev_stranger")
 	if code := call(t, h, http.MethodPost, "/api/groups/join", stranger.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: oldProof, Nickname: "Nope",
+		Group: "Friday Night", PasswordProof: oldProof,
 	}, nil); code != http.StatusForbidden {
 		t.Fatalf("join with the old password: status %d, want 403", code)
 	}
 	if code := call(t, h, http.MethodPost, "/api/groups/join", stranger.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: newProof, Nickname: "Yes",
+		Group: "Friday Night", PasswordProof: newProof,
 	}, nil); code != http.StatusOK {
 		t.Fatalf("join with the new password: status %d", code)
 	}
@@ -800,7 +817,7 @@ func TestDeletingAGroupTakesEverythingWithIt(t *testing.T) {
 
 	// And the name is free again, rather than held by a group nobody can reach.
 	if code := call(t, h, http.MethodPost, "/api/groups", member.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: proof, Nickname: "Joao",
+		Name: "Friday Night", PasswordProof: proof,
 	}, nil); code != http.StatusCreated {
 		t.Fatalf("reusing the name: status %d, want 201", code)
 	}
@@ -865,39 +882,6 @@ func TestAnUnnamedDeviceUsesItsMachineName(t *testing.T) {
 	}
 	if me.Nickname != "dev_1-PC" {
 		t.Errorf("nickname = %q, want dev_1-PC", me.Nickname)
-	}
-}
-
-// An app from before nicknames belonged to the device still sends one when it
-// joins, and still renames itself through the group it is in. Both have to keep
-// working, or updating the server breaks every client that has not updated.
-func TestAnOlderClientCanStillNameItself(t *testing.T) {
-	h := newTestServer(t)
-	owner, member, groupID, _ := setUpGroup(t, h)
-
-	// The name it sent while joining is the name it gets back.
-	var groups []papi.Membership
-	if code := call(t, h, http.MethodGet, "/api/groups", member.token, nil, &groups); code != http.StatusOK {
-		t.Fatalf("list groups: status %d", code)
-	}
-	if len(groups) != 1 || groups[0].Nickname != "Joao" {
-		t.Fatalf("groups = %+v", groups)
-	}
-
-	if code := call(t, h, http.MethodPut, "/api/groups/"+groupID+"/nickname", member.token, papi.SetNicknameRequest{
-		Nickname: "João",
-	}, nil); code != http.StatusNoContent {
-		t.Fatalf("set nickname the old way: status %d", code)
-	}
-
-	var members papi.MembersResponse
-	if code := call(t, h, http.MethodGet, "/api/groups/"+groupID+"/members", owner.token, nil, &members); code != http.StatusOK {
-		t.Fatalf("list members: status %d", code)
-	}
-	for _, m := range members.Members {
-		if m.DeviceID == member.id && m.Nickname != "João" {
-			t.Errorf("member = %+v", m)
-		}
 	}
 }
 

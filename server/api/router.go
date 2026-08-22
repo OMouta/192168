@@ -76,10 +76,6 @@ func New(cfg config.Config, store *storage.Store, log *slog.Logger) *Server {
 	mux.Handle("PUT /api/groups/{groupId}/password", s.authenticated(s.handleSetGroupPassword))
 	mux.Handle("PUT /api/groups/{groupId}/owner/{deviceId}", s.authenticated(s.handleTransferOwnership))
 	mux.Handle("DELETE /api/groups/{groupId}/membership", s.authenticated(s.handleLeaveGroup))
-	// Where nicknames used to be set, back when there was one per group. Kept
-	// so an app from before this change still works; it renames the device and
-	// ignores the group in the path.
-	mux.Handle("PUT /api/groups/{groupId}/nickname", s.authenticated(s.handleSetNickname))
 	mux.Handle("POST /api/groups/{groupId}/sessions", s.authenticated(s.handleCreateSession))
 
 	mux.Handle("PUT /api/sessions/{sessionId}/endpoint", s.authenticated(s.handleSetEndpoint))

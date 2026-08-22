@@ -83,7 +83,7 @@ func makeGroup(t *testing.T, h *Server) (device, papi.Membership) {
 
 	var group papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "Tiago",
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
 	}, &group); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -94,7 +94,7 @@ func joinGroup(t *testing.T, h *Server, id string) device {
 	t.Helper()
 	guest := register(t, h, id)
 	if code := call(t, h, http.MethodPost, "/api/groups/join", guest.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"), Nickname: "João",
+		Group: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
 	}, nil); code != http.StatusOK {
 		t.Fatalf("join: status %d", code)
 	}

@@ -28,9 +28,6 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request, devic
 		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "That icon or colour will not work.")
 		return
 	}
-	if !s.adoptNickname(w, r, device, req.Nickname) {
-		return
-	}
 
 	verifier, err := auth.NewGroupVerifier(req.PasswordProof)
 	if err != nil {
@@ -77,9 +74,6 @@ func (s *Server) handleJoinGroup(w http.ResponseWriter, r *http.Request, device 
 	name := strings.TrimSpace(req.Group)
 	if name == "" || req.PasswordProof == "" {
 		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "Joining needs a group and a password.")
-		return
-	}
-	if !s.adoptNickname(w, r, device, req.Nickname) {
 		return
 	}
 
@@ -196,7 +190,6 @@ func toMembership(m storage.Membership) api.Membership {
 		GroupName:     m.GroupName,
 		GroupIcon:     m.GroupIcon,
 		GroupColor:    m.GroupColor,
-		Nickname:      m.Nickname,
 		Subnet:        m.Subnet,
 		VirtualIP:     m.VirtualIP,
 		Role:          string(m.Role),

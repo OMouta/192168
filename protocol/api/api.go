@@ -75,21 +75,14 @@ type SetNicknameRequest struct {
 type CreateGroupRequest struct {
 	Name          string `json:"name"`
 	PasswordProof string `json:"passwordProof"`
-	// Nickname is only sent by clients from before names belonged to the
-	// device. The server adopts it as the device's name; a current client
-	// leaves it empty and sets the name through SetNicknameRequest.
-	Nickname string `json:"nickname,omitempty"`
-	Icon     string `json:"icon,omitempty"`
-	Color    string `json:"color,omitempty"`
+	Icon          string `json:"icon,omitempty"`
+	Color         string `json:"color,omitempty"`
 }
 
 // JoinGroupRequest joins an existing group by name or ID.
 type JoinGroupRequest struct {
 	Group         string `json:"group"`
 	PasswordProof string `json:"passwordProof"`
-	// Nickname carries the same meaning it does on CreateGroupRequest, and is
-	// there for the same older clients.
-	Nickname string `json:"nickname,omitempty"`
 }
 
 // Membership is the relationship between a device and a group. It is what lets
@@ -109,13 +102,9 @@ type Membership struct {
 	GroupName    string `json:"groupName"`
 	GroupIcon    string `json:"groupIcon,omitempty"`
 	GroupColor   string `json:"groupColor,omitempty"`
-	// Nickname is the device's name rather than anything about this group, and
-	// is here for clients from before that was true. Current ones read it from
-	// Me and ignore this.
-	Nickname  string `json:"nickname"`
-	Subnet    string `json:"subnet"`
-	VirtualIP string `json:"virtualIp"`
-	Role      string `json:"role"`
+	Subnet       string `json:"subnet"`
+	VirtualIP    string `json:"virtualIp"`
+	Role         string `json:"role"`
 	// OnlineMembers is how many of the group are connected, counting this
 	// device. Absent where the server was not asked to count, which is not the
 	// same as nobody being there.

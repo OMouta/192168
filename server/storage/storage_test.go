@@ -130,7 +130,7 @@ func TestCreateGroupMakesTheCreatorAMember(t *testing.T) {
 	newDevice(t, s, "dev_1")
 
 	_, m := newGroup(t, s, "dev_1", "friday night")
-	if m.Nickname != "dev_1-PC" || m.Subnet != "10.69.0.0/24" {
+	if m.DeviceID != "dev_1" || m.Subnet != "10.69.0.0/24" {
 		t.Errorf("membership = %+v", m)
 	}
 
@@ -558,18 +558,6 @@ func TestNicknameFollowsTheDeviceIntoEveryGroup(t *testing.T) {
 		}
 	}
 
-	memberships, err := s.MembershipsByDevice(ctx, "dev_2")
-	if err != nil {
-		t.Fatalf("MembershipsByDevice: %v", err)
-	}
-	if len(memberships) != 2 {
-		t.Fatalf("memberships = %+v", memberships)
-	}
-	for _, m := range memberships {
-		if m.Nickname != "joao" {
-			t.Errorf("membership of %s carries %q, want joao", m.GroupName, m.Nickname)
-		}
-	}
 }
 
 func TestRegisteringAgainKeepsAChosenNickname(t *testing.T) {

@@ -44,11 +44,7 @@ type Membership struct {
 	GroupIcon  string
 	GroupColor string
 
-	DeviceID string
-	// Nickname is the device's, not the membership's. It is carried here
-	// because the client renders a group and the name it appears under
-	// together.
-	Nickname  string
+	DeviceID  string
 	Subnet    string
 	VirtualIP string
 	Role      Role
@@ -202,17 +198,13 @@ func insertMembership(ctx context.Context, tx *sql.Tx, g Group, deviceID string,
 	// The insert may have updated an existing row, so the authoritative ID
 	// comes back from a read rather than from the value just generated.
 	var (
-		created  int64
-		role     Role
-		nickname string
+		created int64
+		role    Role
 	)
 	err = tx.QueryRowContext(ctx, `
-		SELECT m.id, d.nickname, m.role, m.created_at
-		FROM memberships m
-		JOIN devices d ON d.id = m.device_id
-		WHERE m.group_id = ? AND m.device_id = ?`,
+		SELECT id, role, created_at FROM memberships WHERE group_id = ? AND device_id = ?`,
 		g.ID, deviceID,
-	).Scan(&id, &nickname, &role, &created)
+	).Scan(&id, &role, &created)
 	if err != nil {
 		return Membership{}, fmt.Errorf("storage: read membership: %w", err)
 	}
@@ -225,7 +217,6 @@ func insertMembership(ctx context.Context, tx *sql.Tx, g Group, deviceID string,
 		GroupColor: g.Color,
 
 		DeviceID:  deviceID,
-		Nickname:  nickname,
 		Subnet:    g.Subnet,
 		VirtualIP: address,
 		Role:      role,
@@ -311,11 +302,10 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 	// say which groups are worth joining right now, and asking per group would
 	// be a query each.
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.id, m.group_id, g.name, g.icon, g.color, d.nickname, g.subnet, m.virtual_ip, m.role, m.created_at,
+		SELECT m.id, m.group_id, g.name, g.icon, g.color, g.subnet, m.virtual_ip, m.role, m.created_at,
 		       (SELECT COUNT(*) FROM sessions s WHERE s.group_id = m.group_id)
 		FROM memberships m
-		JOIN groups g  ON g.id = m.group_id
-		JOIN devices d ON d.id = m.device_id
+		JOIN groups g ON g.id = m.group_id
 		WHERE m.device_id = ? AND m.revoked_at IS NULL
 		ORDER BY m.created_at`, deviceID)
 	if err != nil {
@@ -330,7 +320,7 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 			created int64
 			online  int
 		)
-		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Nickname, &m.Subnet, &m.VirtualIP, &m.Role, &created, &online); err != nil {
+		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Subnet, &m.VirtualIP, &m.Role, &created, &online); err != nil {
 			return nil, fmt.Errorf("storage: scan membership: %w", err)
 		}
 		m.DeviceID = deviceID
@@ -386,13 +376,12 @@ func (s *Store) Membership(ctx context.Context, groupID, deviceID string) (Membe
 		created int64
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT m.id, g.name, g.icon, g.color, d.nickname, g.subnet, m.virtual_ip, m.role, m.created_at
+		SELECT m.id, g.name, g.icon, g.color, g.subnet, m.virtual_ip, m.role, m.created_at
 		FROM memberships m
-		JOIN groups g  ON g.id = m.group_id
-		JOIN devices d ON d.id = m.device_id
+		JOIN groups g ON g.id = m.group_id
 		WHERE m.group_id = ? AND m.device_id = ? AND m.revoked_at IS NULL`,
 		groupID, deviceID,
-	).Scan(&m.ID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Nickname, &m.Subnet, &m.VirtualIP, &m.Role, &created)
+	).Scan(&m.ID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Subnet, &m.VirtualIP, &m.Role, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Membership{}, ErrNotFound
 	}

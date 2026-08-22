@@ -40,7 +40,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request, dev
 	s.hub.Broadcast(groupID, device.ID, api.EventPeerOnline, api.PeerOnlineData{
 		Peer: api.Peer{
 			DeviceID:     device.ID,
-			Nickname:     membership.Nickname,
+			Nickname:     device.Nickname,
 			VirtualIP:    session.VirtualIP,
 			TransportKey: device.TransportKey,
 		},
