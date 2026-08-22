@@ -44,21 +44,8 @@ func loadSettings(dir, defaultServer string) (*settings, error) {
 		return nil, fmt.Errorf("core: parse settings: %w", err)
 	}
 
-	// The hosted server moved to the bare domain and the old host is gone. A
-	// saved setting beats the default, so without this an install from before
-	// the move would keep asking a hostname that no longer answers.
-	if s.ServerURL == retiredServerURL {
-		s.ServerURL = defaultServer
-		if err := s.save(); err != nil {
-			return nil, err
-		}
-	}
 	return s, nil
 }
-
-// retiredServerURL is where the hosted server used to be. Only the hosted one
-// moved, so a self-hosted address is left alone.
-const retiredServerURL = "https://api.192168.lol"
 
 func (s *settings) save() error {
 	body, err := json.MarshalIndent(s, "", "  ")
