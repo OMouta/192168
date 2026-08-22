@@ -49,7 +49,7 @@ public sealed partial class UpdateViewModel : ObservableObject
     /// <summary>Why it is needed, for the banner. Empty for an ordinary one,
     /// which does not need explaining.</summary>
     public string Detail => IsRequired
-        ? "This version changes how the app talks to the server. Until you update, you can still connect to your groups but not create or join one."
+        ? "Update or the app might not work as expected."
         : "";
 
     /// <summary>What the button says on About, where no title above it names
