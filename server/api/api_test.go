@@ -30,7 +30,7 @@ func newTestServer(t *testing.T) *Server {
 	}
 	t.Cleanup(func() { store.Close() })
 
-	cfg := config.Config{PublicURL: "https://api.192168.lol", STUN: []string{"stun:stun.example.com:3478"}}
+	cfg := config.Config{PublicURL: "https://192168.lol", STUN: []string{"stun:stun.example.com:3478"}}
 	return New(cfg, store, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
@@ -451,10 +451,10 @@ func TestDiscoveryDocument(t *testing.T) {
 	if doc.Version != protocol.DiscoveryVersion {
 		t.Errorf("version = %d, want %d", doc.Version, protocol.DiscoveryVersion)
 	}
-	if doc.API != "https://api.192168.lol/api" {
+	if doc.API != "https://192168.lol/api" {
 		t.Errorf("api = %q", doc.API)
 	}
-	if doc.Realtime != "wss://api.192168.lol/realtime" {
+	if doc.Realtime != "wss://192168.lol/realtime" {
 		t.Errorf("realtime = %q", doc.Realtime)
 	}
 	if len(doc.STUN) != 1 || doc.STUN[0] != "stun:stun.example.com:3478" {

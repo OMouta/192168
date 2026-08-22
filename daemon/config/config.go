@@ -18,8 +18,8 @@ import (
 // realtime, and STUN endpoints all come from the server's discovery document.
 //
 // The bare domain, because the server is the site as well: it answers an invite
-// link and a browser at the same address. api.192168.lol still works and is
-// what installs from before this carry, so nobody has to be moved.
+// link and a browser at the same address. The old api. host is gone, and
+// loadSettings moves an install that still has it saved.
 const DefaultServerURL = "https://192168.lol"
 
 // Config is the daemon's local configuration.

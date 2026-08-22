@@ -58,7 +58,7 @@ func TestStateFieldNames(t *testing.T) {
 	latency := 18
 	encoded, err := json.Marshal(State{
 		Connection: StateConnected,
-		ServerURL:  "https://api.192168.lol",
+		ServerURL:  "https://192168.lol",
 		GroupID:    "grp_9",
 		VirtualIP:  "10.69.0.1",
 		Peers: []PeerView{{

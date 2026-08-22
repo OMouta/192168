@@ -74,11 +74,11 @@ func TestTokenIsRememberedPerServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if id.RegisteredWith("https://api.192168.lol") {
+	if id.RegisteredWith("https://192168.lol") {
 		t.Error("a fresh identity claims to be registered")
 	}
 
-	if err := id.SetToken("https://api.192168.lol", "token-abc"); err != nil {
+	if err := id.SetToken("https://192168.lol", "token-abc"); err != nil {
 		t.Fatalf("SetToken: %v", err)
 	}
 
@@ -89,7 +89,7 @@ func TestTokenIsRememberedPerServer(t *testing.T) {
 	if reloaded.Token != "token-abc" {
 		t.Errorf("token = %q", reloaded.Token)
 	}
-	if !reloaded.RegisteredWith("https://api.192168.lol") {
+	if !reloaded.RegisteredWith("https://192168.lol") {
 		t.Error("the identity forgot it was registered")
 	}
 	// A token is only good where it was issued, so pointing at another server
@@ -117,7 +117,7 @@ func TestPrivateKeysAreNotWrittenInTheClear(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if err := id.SetToken("https://api.192168.lol", "token-abc"); err != nil {
+	if err := id.SetToken("https://192168.lol", "token-abc"); err != nil {
 		t.Fatalf("SetToken: %v", err)
 	}
 

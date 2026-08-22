@@ -11,9 +11,9 @@ func TestAdvertisedURLs(t *testing.T) {
 	}{
 		{
 			name:         "hosted deployment",
-			publicURL:    "https://api.192168.lol",
-			wantAPI:      "https://api.192168.lol/api",
-			wantRealtime: "wss://api.192168.lol/realtime",
+			publicURL:    "https://192168.lol",
+			wantAPI:      "https://192168.lol/api",
+			wantRealtime: "wss://192168.lol/realtime",
 		},
 		{
 			name:         "self-hosted",
@@ -46,7 +46,7 @@ func TestCheckPublicURLRejectsUnusableAddresses(t *testing.T) {
 		raw     string
 		wantErr bool
 	}{
-		{"https://api.192168.lol", false},
+		{"https://192168.lol", false},
 		{"https://lan.example.com:8443", false},
 		{"http://localhost:8080", false},
 		{"http://127.0.0.1:8080", false},

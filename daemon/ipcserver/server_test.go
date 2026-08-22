@@ -256,7 +256,7 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 		state:   ipc.State{Connection: ipc.StateConnected, VirtualIP: "10.69.0.1"},
 		groups:  []ipc.Group{{GroupID: "grp_1", Name: "Friday Night"}},
 		group:   ipc.Group{GroupID: "grp_1", Name: "Friday Night"},
-		server:  "https://api.192168.lol",
+		server:  "https://192168.lol",
 		testRes: ipc.TestServerResult{Reachable: true, Version: 1},
 	}
 	s := newSession(t, h)
