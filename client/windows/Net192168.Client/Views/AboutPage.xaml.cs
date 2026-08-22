@@ -154,8 +154,12 @@ public sealed partial class AboutPage : Page
     }
 
     /// <summary>
-    /// Puts a line under the row. The app has no dialogs, and a result that
-    /// needs dismissing would be the first.
+    /// Puts a line under the card. The app has no dialogs, and a result that
+    /// needs dismissing would be the first one.
     /// </summary>
-    private void Say(string message) => LogStatus.Text = message;
+    private void Say(string message)
+    {
+        LogStatus.Text = message;
+        LogStatus.Visibility = Visibility.Visible;
+    }
 }

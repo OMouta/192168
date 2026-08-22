@@ -10,15 +10,6 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Margin" Value="12,0,8,0" />
         </Style>
-        <!--  The same second line Settings uses, for the one row here that needs one.  -->
-        <Style
-            x:Key="RowCaption"
-            BasedOn="{StaticResource CaptionTextBlockStyle}"
-            TargetType="TextBlock">
-            <Setter Property="Margin" Value="12,0,8,0" />
-            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
         <Style x:Key="RowDivider" TargetType="Border">
             <Setter Property="Height" Value="1" />
             <Setter Property="Background" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
@@ -136,13 +127,10 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Style="{StaticResource RowLabel}" Text="App &amp; Network Logs" />
-                            <TextBlock
-                                x:Name="LogStatus"
-                                Style="{StaticResource RowCaption}"
-                                Text="What the app and the daemon recorded." />
-                        </StackPanel>
+                        <TextBlock
+                            Grid.Column="0"
+                            Style="{StaticResource RowLabel}"
+                            Text="App &amp; Network Logs" />
                         <StackPanel
                             Grid.Column="1"
                             Orientation="Horizontal"
@@ -165,6 +153,18 @@
                     </Grid>
                 </StackPanel>
             </Border>
+
+            <!--
+                Only there once one of the buttons above has something to
+                report, so the card keeps the one shape every row in it has.
+            -->
+            <TextBlock
+                x:Name="LogStatus"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                TextAlignment="Center"
+                TextWrapping="Wrap"
+                Visibility="Collapsed" />
 
             <TextBlock
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"

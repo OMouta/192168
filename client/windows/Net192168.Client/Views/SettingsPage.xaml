@@ -119,8 +119,7 @@
                     </Border>
 
                     <!--
-                        Off by default and worth turning on only while something
-                        is being chased. The counters that go in the ordinary log
+                        Off by default. The counters that go in the ordinary log
                         run either way, so this is the extra detail rather than
                         the difference between a useful report and none.
                     -->
@@ -133,7 +132,7 @@
 
                             <StackPanel Grid.Column="0" Style="{StaticResource RowText}">
                                 <TextBlock Text="Record every packet" />
-                                <TextBlock Style="{StaticResource RowCaption}" Text="Writes a detailed log for working out why a session misbehaved. It turns over quickly, so leave it off unless you are chasing something." />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="Turn this on before reproducing a problem you want to report." />
                             </StackPanel>
 
                             <ToggleSwitch
