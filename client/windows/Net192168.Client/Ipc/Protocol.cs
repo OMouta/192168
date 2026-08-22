@@ -71,6 +71,8 @@ public sealed record DaemonState
     /// the same way its row in the list was.</summary>
     public string? GroupIcon { get; init; }
     public string? GroupColor { get; init; }
+    /// <summary>What this device is called, in every group. It is there whether
+    /// or not one is connected.</summary>
     public string? Nickname { get; init; }
     public string? VirtualIp { get; init; }
 
@@ -118,7 +120,6 @@ public sealed record Group
     /// a colour. Empty means the default one.</summary>
     public string Icon { get; init; } = "";
     public string Color { get; init; } = "";
-    public string Nickname { get; init; } = "";
     public bool Active { get; init; }
     public int? OnlineMembers { get; init; }
 
@@ -155,13 +156,13 @@ public sealed record TestServerResult
 }
 
 /// <summary>Creates a group, with the look it is made with.</summary>
-public sealed record CreateGroupParams(string Name, string Password, string Nickname, string Icon, string Color);
+public sealed record CreateGroupParams(string Name, string Password, string Icon, string Color);
 
-public sealed record JoinGroupParams(string Group, string Password, string Nickname);
+public sealed record JoinGroupParams(string Group, string Password);
 
 public sealed record GroupParams(string GroupId);
 
-public sealed record SetNicknameParams(string GroupId, string Nickname);
+public sealed record SetNicknameParams(string Nickname);
 
 public sealed record ServerParams(string Url);
 

@@ -248,7 +248,10 @@
                 Text="{x:Bind ViewModel.Traffic, Mode=OneWay}"
                 TextAlignment="Right" />
 
-            <!--  The name everyone else sees, changed in place.  -->
+            <!--
+                The name everyone else sees, changed in place. It is the same
+                name in every group, so this is the same field Settings has.
+            -->
             <StackPanel
                 Grid.Row="2"
                 Grid.Column="1"
@@ -552,12 +555,13 @@
                                             ToolTipService.ToolTip="You own this group"
                                             Visibility="{x:Bind IsOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
                                     </StackPanel>
+                                    <!--
+                                        The name you go by used to sit here, on
+                                        every row. One name covers every group
+                                        now, so this said the same thing five
+                                        times over.
+                                    -->
                                     <StackPanel Orientation="Horizontal" Spacing="7">
-                                        <TextBlock
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                            Style="{StaticResource CaptionTextBlockStyle}"
-                                            Text="{x:Bind Nickname, Mode=OneWay}" />
-
                                         <!--  Only where somebody is, so a quiet list stays quiet.  -->
                                         <StackPanel
                                             Orientation="Horizontal"

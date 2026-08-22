@@ -23,6 +23,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     public partial string? ServerUrl { get; set; }
 
     /// <summary>
+    /// What everyone in every group sees. It belongs to this machine rather
+    /// than to a group, so this is where it lives, and it can be changed
+    /// without being connected to anything.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? Nickname { get; set; }
+
+    /// <summary>What the name was on arrival, so saving can tell whether it is
+    /// worth sending.</summary>
+    private string _savedNickname = "";
+
+    /// <summary>
     /// One line under the field, reporting what happened. It is empty until
     /// something does, and a test result is not worth a second dialog.
     /// </summary>
@@ -172,6 +184,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             var server = await _daemon.GetServerAsync();
             ServerUrl = server.Url;
+            _savedNickname = _daemon.State.Nickname ?? "";
+            Nickname = _savedNickname;
             ShowLanDiscovery((await _daemon.GetLanDiscoveryAsync()).Enabled);
         }
         catch (DaemonException e)
@@ -300,16 +314,31 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Saves the address. Switching servers disconnects and registers again,
-    /// because a device credential is only good where it was issued.
+    /// Saves the name and the address. Switching servers disconnects and
+    /// registers again, because a device credential is only good where it was
+    /// issued.
     /// </summary>
     /// <returns>Whether the dialog should close.</returns>
     [RelayCommand]
     public async Task<bool> SaveAsync()
     {
+        var nickname = (Nickname ?? "").Trim();
+        if (nickname.Length == 0)
+        {
+            Status = "Your name cannot be empty.";
+            return false;
+        }
+
         IsBusy = true;
         try
         {
+            // The name goes first. Setting the server can disconnect and
+            // register again, and a name sent into that is a name sent nowhere.
+            if (nickname != _savedNickname)
+            {
+                await _daemon.SetNicknameAsync(nickname);
+                _savedNickname = nickname;
+            }
             await _daemon.SetServerAsync((ServerUrl ?? "").Trim());
             return true;
         }

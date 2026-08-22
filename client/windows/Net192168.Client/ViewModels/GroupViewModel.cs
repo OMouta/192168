@@ -4,7 +4,7 @@ using Net192168.Client.Ipc;
 namespace Net192168.Client.ViewModels;
 
 /// <summary>
-/// The create and join screen. Both ask for the same three things, so they are
+/// The create and join screen. Both ask for the same two things, so they are
 /// one screen with different words rather than two forms to keep in step.
 /// </summary>
 public sealed partial class GroupViewModel : ObservableObject
@@ -43,14 +43,10 @@ public sealed partial class GroupViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanSubmit))]
     public partial string? Password { get; set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanSubmit))]
-    public partial string? Nickname { get; set; }
-
     /// <summary>
     /// What went wrong, shown under the form. The screen stays put when a join
     /// fails, because the fix is usually one character of the password and
-    /// re-typing all three would be a punishment.
+    /// re-typing everything would be a punishment.
     /// </summary>
     [ObservableProperty]
     public partial string? Error { get; set; }
@@ -66,8 +62,7 @@ public sealed partial class GroupViewModel : ObservableObject
     public bool CanSubmit =>
         !IsBusy
         && (GroupName ?? "").Trim().Length > 0
-        && (Password ?? "").Length > 0
-        && (Nickname ?? "").Trim().Length > 0;
+        && (Password ?? "").Length > 0;
 
     /// <summary>
     /// Creates or joins, and reports whether the screen is finished with.
@@ -79,15 +74,13 @@ public sealed partial class GroupViewModel : ObservableObject
         try
         {
             var name = (GroupName ?? "").Trim();
-            var nickname = (Nickname ?? "").Trim();
             if (_creating)
             {
-                await _daemon.CreateGroupAsync(
-                    name, Password ?? "", nickname, Appearance.Icon.Key, Appearance.Color.Key);
+                await _daemon.CreateGroupAsync(name, Password ?? "", Appearance.Icon.Key, Appearance.Color.Key);
             }
             else
             {
-                await _daemon.JoinGroupAsync(name, Password ?? "", nickname);
+                await _daemon.JoinGroupAsync(name, Password ?? "");
             }
             return true;
         }

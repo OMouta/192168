@@ -15,9 +15,6 @@ public sealed partial class GroupListItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(LeavePrompt))]
     public partial string? Name { get; set; }
 
-    [ObservableProperty]
-    public partial string? Nickname { get; set; }
-
     /// <summary>The keys the owner picked. <see cref="GroupLooks"/> says what they look like.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Look))]
@@ -392,7 +389,6 @@ public sealed partial class HomeViewModel : ObservableObject
                     Name = group.Name,
                     Icon = group.Icon,
                     Color = group.Color,
-                    Nickname = group.Nickname,
                     OnlineMembers = group.OnlineMembers,
                     IsOwner = group.IsOwner,
                 });
@@ -502,12 +498,12 @@ public sealed partial class HomeViewModel : ObservableObject
         IsEditingNickname = false;
 
         var name = (NicknameDraft ?? "").Trim();
-        if (name.Length == 0 || name == Nickname || _groupId.Length == 0)
+        if (name.Length == 0 || name == Nickname)
         {
             return;
         }
 
-        await Run(() => _daemon.SetNicknameAsync(_groupId, name));
+        await Run(() => _daemon.SetNicknameAsync(name));
     }
 
     private async Task Run(Func<Task> action)

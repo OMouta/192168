@@ -143,17 +143,17 @@ public sealed class Daemon
         return result.Groups.ToArray();
     }
 
-    public async Task<Group> CreateGroupAsync(string name, string password, string nickname, string icon, string color)
+    public async Task<Group> CreateGroupAsync(string name, string password, string icon, string color)
     {
         var result = await _client.CallAsync<GroupResult>(
-            "CreateGroup", new CreateGroupParams(name, password, nickname, icon, color), _lifetime.Token);
+            "CreateGroup", new CreateGroupParams(name, password, icon, color), _lifetime.Token);
         return result.Group;
     }
 
-    public async Task<Group> JoinGroupAsync(string group, string password, string nickname)
+    public async Task<Group> JoinGroupAsync(string group, string password)
     {
         var result = await _client.CallAsync<GroupResult>(
-            "JoinGroup", new JoinGroupParams(group, password, nickname), _lifetime.Token);
+            "JoinGroup", new JoinGroupParams(group, password), _lifetime.Token);
         return result.Group;
     }
 
@@ -166,8 +166,8 @@ public sealed class Daemon
     public Task LeaveGroupAsync(string groupId)
         => _client.CallAsync("LeaveGroup", new GroupParams(groupId), _lifetime.Token);
 
-    public Task SetNicknameAsync(string groupId, string nickname)
-        => _client.CallAsync("SetNickname", new SetNicknameParams(groupId, nickname), _lifetime.Token);
+    public Task SetNicknameAsync(string nickname)
+        => _client.CallAsync("SetNickname", new SetNicknameParams(nickname), _lifetime.Token);
 
     public Task<GetServerResult> GetServerAsync()
         => _client.CallAsync<GetServerResult>("GetServer", null, _lifetime.Token);

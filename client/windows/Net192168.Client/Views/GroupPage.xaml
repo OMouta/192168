@@ -67,10 +67,6 @@
                 Header="Password"
                 PasswordChanged="OnPasswordChanged" />
 
-            <TextBox
-                Header="Your nickname"
-                Text="{x:Bind ViewModel.Nickname, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
             <TextBlock
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                 Style="{StaticResource CaptionTextBlockStyle}"
