@@ -1,52 +1,139 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.UI.Dispatching;
 using Net192168.Client.Ipc;
+using Windows.ApplicationModel.DataTransfer;
 
 namespace Net192168.Client.ViewModels;
 
 /// <summary>
-/// The create and join screen. Both ask for the same two things, so they are
-/// one screen with different words rather than two forms to keep in step.
+/// The create and join screen.
+///
+/// Creating asks for a name and a look, and ends holding the link to send
+/// people. Joining asks for the invite somebody sent, and says what it opens
+/// before anybody commits to it.
 /// </summary>
 public sealed partial class GroupViewModel : ObservableObject
 {
     private readonly Daemon _daemon;
     private readonly bool _creating;
 
+    /// <summary>
+    /// Waits out the typing before asking the server what an invite opens.
+    ///
+    /// Pasting a link is one change; typing a code is eight, seven of which
+    /// open nothing. Without this the screen would flicker through seven
+    /// failures on the way to an answer.
+    /// </summary>
+    private readonly DispatcherQueueTimer? _lookUp;
+
+    /// <summary>Clears the copied tick, so the button goes back to offering.</summary>
+    private readonly DispatcherQueueTimer? _copyFeedback;
+
     public GroupViewModel(Daemon daemon, bool creating)
     {
         _daemon = daemon;
         _creating = creating;
+
+        var queue = DispatcherQueue.GetForCurrentThread();
+        _lookUp = queue?.CreateTimer();
+        if (_lookUp is not null)
+        {
+            _lookUp.Interval = TimeSpan.FromMilliseconds(400);
+            _lookUp.IsRepeating = false;
+            _lookUp.Tick += async (_, _) => await LookUpInviteAsync();
+        }
+
+        _copyFeedback = queue?.CreateTimer();
+        if (_copyFeedback is not null)
+        {
+            _copyFeedback.Interval = TimeSpan.FromSeconds(2);
+            _copyFeedback.IsRepeating = false;
+            _copyFeedback.Tick += (_, _) => JustCopied = false;
+        }
     }
 
     /// <summary>Whether a group is being made. Joining one does not pick its look.</summary>
     public bool IsCreating => _creating;
 
+    public bool IsJoining => !_creating;
+
     /// <summary>The look a new group is made with. Unused when joining.</summary>
     public GroupLookChoice Appearance { get; } = new();
-
-    /// <summary>Names the field and the picker under it, so it says both when there are both.</summary>
-    public string NameLabel => _creating ? "Group name & icon" : "Group name";
 
     public string Title => _creating ? "Create a group" : "Join a group";
 
     public string SubmitLabel => _creating ? "Create" : "Join";
 
     public string Hint => _creating
-        ? "Share the name and password with the people you want in the group."
-        : "Ask whoever made the group for its name and password.";
+        ? "You will get a link to send the people you want in it."
+        : "Paste the link or code somebody sent you.";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSubmit))]
     public partial string? GroupName { get; set; }
 
+    /// <summary>The invite being joined with, as pasted. It may be a link.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSubmit))]
-    public partial string? Password { get; set; }
+    public partial string? Invite { get; set; }
+
+    partial void OnInviteChanged(string? value)
+    {
+        // Whatever the last answer was, it described the previous text.
+        Found = null;
+        _lookUp?.Stop();
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            _lookUp?.Start();
+        }
+    }
 
     /// <summary>
-    /// What went wrong, shown under the form. The screen stays put when a join
-    /// fails, because the fix is usually one character of the password and
-    /// re-typing everything would be a punishment.
+    /// What the invite opens, once the server has been asked. Null while nothing
+    /// has been typed, while the answer is still coming, and for an invite that
+    /// opens nothing.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFound))]
+    [NotifyPropertyChangedFor(nameof(FoundLook))]
+    [NotifyPropertyChangedFor(nameof(FoundName))]
+    [NotifyPropertyChangedFor(nameof(FoundMembers))]
+    public partial InviteResult? Found { get; set; }
+
+    public bool HasFound => Found is not null;
+
+    public GroupLook FoundLook => GroupLooks.For(Found?.GroupIcon, Found?.GroupColor);
+
+    public string FoundName => Found?.GroupName ?? "";
+
+    public string FoundMembers => Found is null ? "" : Members(Found.Members);
+
+    /// <summary>
+    /// The link to the group that was just made, which is the whole point of
+    /// having made it. Null until then.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDone))]
+    [NotifyPropertyChangedFor(nameof(IsNotDone))]
+    [NotifyPropertyChangedFor(nameof(DoneHeadline))]
+    public partial string? Link { get; set; }
+
+    /// <summary>True once the group exists and the screen is showing its link.</summary>
+    public bool IsDone => Link is not null;
+
+    public bool IsNotDone => !IsDone;
+
+    public string DoneHeadline => $"{(GroupName ?? "").Trim()} is ready";
+
+    /// <summary>True for a moment after the link was put on the clipboard.</summary>
+    [ObservableProperty]
+    public partial bool JustCopied { get; set; }
+
+    /// <summary>
+    /// What went wrong, shown under the form. The screen stays put when this
+    /// fails, because the fix is usually a character of the invite and re-typing
+    /// it all would be a punishment.
     /// </summary>
     [ObservableProperty]
     public partial string? Error { get; set; }
@@ -59,29 +146,32 @@ public sealed partial class GroupViewModel : ObservableObject
     /// Whether the form is worth submitting. Every field it reads raises a
     /// change for it, so the button follows the typing.
     /// </summary>
-    public bool CanSubmit =>
-        !IsBusy
-        && (GroupName ?? "").Trim().Length > 0
-        && (Password ?? "").Length > 0;
+    public bool CanSubmit => !IsBusy && (_creating
+        ? (GroupName ?? "").Trim().Length > 0
+        : (Invite ?? "").Trim().Length > 0);
 
     /// <summary>
-    /// Creates or joins, and reports whether the screen is finished with.
+    /// Creates or joins.
     /// </summary>
+    /// <returns>Whether the screen is finished with. Creating is not: it has a
+    /// link to hand over first.</returns>
     public async Task<bool> SubmitAsync()
     {
         IsBusy = true;
         Error = null;
         try
         {
-            var name = (GroupName ?? "").Trim();
             if (_creating)
             {
-                await _daemon.CreateGroupAsync(name, Password ?? "", Appearance.Icon.Key, Appearance.Color.Key);
+                var group = await _daemon.CreateGroupAsync(
+                    (GroupName ?? "").Trim(), Appearance.Icon.Key, Appearance.Color.Key);
+                // A server that did not say where its links live still gives a
+                // code, and a code is enough to send somebody.
+                Link = group.InviteLink.Length > 0 ? group.InviteLink : group.InviteCode;
+                return false;
             }
-            else
-            {
-                await _daemon.JoinGroupAsync(name, Password ?? "");
-            }
+
+            await _daemon.JoinGroupAsync((Invite ?? "").Trim());
             return true;
         }
         catch (DaemonException e)
@@ -94,4 +184,53 @@ public sealed partial class GroupViewModel : ObservableObject
             IsBusy = false;
         }
     }
+
+    /// <summary>Puts the new group's link on the clipboard, which is the one
+    /// thing worth doing on this screen.</summary>
+    [RelayCommand]
+    public void CopyLink()
+    {
+        if (Link is null)
+        {
+            return;
+        }
+
+        var package = new DataPackage();
+        package.SetText(Link);
+        Clipboard.SetContent(package);
+
+        JustCopied = true;
+        _copyFeedback?.Start();
+    }
+
+    /// <summary>
+    /// Asks the server what the current invite opens. Failing is quiet: the
+    /// screen simply does not name a group, which is how it looks before
+    /// anything has been typed. Joining is where a bad invite gets said out
+    /// loud, because that is where somebody asked for an answer.
+    /// </summary>
+    private async Task LookUpInviteAsync()
+    {
+        var asked = (Invite ?? "").Trim();
+        if (asked.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var found = await _daemon.GetInviteAsync(asked);
+            // The text may have moved on while the server was answering.
+            if (found.Found && asked == (Invite ?? "").Trim())
+            {
+                Found = found;
+            }
+        }
+        catch (DaemonException e)
+        {
+            App.Trace($"invite lookup failed: code={e.Code} message={e.Message}");
+        }
+    }
+
+    private static string Members(int count) => count == 1 ? "1 person" : $"{count} people";
 }

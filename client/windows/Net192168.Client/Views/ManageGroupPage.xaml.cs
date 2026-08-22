@@ -31,14 +31,14 @@ public sealed partial class ManageGroupPage : Page
     /// The group is passed in rather than read back, because this screen is
     /// reached from one that already lists every group it could be about.
     /// </summary>
-    public sealed record Target(string GroupId, string Name, string? Icon = null, string? Color = null);
+    public sealed record Target(string GroupId, string Name, string? Icon = null, string? Color = null, string? InviteLink = null);
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
 
         var target = e.Parameter as Target ?? new Target("", "");
-        ViewModel = new ManageGroupViewModel(App.Daemon, target.GroupId, target.Name, target.Icon, target.Color);
+        ViewModel = new ManageGroupViewModel(App.Daemon, target.GroupId, target.Name, target.Icon, target.Color, target.InviteLink);
         Bindings.Update();
     }
 

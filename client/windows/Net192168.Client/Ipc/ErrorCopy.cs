@@ -29,17 +29,15 @@ public static class ErrorCopy
 
     private static string? Copy(DaemonException error, ErrorContext context) => error.Code switch
     {
-        // The server answers a wrong name and a wrong password the same way on
-        // purpose, so that joining cannot be used to find out which groups
-        // exist. The copy has to keep that promise.
-        "invalid_password" => "That group name or password is not right.",
-
-        "group_name_taken" => "A group with that name already exists. Pick another.",
+        // A code that was never good, one that has been replaced, and one for a
+        // group this device was removed from are answered identically on
+        // purpose. The copy has to keep that promise.
+        "invite_invalid" => "That invite is not good any more. Ask for a new one.",
 
         // Reached by connecting to or leaving a group this device was removed
         // from, which reads as the group being gone.
         "group_not_found" => context == ErrorContext.Join
-            ? "That group name or password is not right."
+            ? "That invite is not good any more. Ask for a new one."
             : "You are not in that group any more.",
 
         "membership_revoked" => "You were removed from that group.",

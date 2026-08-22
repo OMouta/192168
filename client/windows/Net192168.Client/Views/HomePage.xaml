@@ -136,6 +136,15 @@
                     Glyph="&#xE712;" />
                 <Button.Flyout>
                     <MenuFlyout>
+                        <!--  The list is not on screen while a group is up, so the link is offered here too.  -->
+                        <MenuFlyoutItem
+                            Click="OnCopyConnectedInvite"
+                            Text="Copy invite link"
+                            Visibility="{x:Bind ViewModel.IsOwner, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE71B;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
                         <MenuFlyoutItem
                             Click="OnManageGroup"
                             Text="Group settings"
@@ -620,6 +629,17 @@
                                     <FontIcon FontSize="14" Glyph="&#xE712;" />
                                     <Button.Flyout>
                                         <MenuFlyout>
+                                            <!--  The thing an owner opens this menu for.  -->
+                                            <MenuFlyoutItem
+                                                Click="OnCopyInvite"
+                                                Tag="{x:Bind}"
+                                                Text="Copy invite link"
+                                                Visibility="{x:Bind CanInvite, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xE71B;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+
                                             <!--  Yours to change, so reachable without connecting to it first.  -->
                                             <MenuFlyoutItem
                                                 Click="OnManageGroupFromList"
@@ -693,7 +713,7 @@
                     HorizontalAlignment="Center"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     Style="{StaticResource CaptionTextBlockStyle}"
-                    Text="Create one, then give its name and password to your friends."
+                    Text="Create one, then send your friends the link."
                     TextAlignment="Center"
                     TextWrapping="Wrap" />
             </StackPanel>

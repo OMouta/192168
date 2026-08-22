@@ -143,19 +143,28 @@ public sealed class Daemon
         return result.Groups.ToArray();
     }
 
-    public async Task<Group> CreateGroupAsync(string name, string password, string icon, string color)
+    public async Task<Group> CreateGroupAsync(string name, string icon, string color)
     {
         var result = await _client.CallAsync<GroupResult>(
-            "CreateGroup", new CreateGroupParams(name, password, icon, color), _lifetime.Token);
+            "CreateGroup", new CreateGroupParams(name, icon, color), _lifetime.Token);
         return result.Group;
     }
 
-    public async Task<Group> JoinGroupAsync(string group, string password)
+    /// <summary>Joins whichever group an invite opens. The code may be a link.</summary>
+    public async Task<Group> JoinGroupAsync(string code)
     {
         var result = await _client.CallAsync<GroupResult>(
-            "JoinGroup", new JoinGroupParams(group, password), _lifetime.Token);
+            "JoinGroup", new JoinGroupParams(code), _lifetime.Token);
         return result.Group;
     }
+
+    /// <summary>What an invite opens, without taking it.</summary>
+    public Task<InviteResult> GetInviteAsync(string code)
+        => _client.CallAsync<InviteResult>("GetInvite", new InviteParams(code), _lifetime.Token);
+
+    /// <summary>Replaces a group's code, retiring the one that was given out.</summary>
+    public Task<InviteCodeResult> ResetInviteAsync(string groupId)
+        => _client.CallAsync<InviteCodeResult>("ResetInvite", new GroupParams(groupId), _lifetime.Token);
 
     public Task ConnectGroupAsync(string groupId)
         => _client.CallAsync("ConnectGroup", new GroupParams(groupId), _lifetime.Token);
@@ -195,9 +204,6 @@ public sealed class Daemon
 
     public Task SetGroupAppearanceAsync(string groupId, string icon, string color)
         => _client.CallAsync("SetGroupAppearance", new SetGroupAppearanceParams(groupId, icon, color), _lifetime.Token);
-
-    public Task SetGroupPasswordAsync(string groupId, string password)
-        => _client.CallAsync("SetGroupPassword", new SetGroupPasswordParams(groupId, password), _lifetime.Token);
 
     public Task TransferOwnershipAsync(string groupId, string deviceId)
         => _client.CallAsync("TransferOwnership", new MemberParams(groupId, deviceId), _lifetime.Token);

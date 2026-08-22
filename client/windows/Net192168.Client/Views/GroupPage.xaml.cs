@@ -40,11 +40,15 @@ public sealed partial class GroupPage : Page
         ViewModel = new GroupViewModel(App.Daemon, creating);
         Bindings.Update();
 
-        NameBox.Focus(FocusState.Programmatic);
+        if (creating)
+        {
+            NameBox.Focus(FocusState.Programmatic);
+        }
+        else
+        {
+            InviteBox.Focus(FocusState.Programmatic);
+        }
     }
-
-    private void OnPasswordChanged(object sender, RoutedEventArgs e)
-        => ViewModel.Password = PasswordInput.Password;
 
     /// <summary>
     /// Enter submits, which is what the key means on a form. Escape backs out,
@@ -63,9 +67,21 @@ public sealed partial class GroupPage : Page
 
     private async void OnSubmit(object sender, RoutedEventArgs e) => await SubmitAsync();
 
+    // Creating does not leave: it has a link to hand over, and that screen is
+    // what Done backs out of.
+    private void OnDone(object sender, RoutedEventArgs e) => GoBack();
+
     private async Task SubmitAsync()
     {
-        if (await ViewModel.SubmitAsync() && Frame.CanGoBack)
+        if (await ViewModel.SubmitAsync())
+        {
+            GoBack();
+        }
+    }
+
+    private void GoBack()
+    {
+        if (Frame.CanGoBack)
         {
             Frame.GoBack();
         }

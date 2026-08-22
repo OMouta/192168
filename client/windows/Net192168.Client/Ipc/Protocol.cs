@@ -123,6 +123,12 @@ public sealed record Group
     public bool Active { get; init; }
     public int? OnlineMembers { get; init; }
 
+    /// <summary>The group's way in, and that code as the link to send somebody.
+    /// Both are empty unless this device owns the group: handing out access is
+    /// the owner's, and the server is what decides it.</summary>
+    public string InviteCode { get; init; } = "";
+    public string InviteLink { get; init; } = "";
+
     /// <summary>Whether this device runs the group, which decides whether the
     /// row offers a way into its settings.</summary>
     public bool IsOwner { get; init; }
@@ -156,9 +162,35 @@ public sealed record TestServerResult
 }
 
 /// <summary>Creates a group, with the look it is made with.</summary>
-public sealed record CreateGroupParams(string Name, string Password, string Icon, string Color);
+public sealed record CreateGroupParams(string Name, string Icon, string Color);
 
-public sealed record JoinGroupParams(string Group, string Password);
+/// <summary>Joins whichever group an invite opens. Code is whatever was pasted:
+/// a bare code, or the link it arrived in.</summary>
+public sealed record JoinGroupParams(string Code);
+
+/// <summary>Asks what a code opens without acting on it.</summary>
+public sealed record InviteParams(string Code);
+
+/// <summary>What an invite opens, for the screen deciding whether to take it.
+/// Found is false for a code that opens nothing, which is an answer rather than
+/// a failure: somebody mid-paste has an invalid code for a keystroke or two.</summary>
+public sealed record InviteResult
+{
+    public bool Found { get; init; }
+    public string Code { get; init; } = "";
+    public string GroupName { get; init; } = "";
+    public string GroupIcon { get; init; } = "";
+    public string GroupColor { get; init; } = "";
+    public int Members { get; init; }
+}
+
+/// <summary>A group's code after it has been replaced, with the link that now
+/// leads to it.</summary>
+public sealed record InviteCodeResult
+{
+    public string Code { get; init; } = "";
+    public string Link { get; init; } = "";
+}
 
 public sealed record GroupParams(string GroupId);
 
@@ -183,5 +215,3 @@ public sealed record RenameGroupParams(string GroupId, string Name);
 /// it. Both travel together, because they are picked together.</summary>
 public sealed record SetGroupAppearanceParams(string GroupId, string Icon, string Color);
 
-/// <summary>Changes the password a new member joins with.</summary>
-public sealed record SetGroupPasswordParams(string GroupId, string Password);

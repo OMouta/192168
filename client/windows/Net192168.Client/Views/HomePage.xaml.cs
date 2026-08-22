@@ -100,8 +100,8 @@ public sealed partial class HomePage : Page
     private void OnJoin(object sender, RoutedEventArgs e)
         => Frame.Navigate(typeof(GroupPage), GroupPageMode.Join);
 
-    // The name, the look, and the join password. Who is in the group is managed
-    // from the rows themselves, where the people already are.
+    // The name, the look, and the invite. Who is in the group is managed from
+    // the rows themselves, where the people already are.
     //
     // From the connected group's row, which carries the look. A name alone
     // would put the picker back to the default.
@@ -121,7 +121,27 @@ public sealed partial class HomePage : Page
     }
 
     private static ManageGroupPage.Target Target(GroupListItem group)
-        => new(group.GroupId, group.Name ?? "", group.Icon, group.Color);
+        => new(group.GroupId, group.Name ?? "", group.Icon, group.Color, group.InviteLink);
+
+    // Copying from the row itself, for the common case: the owner wants the
+    // link and nothing else on the settings screen.
+    private void OnCopyInvite(object sender, RoutedEventArgs e)
+    {
+        if (Group(sender) is GroupListItem group)
+        {
+            ViewModel.CopyInvite(group);
+        }
+    }
+
+    // The same thing while a group is up, where the list of groups has given
+    // way to the list of people and the row is not there to open.
+    private void OnCopyConnectedInvite(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.ConnectedGroup is GroupListItem group)
+        {
+            ViewModel.CopyInvite(group);
+        }
+    }
 
     // Leaving the group that is connected. The daemon disconnects on the way.
     private async void OnLeaveConnected(object sender, RoutedEventArgs e)

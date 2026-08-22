@@ -73,9 +73,20 @@ public sealed partial class GroupListItem : ObservableObject
     [ObservableProperty]
     public partial bool IsOwner { get; set; }
 
+    /// <summary>
+    /// The link that lets somebody into this group, empty unless this device
+    /// owns it. Handing out access is the owner's, and the server decides that
+    /// rather than the row choosing what to draw.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanInvite))]
+    public partial string InviteLink { get; set; } = "";
+
+    public bool CanInvite => InviteLink.Length > 0;
+
     public string ConnectLabel => IsConnecting ? "Connecting" : "Connect";
 
-    public string LeavePrompt => $"Leave {Name}? You will need the password to join again.";
+    public string LeavePrompt => $"Leave {Name}? You will need a new invite to join again.";
 }
 
 /// <summary>
@@ -391,6 +402,7 @@ public sealed partial class HomeViewModel : ObservableObject
                     Color = group.Color,
                     OnlineMembers = group.OnlineMembers,
                     IsOwner = group.IsOwner,
+                    InviteLink = group.InviteLink,
                 });
             }
             HasGroups = Groups.Count > 0;
@@ -426,9 +438,9 @@ public sealed partial class HomeViewModel : ObservableObject
     /// <summary>
     /// Asks whether to leave, in the row itself.
     ///
-    /// The daemon never stores a group password, so getting back in means having
-    /// it to hand again. That is worth a question, and the answer names the
-    /// group so it is clear which one is going.
+    /// The daemon never stores an invite, so getting back in means being sent
+    /// another one. That is worth a question, and the answer names the group so
+    /// it is clear which one is going.
     /// </summary>
     [RelayCommand]
     public void StartLeaving(GroupListItem? item)
@@ -458,6 +470,25 @@ public sealed partial class HomeViewModel : ObservableObject
         item.IsConfirmingLeave = false;
         await Run(() => _daemon.LeaveGroupAsync(item.GroupId));
         await RefreshAsync();
+    }
+
+    /// <summary>
+    /// Puts a group's invite on the clipboard, from its row on the list. It is
+    /// the thing an owner does most often, and it is not worth a trip through
+    /// the settings screen.
+    /// </summary>
+    public void CopyInvite(GroupListItem group)
+    {
+        if (!group.CanInvite)
+        {
+            return;
+        }
+
+        var package = new DataPackage();
+        package.SetText(group.InviteLink);
+        Clipboard.SetContent(package);
+
+        Message = null;
     }
 
     /// <summary>Puts the address on the clipboard, which is where it is going anyway.</summary>

@@ -14,14 +14,16 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
+        <!--  The form, until the group exists.  -->
         <StackPanel
             Grid.Row="0"
             Margin="16,8,16,0"
-            Spacing="14">
-            <!--  Making a group picks its look. Joining one does not: it already has one.  -->
-            <StackPanel Spacing="4">
-                <!--  Its own line, so it lines up with the labels below whether or not the chip is there.  -->
-                <TextBlock Margin="0,0,0,4" Text="{x:Bind ViewModel.NameLabel}" />
+            Spacing="14"
+            Visibility="{x:Bind ViewModel.IsNotDone, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+
+            <!--  Making a group picks its name and look. Joining one takes both as they are.  -->
+            <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.IsCreating, Converter={StaticResource BooleanToVisibility}}">
+                <TextBlock Margin="0,0,0,4" Text="Group name &amp; icon" />
 
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -29,7 +31,6 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <!--  Margin on the chip, not the grid, so joining leaves no gap.  -->
                     <Border
                         Grid.Column="0"
                         Width="32"
@@ -37,8 +38,7 @@
                         Margin="0,0,10,0"
                         VerticalAlignment="Center"
                         Background="{x:Bind ViewModel.Appearance.Look.Background, Mode=OneWay}"
-                        CornerRadius="8"
-                        Visibility="{x:Bind ViewModel.IsCreating, Converter={StaticResource BooleanToVisibility}}">
+                        CornerRadius="8">
                         <FontIcon
                             FontSize="16"
                             Foreground="{x:Bind ViewModel.Appearance.Look.Foreground, Mode=OneWay}"
@@ -52,26 +52,136 @@
                         Text="{x:Bind ViewModel.GroupName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                 </Grid>
 
-                <views:GroupLookPicker
-                    Margin="0,4,0,0"
-                    Choice="{x:Bind ViewModel.Appearance}"
-                    Visibility="{x:Bind ViewModel.IsCreating, Converter={StaticResource BooleanToVisibility}}" />
+                <views:GroupLookPicker Margin="0,4,0,0" Choice="{x:Bind ViewModel.Appearance}" />
             </StackPanel>
 
-            <!--
-                PasswordBox does not push its value on every keystroke the way a
-                TextBox does, so the change event carries it across.
-            -->
-            <PasswordBox
-                x:Name="PasswordInput"
-                Header="Password"
-                PasswordChanged="OnPasswordChanged" />
+            <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.IsJoining, Converter={StaticResource BooleanToVisibility}}">
+                <TextBox
+                    x:Name="InviteBox"
+                    Header="Invite"
+                    PlaceholderText="192168.lol/join/…"
+                    Text="{x:Bind ViewModel.Invite, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                <!--
+                    What the invite opens, before agreeing to join it. Being put
+                    on somebody's network is worth seeing the name of first, and
+                    it is also how a mistyped code shows itself.
+                -->
+                <Border
+                    Padding="12,10"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Visibility="{x:Bind ViewModel.HasFound, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border
+                            Grid.Column="0"
+                            Width="32"
+                            Height="32"
+                            VerticalAlignment="Center"
+                            Background="{x:Bind ViewModel.FoundLook.Background, Mode=OneWay}"
+                            CornerRadius="8">
+                            <FontIcon
+                                FontSize="16"
+                                Foreground="{x:Bind ViewModel.FoundLook.Foreground, Mode=OneWay}"
+                                Glyph="{x:Bind ViewModel.FoundLook.Glyph, Mode=OneWay}" />
+                        </Border>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock
+                                Style="{StaticResource BodyStrongTextBlockStyle}"
+                                Text="{x:Bind ViewModel.FoundName, Mode=OneWay}"
+                                TextTrimming="CharacterEllipsis" />
+                            <TextBlock
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Text="{x:Bind ViewModel.FoundMembers, Mode=OneWay}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </StackPanel>
 
             <TextBlock
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                 Style="{StaticResource CaptionTextBlockStyle}"
                 Text="{x:Bind ViewModel.Hint}"
                 TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!--
+            The group exists, and the only thing left worth doing is sending the
+            link. It gets the screen rather than a line under a form, because
+            this is the moment the product is for.
+        -->
+        <StackPanel
+            Grid.Row="0"
+            Margin="16,8,16,0"
+            Spacing="12"
+            Visibility="{x:Bind ViewModel.IsDone, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+
+            <StackPanel
+                Margin="0,16,0,0"
+                HorizontalAlignment="Center"
+                Spacing="10">
+                <Border
+                    Width="48"
+                    Height="48"
+                    HorizontalAlignment="Center"
+                    Background="{x:Bind ViewModel.Appearance.Look.Background, Mode=OneWay}"
+                    CornerRadius="12">
+                    <FontIcon
+                        FontSize="22"
+                        Foreground="{x:Bind ViewModel.Appearance.Look.Foreground, Mode=OneWay}"
+                        Glyph="{x:Bind ViewModel.Appearance.Look.Glyph, Mode=OneWay}" />
+                </Border>
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Style="{StaticResource SubtitleTextBlockStyle}"
+                    Text="{x:Bind ViewModel.DoneHeadline, Mode=OneWay}"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Text="Send this to whoever you want in it."
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border
+                Margin="0,8,0,0"
+                Padding="12,10"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+                <TextBlock
+                    FontFamily="Consolas"
+                    IsTextSelectionEnabled="True"
+                    Text="{x:Bind ViewModel.Link, Mode=OneWay}"
+                    TextWrapping="Wrap" />
+            </Border>
+
+            <Button
+                HorizontalAlignment="Stretch"
+                Command="{x:Bind ViewModel.CopyLinkCommand}"
+                Style="{StaticResource AccentButtonStyle}">
+                <StackPanel
+                    HorizontalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="8">
+                    <FontIcon FontSize="14" Glyph="&#xE8C8;" Visibility="{x:Bind ViewModel.JustCopied, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}" />
+                    <FontIcon FontSize="14" Glyph="&#xE73E;" Visibility="{x:Bind ViewModel.JustCopied, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                    <TextBlock Text="Copy link" />
+                </StackPanel>
+            </Button>
         </StackPanel>
 
         <!--
@@ -91,7 +201,8 @@
                 HorizontalAlignment="Stretch"
                 Click="OnSubmit"
                 IsEnabled="{x:Bind ViewModel.CanSubmit, Mode=OneWay}"
-                Style="{StaticResource AccentButtonStyle}">
+                Style="{StaticResource AccentButtonStyle}"
+                Visibility="{x:Bind ViewModel.IsNotDone, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
                 <StackPanel
                     HorizontalAlignment="Center"
                     Orientation="Horizontal"
@@ -108,6 +219,12 @@
                     <TextBlock Text="{x:Bind ViewModel.SubmitLabel}" />
                 </StackPanel>
             </Button>
+
+            <Button
+                HorizontalAlignment="Stretch"
+                Click="OnDone"
+                Content="Done"
+                Visibility="{x:Bind ViewModel.IsDone, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
         </Grid>
     </Grid>
 </Page>

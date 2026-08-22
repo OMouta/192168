@@ -47,20 +47,67 @@
             </StackPanel>
 
             <StackPanel Spacing="8">
-                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Password" />
-                <PasswordBox
-                    PlaceholderText="Leave blank to keep it"
-                    Password="{x:Bind ViewModel.Password, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Invite" />
+
+                <Border
+                    Padding="12,10"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Visibility="{x:Bind ViewModel.HasInvite, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                    <TextBlock
+                        FontFamily="Consolas"
+                        IsTextSelectionEnabled="True"
+                        Text="{x:Bind ViewModel.InviteLink, Mode=OneWay}"
+                        TextWrapping="Wrap" />
+                </Border>
+
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button
+                        Grid.Column="0"
+                        HorizontalAlignment="Stretch"
+                        Command="{x:Bind ViewModel.CopyInviteCommand}"
+                        IsEnabled="{x:Bind ViewModel.HasInvite, Mode=OneWay}">
+                        <StackPanel
+                            HorizontalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <FontIcon
+                                FontSize="14"
+                                Glyph="&#xE8C8;"
+                                Visibility="{x:Bind ViewModel.JustCopied, Mode=OneWay, Converter={StaticResource BooleanToCollapsed}}" />
+                            <FontIcon
+                                FontSize="14"
+                                Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                                Glyph="&#xE73E;"
+                                Visibility="{x:Bind ViewModel.JustCopied, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                            <TextBlock Text="Copy link" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button
+                        Grid.Column="1"
+                        Command="{x:Bind ViewModel.ResetInviteCommand}"
+                        Content="New link"
+                        IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource NotBoolean}}" />
+                </Grid>
+
                 <!--
                     The one thing here worth saying, because everybody expects
-                    the other. The password is checked when somebody joins and
-                    never again, so this stops the next person and moves nobody
-                    already in.
+                    the other. An invite is checked when somebody joins and
+                    never again, so a new one stops the next person and moves
+                    nobody already in.
                 -->
                 <TextBlock
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     Style="{StaticResource CaptionTextBlockStyle}"
-                    Text="Nobody already in the group is removed."
+                    Text="A new link stops the old one. Nobody already in the group is removed."
                     TextWrapping="Wrap" />
             </StackPanel>
 
