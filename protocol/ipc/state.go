@@ -60,8 +60,10 @@ type State struct {
 	// row in the list wore.
 	GroupIcon  string `json:"groupIcon,omitempty"`
 	GroupColor string `json:"groupColor,omitempty"`
-	Nickname   string `json:"nickname,omitempty"`
-	VirtualIP  string `json:"virtualIp,omitempty"`
+	// Nickname is what this device is called, everywhere. It is here rather
+	// than on each group, and it is there whether or not one is connected.
+	Nickname  string `json:"nickname,omitempty"`
+	VirtualIP string `json:"virtualIp,omitempty"`
 	// IsOwner says whether this device runs the connected group, which is what
 	// decides whether the managing parts of the screen are there at all.
 	IsOwner bool       `json:"isOwner,omitempty"`
@@ -100,7 +102,6 @@ type Group struct {
 	// means the default look.
 	Icon          string `json:"icon,omitempty"`
 	Color         string `json:"color,omitempty"`
-	Nickname      string `json:"nickname"`
 	Active        bool   `json:"active"`
 	OnlineMembers *int   `json:"onlineMembers,omitempty"`
 	// IsOwner marks the groups this device runs, so the list says which are

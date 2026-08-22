@@ -120,14 +120,24 @@ func newCore(t *testing.T, serverURL string) (*Core, *recorder) {
 	return c, events
 }
 
+// named picks what a core is called. Without it a device answers to the machine
+// it runs on, which is a different string on every machine the tests run on.
+func named(t *testing.T, c *Core, nickname string) {
+	t.Helper()
+	if err := c.SetNickname(t.Context(), ipc.SetNicknameParams{Nickname: nickname}); err != nil {
+		t.Fatalf("SetNickname: %v", err)
+	}
+}
+
 // The whole point of the core: a click on Connect ends with a virtual IP.
 func TestConnectingToAGroup(t *testing.T) {
 	url := liveServer(t)
 	c, events := newCore(t, url)
 	ctx := t.Context()
+	named(t, c, "Tiago")
 
 	group, err := c.CreateGroup(ctx, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2", Nickname: "Tiago",
+		Name: "Friday Night", Password: "hunter2",
 	})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
@@ -181,15 +191,16 @@ func TestPeersArriveKnownButNotYetReachable(t *testing.T) {
 	host, hostEvents := newCore(t, url)
 	guest, guestEvents := newCore(t, url)
 	ctx := t.Context()
+	named(t, host, "Tiago")
 
 	group, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2", Nickname: "Tiago",
+		Name: "Friday Night", Password: "hunter2",
 	})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
 	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{
-		Group: "Friday Night", Password: "hunter2", Nickname: "João",
+		Group: "Friday Night", Password: "hunter2",
 	}); err != nil {
 		t.Fatalf("JoinGroup: %v", err)
 	}
@@ -228,13 +239,13 @@ func TestAMemberWhoIsAwayHasAnAddress(t *testing.T) {
 	ctx := t.Context()
 
 	group, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2", Nickname: "Tiago",
+		Name: "Friday Night", Password: "hunter2",
 	})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
 	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{
-		Group: "Friday Night", Password: "hunter2", Nickname: "João",
+		Group: "Friday Night", Password: "hunter2",
 	}); err != nil {
 		t.Fatalf("JoinGroup: %v", err)
 	}
@@ -281,11 +292,11 @@ func TestSwitchingGroupsDisconnectsTheFirst(t *testing.T) {
 	c, events := newCore(t, url)
 	ctx := t.Context()
 
-	first, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "Friday Night", Password: "a", Nickname: "Tiago"})
+	first, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "Friday Night", Password: "a"})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
-	second, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "BeamNG", Password: "b", Nickname: "Tiago"})
+	second, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "BeamNG", Password: "b"})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
@@ -319,7 +330,7 @@ func TestConnectingToAGroupYouAreNotInFails(t *testing.T) {
 	ctx := t.Context()
 
 	group, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2", Nickname: "Tiago",
+		Name: "Friday Night", Password: "hunter2",
 	})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
@@ -349,13 +360,13 @@ func TestWrongPasswordIsReportedToTheUser(t *testing.T) {
 	ctx := t.Context()
 
 	if _, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2", Nickname: "Tiago",
+		Name: "Friday Night", Password: "hunter2",
 	}); err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
 
 	_, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{
-		Group: "Friday Night", Password: "wrong", Nickname: "João",
+		Group: "Friday Night", Password: "wrong",
 	})
 	var failure *ipcserver.Failure
 	if err == nil || !errors.As(err, &failure) {
@@ -425,7 +436,7 @@ func TestChangingServerPersistsAndDisconnects(t *testing.T) {
 	c.SetEvents(events)
 	ctx := t.Context()
 
-	group, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "Friday Night", Password: "a", Nickname: "Tiago"})
+	group, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "Friday Night", Password: "a"})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
@@ -505,4 +516,70 @@ func TestARevokedTokenIsRecoveredFrom(t *testing.T) {
 	if c.identity.Token == "no-longer-valid" {
 		t.Error("the daemon kept using the dead token")
 	}
+}
+
+// Renaming has to reach whoever is looking at you now, rather than waiting for
+// them to reconnect, and it has to survive the daemon being restarted.
+func TestRenamingReachesTheGroupAndIsRemembered(t *testing.T) {
+	url := liveServer(t)
+	host, hostEvents := newCore(t, url)
+	guest, guestEvents := newCore(t, url)
+	ctx := t.Context()
+	named(t, host, "Tiago")
+	named(t, guest, "Joao")
+
+	group, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
+		Name: "Friday Night", Password: "hunter2",
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{
+		Group: "Friday Night", Password: "hunter2",
+	}); err != nil {
+		t.Fatalf("JoinGroup: %v", err)
+	}
+
+	if err := host.Connect(ctx, group.GroupID); err != nil {
+		t.Fatalf("host Connect: %v", err)
+	}
+	hostEvents.waitFor(t, ipc.EventGroupConnected)
+	if err := guest.Connect(ctx, group.GroupID); err != nil {
+		t.Fatalf("guest Connect: %v", err)
+	}
+	guestEvents.waitFor(t, ipc.EventGroupConnected)
+
+	named(t, guest, "João")
+	waitForPeerNickname(t, host, "João")
+
+	// The guest's own state says so too, without being connected to anything
+	// in particular.
+	state, _ := guest.GetState(ctx)
+	if state.Nickname != "João" {
+		t.Errorf("state = %+v", state)
+	}
+	if guest.identity.Nickname != "João" {
+		t.Errorf("the name was not written down, identity = %q", guest.identity.Nickname)
+	}
+}
+
+func waitForPeerNickname(t *testing.T, c *Core, want string) {
+	t.Helper()
+
+	deadline := time.Now().Add(10 * time.Second)
+	var last ipc.State
+	for time.Now().Before(deadline) {
+		state, err := c.GetState(t.Context())
+		if err != nil {
+			t.Fatalf("GetState: %v", err)
+		}
+		last = state
+		for _, peer := range state.Peers {
+			if peer.Nickname == want {
+				return
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("no peer was renamed to %q, last state was %+v", want, last)
 }

@@ -19,7 +19,6 @@ import (
 type CreateGroupParams struct {
 	Name     string `json:"name"`
 	Password string `json:"password"`
-	Nickname string `json:"nickname"`
 	Icon     string `json:"icon,omitempty"`
 	Color    string `json:"color,omitempty"`
 }
@@ -28,7 +27,6 @@ type CreateGroupParams struct {
 type JoinGroupParams struct {
 	Group    string `json:"group"`
 	Password string `json:"password"`
-	Nickname string `json:"nickname"`
 }
 
 // GroupResult is what CreateGroup and JoinGroup return.
@@ -41,10 +39,9 @@ type GroupParams struct {
 	GroupID string `json:"groupId"`
 }
 
-// SetNicknameParams changes the nickname for one group. Nicknames are per
-// group, so this does not touch the others.
+// SetNicknameParams changes what this device is called. One name covers every
+// group, so there is nothing to say about which.
 type SetNicknameParams struct {
-	GroupID  string `json:"groupId"`
 	Nickname string `json:"nickname"`
 }
 

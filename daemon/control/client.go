@@ -131,12 +131,11 @@ func (c *Client) Register(ctx context.Context, deviceID, name, publicKey, transp
 	return res.DeviceToken, nil
 }
 
-// NewGroup is everything creating one takes. A struct because five strings in
+// NewGroup is everything creating one takes. A struct because four strings in
 // a row are easy to pass in the wrong order.
 type NewGroup struct {
 	Name     string
 	Password string
-	Nickname string
 	Icon     string
 	Color    string
 }
@@ -148,7 +147,6 @@ func (c *Client) CreateGroup(ctx context.Context, g NewGroup) (api.Membership, e
 	err := c.do(ctx, http.MethodPost, c.discovery.API+"/groups", api.CreateGroupRequest{
 		Name:          g.Name,
 		PasswordProof: auth.DeriveGroupProof(g.Password, g.Name),
-		Nickname:      g.Nickname,
 		Icon:          g.Icon,
 		Color:         g.Color,
 	}, &m)
@@ -156,12 +154,11 @@ func (c *Client) CreateGroup(ctx context.Context, g NewGroup) (api.Membership, e
 }
 
 // JoinGroup joins an existing group by name.
-func (c *Client) JoinGroup(ctx context.Context, name, password, nickname string) (api.Membership, error) {
+func (c *Client) JoinGroup(ctx context.Context, name, password string) (api.Membership, error) {
 	var m api.Membership
 	err := c.do(ctx, http.MethodPost, c.discovery.API+"/groups/join", api.JoinGroupRequest{
 		Group:         name,
 		PasswordProof: auth.DeriveGroupProof(password, name),
-		Nickname:      nickname,
 	}, &m)
 	return m, err
 }
@@ -185,12 +182,18 @@ func (c *Client) LeaveGroup(ctx context.Context, groupID string) error {
 	return c.do(ctx, http.MethodDelete, c.discovery.API+"/groups/"+groupID+"/membership", nil, nil)
 }
 
-// SetNickname changes this device's nickname in one group.
-func (c *Client) SetNickname(ctx context.Context, groupID, nickname string) error {
-	body := struct {
-		Nickname string `json:"nickname"`
-	}{Nickname: nickname}
-	return c.do(ctx, http.MethodPut, c.discovery.API+"/groups/"+groupID+"/nickname", body, nil)
+// Me is what the server says this device is, which is the name it goes by.
+func (c *Client) Me(ctx context.Context) (api.Me, error) {
+	var me api.Me
+	err := c.do(ctx, http.MethodGet, c.discovery.API+"/me", nil, &me)
+	return me, err
+}
+
+// SetNickname changes what this device is called, in every group at once.
+func (c *Client) SetNickname(ctx context.Context, nickname string) error {
+	return c.do(ctx, http.MethodPut, c.discovery.API+"/me/nickname", api.SetNicknameRequest{
+		Nickname: nickname,
+	}, nil)
 }
 
 // Connect opens a session in a group and returns the virtual IP and the peers

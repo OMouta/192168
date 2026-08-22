@@ -85,7 +85,6 @@ func (c *Core) runConnect(groupID string) {
 		sessionID: session.SessionID,
 		groupID:   groupID,
 		groupName: membership.GroupName,
-		nickname:  membership.Nickname,
 		virtualIP: session.VirtualIP,
 		subnet:    membership.Subnet,
 		stop:      stop,
@@ -96,7 +95,6 @@ func (c *Core) runConnect(groupID string) {
 	c.state.GroupName = membership.GroupName
 	c.state.GroupIcon = membership.GroupIcon
 	c.state.GroupColor = membership.GroupColor
-	c.state.Nickname = membership.Nickname
 	c.state.VirtualIP = session.VirtualIP
 	c.state.Message = ""
 	c.state.IsOwner = membership.Role == api.RoleOwner

@@ -96,6 +96,7 @@ func (c *Core) ensureClient(ctx context.Context) (*control.Client, error) {
 		c.log.Info("device registered", "serverUrl", url, "deviceId", c.identity.DeviceID)
 	}
 	client.SetToken(token)
+	c.adoptNickname(ctx, client)
 
 	c.mu.Lock()
 	c.client = client
@@ -103,6 +104,37 @@ func (c *Core) ensureClient(ctx context.Context) (*control.Client, error) {
 	c.setServerOnline(true)
 
 	return client, nil
+}
+
+// adoptNickname takes the name the server holds for this device.
+//
+// The server is where the name lives, and the copy on disk is only so the app
+// can say who you are before reaching one. They part company in exactly one
+// case: an app updating from when names were picked per group, where the server
+// has a name the person chose and this machine has nothing but a hostname.
+//
+// Failing is not worth stopping for. The local copy is what gets used, and the
+// worst of it is being shown a stale name.
+func (c *Core) adoptNickname(ctx context.Context, client *control.Client) {
+	me, err := client.Me(ctx)
+	if err != nil {
+		c.log.Info("could not read this device's name", "error", err)
+		return
+	}
+	if me.Nickname == "" || me.Nickname == c.identity.Nickname {
+		return
+	}
+	if err := c.identity.SetNickname(me.Nickname); err != nil {
+		c.log.Warn("could not save this device's name", "error", err)
+		return
+	}
+
+	c.mu.Lock()
+	c.state.Nickname = me.Nickname
+	state := c.snapshot()
+	c.mu.Unlock()
+
+	c.emit(ipc.EventStateChanged, state)
 }
 
 func (c *Core) signRegistration(publicKey, transportKey string, issuedAt time.Time, nonce string) string {

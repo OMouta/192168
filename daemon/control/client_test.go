@@ -132,7 +132,7 @@ func TestFullFlowAgainstTheRealServer(t *testing.T) {
 	host, hostID := newDevice(t, url)
 	guest, guestID := newDevice(t, url)
 
-	group, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night", Password: "hunter2", Nickname: "Tiago"})
+	group, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night", Password: "hunter2"})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestFullFlowAgainstTheRealServer(t *testing.T) {
 		t.Fatalf("group = %+v", group)
 	}
 
-	joined, err := guest.JoinGroup(t.Context(), "friday night", "hunter2", "João")
+	joined, err := guest.JoinGroup(t.Context(), "friday night", "hunter2")
 	if err != nil {
 		t.Fatalf("JoinGroup: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestFullFlowAgainstTheRealServer(t *testing.T) {
 	if err := guest.Heartbeat(t.Context(), guestSession.SessionID); err != nil {
 		t.Errorf("Heartbeat: %v", err)
 	}
-	if err := guest.SetNickname(t.Context(), group.GroupID, "Joao"); err != nil {
+	if err := guest.SetNickname(t.Context(), "Joao"); err != nil {
 		t.Errorf("SetNickname: %v", err)
 	}
 	if err := guest.Disconnect(t.Context(), guestSession.SessionID); err != nil {
@@ -218,7 +218,7 @@ func TestErrorsCarryTheServersCode(t *testing.T) {
 	host, _ := newDevice(t, url)
 	guest, _ := newDevice(t, url)
 
-	if _, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night", Password: "hunter2", Nickname: "Tiago"}); err != nil {
+	if _, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night", Password: "hunter2"}); err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
 
@@ -230,7 +230,7 @@ func TestErrorsCarryTheServersCode(t *testing.T) {
 		{
 			name: "wrong password",
 			call: func() error {
-				_, err := guest.JoinGroup(t.Context(), "Friday Night", "wrong", "João")
+				_, err := guest.JoinGroup(t.Context(), "Friday Night", "wrong")
 				return err
 			},
 			want: api.ErrInvalidPassword,
@@ -238,7 +238,7 @@ func TestErrorsCarryTheServersCode(t *testing.T) {
 		{
 			name: "duplicate group name",
 			call: func() error {
-				_, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night", Password: "hunter2", Nickname: "Tiago"})
+				_, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night", Password: "hunter2"})
 				return err
 			},
 			want: api.ErrGroupNameTaken,

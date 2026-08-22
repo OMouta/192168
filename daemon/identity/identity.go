@@ -28,8 +28,12 @@ type Identity struct {
 	// DeviceID names this installation to the server. It is random rather than
 	// derived from anything about the machine.
 	DeviceID string
-	// Name is what a person would recognise, shown when listing devices.
+	// Name is the machine's own name, which nobody chose.
 	Name string
+	// Nickname is what the person wants to be called, and what the rest of a
+	// group sees. The server holds the real one; this is a copy, so the app can
+	// say who you are before it has reached anything.
+	Nickname string
 	// Signing proves the device holds its identity key, which is what makes
 	// registration trustworthy. It signs nothing else.
 	Signing ed25519.PrivateKey
@@ -52,6 +56,7 @@ type Identity struct {
 type storedIdentity struct {
 	DeviceID     string `json:"deviceId"`
 	Name         string `json:"name"`
+	Nickname     string `json:"nickname,omitempty"`
 	PublicKey    string `json:"publicKey"`
 	TransportKey string `json:"transportKey"`
 	ServerURL    string `json:"serverUrl,omitempty"`
@@ -117,6 +122,7 @@ func Load(dir string) (*Identity, error) {
 	return &Identity{
 		DeviceID:  stored.DeviceID,
 		Name:      stored.Name,
+		Nickname:  stored.Nickname,
 		Signing:   ed25519.NewKeyFromSeed(seed),
 		Transport: session.Keypair{Private: transportPrivate, Public: transportPublic},
 		Token:     secrets.Token,
@@ -144,9 +150,13 @@ func create(dir string) (*Identity, error) {
 		name = "unknown"
 	}
 
+	// Until somebody says otherwise, the machine's name is what to call the
+	// person at it. It is a guess, but it is a better first impression than an
+	// empty space where a name should be.
 	id := &Identity{
 		DeviceID:  deviceID,
 		Name:      name,
+		Nickname:  name,
 		Signing:   signing,
 		Transport: transport,
 		dir:       dir,
@@ -171,6 +181,16 @@ func (i *Identity) TransportKey() string {
 func (i *Identity) SetToken(serverURL, token string) error {
 	i.ServerURL = serverURL
 	i.Token = token
+	return i.save()
+}
+
+// SetNickname records what this device is called. The server is told
+// separately; this is the copy the app reads when it cannot reach one.
+func (i *Identity) SetNickname(nickname string) error {
+	if nickname == i.Nickname {
+		return nil
+	}
+	i.Nickname = nickname
 	return i.save()
 }
 
@@ -205,6 +225,7 @@ func (i *Identity) save() error {
 	body, err := json.MarshalIndent(storedIdentity{
 		DeviceID:     i.DeviceID,
 		Name:         i.Name,
+		Nickname:     i.Nickname,
 		PublicKey:    i.PublicKey(),
 		TransportKey: i.TransportKey(),
 		ServerURL:    i.ServerURL,

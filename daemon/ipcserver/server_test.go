@@ -53,7 +53,7 @@ func (h *fakeHandler) GetGroups(context.Context) ([]ipc.Group, error) {
 }
 
 func (h *fakeHandler) CreateGroup(_ context.Context, p ipc.CreateGroupParams) (ipc.Group, error) {
-	h.record("CreateGroup:" + p.Name + ":" + p.Password + ":" + p.Nickname)
+	h.record("CreateGroup:" + p.Name + ":" + p.Password)
 	return h.group, h.failWith
 }
 
@@ -78,7 +78,7 @@ func (h *fakeHandler) Disconnect(context.Context) error {
 }
 
 func (h *fakeHandler) SetNickname(_ context.Context, p ipc.SetNicknameParams) error {
-	h.record("SetNickname:" + p.GroupID + ":" + p.Nickname)
+	h.record("SetNickname:" + p.Nickname)
 	return h.failWith
 }
 
@@ -250,7 +250,7 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 	h := &fakeHandler{
 		state:   ipc.State{Connection: ipc.StateConnected, VirtualIP: "10.69.0.1"},
 		groups:  []ipc.Group{{GroupID: "grp_1", Name: "Friday Night"}},
-		group:   ipc.Group{GroupID: "grp_1", Name: "Friday Night", Nickname: "Tiago"},
+		group:   ipc.Group{GroupID: "grp_1", Name: "Friday Night"},
 		server:  "https://api.192168.lol",
 		testRes: ipc.TestServerResult{Reachable: true, Version: 1},
 	}
@@ -281,7 +281,7 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 	}
 
 	if res := s.call(ipc.MethodCreateGroup, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2", Nickname: "Tiago",
+		Name: "Friday Night", Password: "hunter2",
 	}); !res.OK {
 		t.Fatalf("CreateGroup failed: %+v", res.Err)
 	} else {
@@ -298,11 +298,11 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 		method ipc.Method
 		params any
 	}{
-		{ipc.MethodJoinGroup, ipc.JoinGroupParams{Group: "Friday Night", Password: "hunter2", Nickname: "João"}},
+		{ipc.MethodJoinGroup, ipc.JoinGroupParams{Group: "Friday Night", Password: "hunter2"}},
 		{ipc.MethodLeaveGroup, ipc.GroupParams{GroupID: "grp_1"}},
 		{ipc.MethodConnect, ipc.GroupParams{GroupID: "grp_1"}},
 		{ipc.MethodDisconnect, nil},
-		{ipc.MethodSetNickname, ipc.SetNicknameParams{GroupID: "grp_1", Nickname: "T"}},
+		{ipc.MethodSetNickname, ipc.SetNicknameParams{Nickname: "T"}},
 		{ipc.MethodGetServer, nil},
 		{ipc.MethodSetServer, ipc.ServerParams{URL: "https://lan.example.com"}},
 		{ipc.MethodTestServer, ipc.ServerParams{URL: "https://lan.example.com"}},
@@ -318,12 +318,12 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 	want := []string{
 		"GetState",
 		"GetGroups",
-		"CreateGroup:Friday Night:hunter2:Tiago",
+		"CreateGroup:Friday Night:hunter2",
 		"JoinGroup:Friday Night",
 		"LeaveGroup:grp_1",
 		"Connect:grp_1",
 		"Disconnect",
-		"SetNickname:grp_1:T",
+		"SetNickname:T",
 		"GetServer",
 		"SetServer:https://lan.example.com",
 		"TestServer:https://lan.example.com",

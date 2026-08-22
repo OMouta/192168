@@ -70,7 +70,6 @@ type activeSession struct {
 	sessionID string
 	groupID   string
 	groupName string
-	nickname  string
 	virtualIP string
 
 	// subnet is the group's range, which the adapter needs so Windows routes
@@ -104,7 +103,10 @@ func New(ctx context.Context, id *identity.Identity, dataDir, defaultServer stri
 		state: ipc.State{
 			Connection: ipc.StateDisconnected,
 			ServerURL:  set.ServerURL,
-			Peers:      []ipc.PeerView{},
+			// Who you are does not depend on being connected to anything, so
+			// the app can say it straight away and let you change it.
+			Nickname: id.Nickname,
+			Peers:    []ipc.PeerView{},
 		},
 	}, nil
 }
@@ -168,10 +170,10 @@ func (c *Core) GetGroups(ctx context.Context) ([]ipc.Group, error) {
 // CreateGroup makes a group and joins it. It does not connect: the user may
 // want to invite people before anyone is online.
 func (c *Core) CreateGroup(ctx context.Context, params ipc.CreateGroupParams) (ipc.Group, error) {
-	if params.Name == "" || params.Password == "" || params.Nickname == "" {
+	if params.Name == "" || params.Password == "" {
 		return ipc.Group{}, &ipcserver.Failure{
 			Code:    "bad_request",
-			Message: "A group needs a name, a password, and a nickname.",
+			Message: "A group needs a name and a password.",
 		}
 	}
 
@@ -179,7 +181,6 @@ func (c *Core) CreateGroup(ctx context.Context, params ipc.CreateGroupParams) (i
 		return client.CreateGroup(ctx, control.NewGroup{
 			Name:     params.Name,
 			Password: params.Password,
-			Nickname: params.Nickname,
 			Icon:     params.Icon,
 			Color:    params.Color,
 		})
@@ -194,15 +195,15 @@ func (c *Core) CreateGroup(ctx context.Context, params ipc.CreateGroupParams) (i
 // JoinGroup joins an existing group. The password is used once here and never
 // stored, since the device token is what gets it back in afterwards.
 func (c *Core) JoinGroup(ctx context.Context, params ipc.JoinGroupParams) (ipc.Group, error) {
-	if params.Group == "" || params.Password == "" || params.Nickname == "" {
+	if params.Group == "" || params.Password == "" {
 		return ipc.Group{}, &ipcserver.Failure{
 			Code:    "bad_request",
-			Message: "Joining needs a group, a password, and a nickname.",
+			Message: "Joining needs a group and a password.",
 		}
 	}
 
 	membership, err := withClient(c, ctx, func(client *control.Client) (api.Membership, error) {
-		return client.JoinGroup(ctx, params.Group, params.Password, params.Nickname)
+		return client.JoinGroup(ctx, params.Group, params.Password)
 	})
 	if err != nil {
 		return ipc.Group{}, err
@@ -230,24 +231,25 @@ func (c *Core) LeaveGroup(ctx context.Context, groupID string) error {
 	return err
 }
 
-// SetNickname changes this device's name in one group.
+// SetNickname changes what this device is called, in every group at once.
 func (c *Core) SetNickname(ctx context.Context, params ipc.SetNicknameParams) error {
-	if params.Nickname == "" {
+	nickname := strings.TrimSpace(params.Nickname)
+	if nickname == "" {
 		return &ipcserver.Failure{Code: "bad_request", Message: "That nickname will not work."}
 	}
 
 	_, err := withClient(c, ctx, func(client *control.Client) (struct{}, error) {
-		return struct{}{}, client.SetNickname(ctx, params.GroupID, params.Nickname)
+		return struct{}{}, client.SetNickname(ctx, nickname)
 	})
 	if err != nil {
 		return err
 	}
+	if err := c.identity.SetNickname(nickname); err != nil {
+		return err
+	}
 
 	c.mu.Lock()
-	if c.session != nil && c.session.groupID == params.GroupID {
-		c.session.nickname = params.Nickname
-		c.state.Nickname = params.Nickname
-	}
+	c.state.Nickname = nickname
 	state := c.snapshot()
 	c.mu.Unlock()
 
@@ -386,7 +388,6 @@ func toGroup(m api.Membership, active bool) ipc.Group {
 		Name:          m.GroupName,
 		Icon:          m.GroupIcon,
 		Color:         m.GroupColor,
-		Nickname:      m.Nickname,
 		Active:        active,
 		OnlineMembers: m.OnlineMembers,
 		IsOwner:       m.Role == api.RoleOwner,
