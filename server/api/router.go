@@ -60,6 +60,10 @@ func New(cfg config.Config, store *storage.Store, log *slog.Logger) *Server {
 	mux.HandleFunc("GET "+protocol.WellKnownPath, s.handleDiscovery)
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 
+	// No token: whoever holds the code is who this is for, and the page a link
+	// opens has nothing else to identify itself with.
+	mux.HandleFunc("GET /api/invites/{code}", s.handleInvite)
+
 	mux.HandleFunc("POST /api/devices/register", s.handleRegisterDevice)
 
 	mux.Handle("GET /api/me", s.authenticated(s.handleMe))
@@ -68,12 +72,14 @@ func New(cfg config.Config, store *storage.Store, log *slog.Logger) *Server {
 	mux.Handle("GET /api/groups", s.authenticated(s.handleListGroups))
 	mux.Handle("POST /api/groups", s.authenticated(s.handleCreateGroup))
 	mux.Handle("POST /api/groups/join", s.authenticated(s.handleJoinGroup))
+	mux.Handle("POST /api/groups/join-by-code", s.authenticated(s.handleJoinByCode))
 	mux.Handle("DELETE /api/groups/{groupId}", s.authenticated(s.handleDeleteGroup))
 	mux.Handle("GET /api/groups/{groupId}/members", s.authenticated(s.handleListMembers))
 	mux.Handle("DELETE /api/groups/{groupId}/members/{deviceId}", s.authenticated(s.handleRemoveMember))
 	mux.Handle("PUT /api/groups/{groupId}/name", s.authenticated(s.handleRenameGroup))
 	mux.Handle("PUT /api/groups/{groupId}/appearance", s.authenticated(s.handleSetGroupAppearance))
 	mux.Handle("PUT /api/groups/{groupId}/password", s.authenticated(s.handleSetGroupPassword))
+	mux.Handle("POST /api/groups/{groupId}/invite/reset", s.authenticated(s.handleResetInvite))
 	mux.Handle("PUT /api/groups/{groupId}/owner/{deviceId}", s.authenticated(s.handleTransferOwnership))
 	mux.Handle("DELETE /api/groups/{groupId}/membership", s.authenticated(s.handleLeaveGroup))
 	mux.Handle("POST /api/groups/{groupId}/sessions", s.authenticated(s.handleCreateSession))

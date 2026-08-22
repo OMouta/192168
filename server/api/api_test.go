@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/OMouta/192168/protocol"
 	papi "github.com/OMouta/192168/protocol/api"
 	"github.com/OMouta/192168/protocol/auth"
+	"github.com/OMouta/192168/protocol/invite"
 	"github.com/OMouta/192168/protocol/session"
 	"github.com/OMouta/192168/server/config"
 	"github.com/OMouta/192168/server/storage"
@@ -893,5 +895,127 @@ func TestNicknameRejectsAnEmptyName(t *testing.T) {
 		Nickname: "   ",
 	}, nil); code != http.StatusBadRequest {
 		t.Errorf("set an empty nickname: status %d, want 400", code)
+	}
+}
+
+// The whole point of a code: you send it to somebody and they are in, without
+// being told a group name or a password.
+func TestAnInviteCodeIsTheWayIn(t *testing.T) {
+	h := newTestServer(t)
+	owner := register(t, h, "dev_owner")
+	friend := register(t, h, "dev_friend")
+
+	var created papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups", owner.token, papi.CreateGroupRequest{
+		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
+	}, &created); code != http.StatusCreated {
+		t.Fatalf("create group: status %d", code)
+	}
+	if len(created.InviteCode) != invite.Length {
+		t.Fatalf("invite code = %q", created.InviteCode)
+	}
+
+	// What the link shows before anybody commits to anything.
+	var preview papi.Invite
+	if code := call(t, h, http.MethodGet, "/api/invites/"+created.InviteCode, "", nil, &preview); code != http.StatusOK {
+		t.Fatalf("preview: status %d", code)
+	}
+	if preview.GroupName != "Friday Night" || preview.Members != 1 {
+		t.Fatalf("preview = %+v", preview)
+	}
+
+	// Pasted with the link it arrived in, and shouted in capitals.
+	var joined papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups/join-by-code", friend.token, papi.JoinByCodeRequest{
+		Code: "https://192168.lol/join/" + strings.ToUpper(created.InviteCode),
+	}, &joined); code != http.StatusOK {
+		t.Fatalf("join by code: status %d", code)
+	}
+	if joined.GroupID != created.GroupID || joined.VirtualIP != "10.69.0.2" {
+		t.Fatalf("joined = %+v", joined)
+	}
+
+	// The code is the owner's to give out, so it is the owner who is given it.
+	if joined.InviteCode != "" {
+		t.Errorf("a member was handed the invite code: %q", joined.InviteCode)
+	}
+}
+
+// A code that has been replaced stops working, which is the only thing that
+// makes handing one out safe.
+func TestResettingACodeRetiresTheOldOne(t *testing.T) {
+	h := newTestServer(t)
+	owner, member, groupID, _ := setUpGroup(t, h)
+	stranger := register(t, h, "dev_stranger")
+
+	var groups []papi.Membership
+	if code := call(t, h, http.MethodGet, "/api/groups", owner.token, nil, &groups); code != http.StatusOK {
+		t.Fatalf("list groups: status %d", code)
+	}
+	old := groups[0].InviteCode
+
+	// Only the owner. A member being able to hand out the group would make the
+	// owner's control over it a suggestion.
+	if code := call(t, h, http.MethodPost, "/api/groups/"+groupID+"/invite/reset", member.token, nil, nil); code != http.StatusForbidden {
+		t.Fatalf("member reset: status %d, want 403", code)
+	}
+
+	var fresh papi.InviteCodeResponse
+	if code := call(t, h, http.MethodPost, "/api/groups/"+groupID+"/invite/reset", owner.token, nil, &fresh); code != http.StatusOK {
+		t.Fatalf("owner reset: status %d", code)
+	}
+	if fresh.Code == old || len(fresh.Code) != invite.Length {
+		t.Fatalf("new code = %q, old was %q", fresh.Code, old)
+	}
+
+	if code := call(t, h, http.MethodPost, "/api/groups/join-by-code", stranger.token, papi.JoinByCodeRequest{
+		Code: old,
+	}, nil); code != http.StatusForbidden {
+		t.Errorf("the retired code still worked: status %d", code)
+	}
+	if code := call(t, h, http.MethodPost, "/api/groups/join-by-code", stranger.token, papi.JoinByCodeRequest{
+		Code: fresh.Code,
+	}, nil); code != http.StatusOK {
+		t.Errorf("the new code did not work: status %d", code)
+	}
+}
+
+// Being removed has to survive an invite, or removing anybody would mean
+// nothing while a code is in circulation.
+func TestAnInviteDoesNotLetBackSomebodyWhoWasRemoved(t *testing.T) {
+	h := newTestServer(t)
+	owner, member, groupID, _ := setUpGroup(t, h)
+
+	var groups []papi.Membership
+	if code := call(t, h, http.MethodGet, "/api/groups", owner.token, nil, &groups); code != http.StatusOK {
+		t.Fatalf("list groups: status %d", code)
+	}
+
+	if code := call(t, h, http.MethodDelete, "/api/groups/"+groupID+"/members/"+member.id, owner.token, nil, nil); code != http.StatusNoContent {
+		t.Fatalf("remove: status %d", code)
+	}
+
+	var rejected papi.Error
+	code := call(t, h, http.MethodPost, "/api/groups/join-by-code", member.token, papi.JoinByCodeRequest{
+		Code: groups[0].InviteCode,
+	}, &rejected)
+	// Word for word what an invented code gets, so being removed cannot be told
+	// apart from holding a code that was never good.
+	if code != http.StatusForbidden || rejected.Code != papi.ErrInviteInvalid {
+		t.Fatalf("rejoin by code: status %d code %q", code, rejected.Code)
+	}
+}
+
+func TestAnInventedCodeSaysNothing(t *testing.T) {
+	h := newTestServer(t)
+	d := register(t, h, "dev_1")
+
+	if code := call(t, h, http.MethodGet, "/api/invites/nosuchco", "", nil, nil); code != http.StatusNotFound {
+		t.Errorf("preview of an invented code: status %d, want 404", code)
+	}
+	if code := call(t, h, http.MethodPost, "/api/groups/join-by-code", d.token, papi.JoinByCodeRequest{
+		Code: "nosuchco",
+	}, nil); code != http.StatusForbidden {
+		t.Errorf("join with an invented code: status %d, want 403", code)
 	}
 }

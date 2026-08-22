@@ -76,6 +76,13 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	// A group made before invite codes existed needs one, and a random value
+	// per row is not something SQL should be asked to produce. It runs once and
+	// then finds nothing.
+	if err := s.mintMissingInviteCodes(ctx); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return s, nil
 }
 

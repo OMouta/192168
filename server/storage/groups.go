@@ -23,7 +23,10 @@ type Group struct {
 	Color            string
 	PasswordVerifier string
 	Subnet           string
-	CreatedAt        time.Time
+	// InviteCode is the group's way in. Every group has one, and it is the
+	// owner's to give out and to throw away.
+	InviteCode string
+	CreatedAt  time.Time
 }
 
 // Role is what a member may do to the group itself.
@@ -49,6 +52,10 @@ type Membership struct {
 	VirtualIP string
 	Role      Role
 	CreatedAt time.Time
+
+	// InviteCode is the group's, carried here because the client is handed a
+	// membership and has to know what to offer the owner of it.
+	InviteCode string
 
 	// OnlineMembers is how many of the group are connected right now, counting
 	// this device. Nil where it was not asked for, which is not the same as
@@ -77,6 +84,13 @@ func (s *Store) CreateGroup(ctx context.Context, g Group, normalizedName, device
 		return Membership{}, fmt.Errorf("storage: create group: %w", err)
 	}
 
+	// A group without a way in would be one nobody else could reach.
+	code, err := setInviteCode(ctx, tx, g.ID)
+	if err != nil {
+		return Membership{}, err
+	}
+	g.InviteCode = code
+
 	m, err := insertMembership(ctx, tx, g, deviceID, now)
 	if err != nil {
 		return Membership{}, err
@@ -98,14 +112,14 @@ func (s *Store) CreateGroup(ctx context.Context, g Group, normalizedName, device
 // finds one to join.
 func (s *Store) GroupByName(ctx context.Context, normalizedName string) (Group, error) {
 	return s.scanGroup(s.db.QueryRowContext(ctx, `
-		SELECT id, name, icon, color, password_verifier, subnet, created_at
+		SELECT id, name, icon, color, password_verifier, subnet, COALESCE(invite_code, ''), created_at
 		FROM groups WHERE name_normalized = ?`, normalizedName))
 }
 
 // GroupByID looks a group up by ID.
 func (s *Store) GroupByID(ctx context.Context, id string) (Group, error) {
 	return s.scanGroup(s.db.QueryRowContext(ctx, `
-		SELECT id, name, icon, color, password_verifier, subnet, created_at
+		SELECT id, name, icon, color, password_verifier, subnet, COALESCE(invite_code, ''), created_at
 		FROM groups WHERE id = ?`, id))
 }
 
@@ -114,7 +128,7 @@ func (s *Store) scanGroup(row *sql.Row) (Group, error) {
 		g       Group
 		created int64
 	)
-	err := row.Scan(&g.ID, &g.Name, &g.Icon, &g.Color, &g.PasswordVerifier, &g.Subnet, &created)
+	err := row.Scan(&g.ID, &g.Name, &g.Icon, &g.Color, &g.PasswordVerifier, &g.Subnet, &g.InviteCode, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Group{}, ErrNotFound
 	}
@@ -216,11 +230,12 @@ func insertMembership(ctx context.Context, tx *sql.Tx, g Group, deviceID string,
 		GroupIcon:  g.Icon,
 		GroupColor: g.Color,
 
-		DeviceID:  deviceID,
-		Subnet:    g.Subnet,
-		VirtualIP: address,
-		Role:      role,
-		CreatedAt: time.Unix(created, 0),
+		DeviceID:   deviceID,
+		Subnet:     g.Subnet,
+		VirtualIP:  address,
+		Role:       role,
+		CreatedAt:  time.Unix(created, 0),
+		InviteCode: g.InviteCode,
 	}, nil
 }
 
@@ -302,7 +317,7 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 	// say which groups are worth joining right now, and asking per group would
 	// be a query each.
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.id, m.group_id, g.name, g.icon, g.color, g.subnet, m.virtual_ip, m.role, m.created_at,
+		SELECT m.id, m.group_id, g.name, g.icon, g.color, g.subnet, m.virtual_ip, m.role, m.created_at, COALESCE(g.invite_code, ''),
 		       (SELECT COUNT(*) FROM sessions s WHERE s.group_id = m.group_id)
 		FROM memberships m
 		JOIN groups g ON g.id = m.group_id
@@ -320,7 +335,7 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 			created int64
 			online  int
 		)
-		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Subnet, &m.VirtualIP, &m.Role, &created, &online); err != nil {
+		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Subnet, &m.VirtualIP, &m.Role, &created, &m.InviteCode, &online); err != nil {
 			return nil, fmt.Errorf("storage: scan membership: %w", err)
 		}
 		m.DeviceID = deviceID
@@ -376,12 +391,12 @@ func (s *Store) Membership(ctx context.Context, groupID, deviceID string) (Membe
 		created int64
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT m.id, g.name, g.icon, g.color, g.subnet, m.virtual_ip, m.role, m.created_at
+		SELECT m.id, g.name, g.icon, g.color, g.subnet, m.virtual_ip, m.role, m.created_at, COALESCE(g.invite_code, '')
 		FROM memberships m
 		JOIN groups g ON g.id = m.group_id
 		WHERE m.group_id = ? AND m.device_id = ? AND m.revoked_at IS NULL`,
 		groupID, deviceID,
-	).Scan(&m.ID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Subnet, &m.VirtualIP, &m.Role, &created)
+	).Scan(&m.ID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Subnet, &m.VirtualIP, &m.Role, &created, &m.InviteCode)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Membership{}, ErrNotFound
 	}

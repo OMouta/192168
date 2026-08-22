@@ -85,6 +85,28 @@ type JoinGroupRequest struct {
 	PasswordProof string `json:"passwordProof"`
 }
 
+// JoinByCodeRequest joins whichever group an invite code opens. The device
+// token says who is asking, so the code is the whole of it.
+type JoinByCodeRequest struct {
+	Code string `json:"code"`
+}
+
+// Invite is what a code says about the group behind it, before anybody commits
+// to joining. It is the one thing served without a token: holding the code is
+// what makes it yours to see.
+type Invite struct {
+	Code       string `json:"code"`
+	GroupName  string `json:"groupName"`
+	GroupIcon  string `json:"groupIcon,omitempty"`
+	GroupColor string `json:"groupColor,omitempty"`
+	Members    int    `json:"members"`
+}
+
+// InviteCodeResponse carries a group's code after it has been replaced.
+type InviteCodeResponse struct {
+	Code string `json:"code"`
+}
+
 // Membership is the relationship between a device and a group. It is what lets
 // the daemon reconnect without the group password: the device token
 // authenticates the caller, and the server looks up what it is a member of.
@@ -105,6 +127,9 @@ type Membership struct {
 	Subnet       string `json:"subnet"`
 	VirtualIP    string `json:"virtualIp"`
 	Role         string `json:"role"`
+	// InviteCode is the group's way in, sent only to its owner. Everybody else
+	// gets nothing here, because handing out access is not theirs to do.
+	InviteCode string `json:"inviteCode,omitempty"`
 	// OnlineMembers is how many of the group are connected, counting this
 	// device. Absent where the server was not asked to count, which is not the
 	// same as nobody being there.
@@ -188,6 +213,7 @@ const (
 	ErrGroupNotFound      = "group_not_found"
 	ErrGroupNameTaken     = "group_name_taken"
 	ErrInvalidPassword    = "invalid_password"
+	ErrInviteInvalid      = "invite_invalid"
 	ErrMembershipRevoked  = "membership_revoked"
 	ErrSessionInvalid     = "session_invalid"
 	ErrGroupFull          = "group_full"
