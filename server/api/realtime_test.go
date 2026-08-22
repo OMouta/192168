@@ -12,7 +12,6 @@ import (
 	"github.com/coder/websocket"
 
 	papi "github.com/OMouta/192168/protocol/api"
-	"github.com/OMouta/192168/protocol/auth"
 )
 
 // liveServer runs the handler over a real socket, which is what a WebSocket
@@ -83,18 +82,18 @@ func makeGroup(t *testing.T, h *Server) (device, papi.Membership) {
 
 	var group papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
+		Name: "Friday Night",
 	}, &group); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
 	return host, group
 }
 
-func joinGroup(t *testing.T, h *Server, id string) device {
+func joinGroup(t *testing.T, h *Server, id, inviteCode string) device {
 	t.Helper()
 	guest := register(t, h, id)
-	if code := call(t, h, http.MethodPost, "/api/groups/join", guest.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
+	if code := call(t, h, http.MethodPost, "/api/groups/join-by-code", guest.token, papi.JoinByCodeRequest{
+		Code: inviteCode,
 	}, nil); code != http.StatusOK {
 		t.Fatalf("join: status %d", code)
 	}
@@ -106,7 +105,7 @@ func joinGroup(t *testing.T, h *Server, id string) device {
 func TestAConnectedDeviceHearsAboutALaterArrival(t *testing.T) {
 	srv, h := liveServer(t)
 	host, group := makeGroup(t, h)
-	guest := joinGroup(t, h, "dev_guest")
+	guest := joinGroup(t, h, "dev_guest", group.InviteCode)
 
 	hostSession := connect(t, h, host.token, group.GroupID)
 	next := listen(t, srv, host.token, hostSession.SessionID)
@@ -129,7 +128,7 @@ func TestAConnectedDeviceHearsAboutALaterArrival(t *testing.T) {
 func TestEndpointChangesReachTheGroup(t *testing.T) {
 	srv, h := liveServer(t)
 	host, group := makeGroup(t, h)
-	guest := joinGroup(t, h, "dev_guest")
+	guest := joinGroup(t, h, "dev_guest", group.InviteCode)
 
 	hostSession := connect(t, h, host.token, group.GroupID)
 	guestSession := connect(t, h, guest.token, group.GroupID)
@@ -153,7 +152,7 @@ func TestEndpointChangesReachTheGroup(t *testing.T) {
 func TestDisconnectingAnnouncesItself(t *testing.T) {
 	srv, h := liveServer(t)
 	host, group := makeGroup(t, h)
-	guest := joinGroup(t, h, "dev_guest")
+	guest := joinGroup(t, h, "dev_guest", group.InviteCode)
 
 	hostSession := connect(t, h, host.token, group.GroupID)
 	guestSession := connect(t, h, guest.token, group.GroupID)
@@ -176,7 +175,7 @@ func TestDisconnectingAnnouncesItself(t *testing.T) {
 func TestExpiredSessionsAreAnnounced(t *testing.T) {
 	srv, h := liveServer(t)
 	host, group := makeGroup(t, h)
-	guest := joinGroup(t, h, "dev_guest")
+	guest := joinGroup(t, h, "dev_guest", group.InviteCode)
 
 	hostSession := connect(t, h, host.token, group.GroupID)
 	connect(t, h, guest.token, group.GroupID)
@@ -196,7 +195,7 @@ func TestExpiredSessionsAreAnnounced(t *testing.T) {
 func TestRealtimeNeedsAValidSessionYouOwn(t *testing.T) {
 	srv, h := liveServer(t)
 	host, group := makeGroup(t, h)
-	stranger := joinGroup(t, h, "dev_stranger")
+	stranger := joinGroup(t, h, "dev_stranger", group.InviteCode)
 
 	hostSession := connect(t, h, host.token, group.GroupID)
 

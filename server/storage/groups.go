@@ -17,12 +17,11 @@ var ErrGroupFull = errors.New("storage: group is full")
 // Icon and Color are short keys the app maps to a glyph and a colour. Both are
 // empty until somebody picks.
 type Group struct {
-	ID               string
-	Name             string
-	Icon             string
-	Color            string
-	PasswordVerifier string
-	Subnet           string
+	ID     string
+	Name   string
+	Icon   string
+	Color  string
+	Subnet string
 	// InviteCode is the group's way in. Every group has one, and it is the
 	// owner's to give out and to throw away.
 	InviteCode string
@@ -65,31 +64,29 @@ type Membership struct {
 
 // CreateGroup creates a group and makes its creator the first member, in one
 // transaction. A group with no members would be unreachable.
-func (s *Store) CreateGroup(ctx context.Context, g Group, normalizedName, deviceID string) (Membership, error) {
+func (s *Store) CreateGroup(ctx context.Context, g Group, deviceID string) (Membership, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Membership{}, fmt.Errorf("storage: begin: %w", err)
 	}
 	defer tx.Rollback()
 
-	now := time.Now()
-	_, err = tx.ExecContext(ctx, `
-		INSERT INTO groups (id, name, name_normalized, icon, color, password_verifier, subnet, created_by_device_id, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		g.ID, g.Name, normalizedName, g.Icon, g.Color, g.PasswordVerifier, g.Subnet, deviceID, now.Unix())
-	if isUniqueViolation(err) {
-		return Membership{}, ErrConflict
-	}
-	if err != nil {
-		return Membership{}, fmt.Errorf("storage: create group: %w", err)
-	}
-
-	// A group without a way in would be one nobody else could reach.
-	code, err := setInviteCode(ctx, tx, g.ID)
+	// A group without a way in would be one nobody else could reach, so the
+	// code is part of making one rather than a step after it.
+	code, err := freeInviteCode(ctx, tx)
 	if err != nil {
 		return Membership{}, err
 	}
 	g.InviteCode = code
+
+	now := time.Now()
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO groups (id, name, icon, color, subnet, invite_code, created_by_device_id, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		g.ID, g.Name, g.Icon, g.Color, g.Subnet, code, deviceID, now.Unix())
+	if err != nil {
+		return Membership{}, fmt.Errorf("storage: create group: %w", err)
+	}
 
 	m, err := insertMembership(ctx, tx, g, deviceID, now)
 	if err != nil {
@@ -108,18 +105,10 @@ func (s *Store) CreateGroup(ctx context.Context, g Group, normalizedName, device
 	return m, nil
 }
 
-// GroupByName looks a group up by its normalized name, which is how a user
-// finds one to join.
-func (s *Store) GroupByName(ctx context.Context, normalizedName string) (Group, error) {
-	return s.scanGroup(s.db.QueryRowContext(ctx, `
-		SELECT id, name, icon, color, password_verifier, subnet, COALESCE(invite_code, ''), created_at
-		FROM groups WHERE name_normalized = ?`, normalizedName))
-}
-
 // GroupByID looks a group up by ID.
 func (s *Store) GroupByID(ctx context.Context, id string) (Group, error) {
 	return s.scanGroup(s.db.QueryRowContext(ctx, `
-		SELECT id, name, icon, color, password_verifier, subnet, COALESCE(invite_code, ''), created_at
+		SELECT id, name, icon, color, subnet, invite_code, created_at
 		FROM groups WHERE id = ?`, id))
 }
 
@@ -128,7 +117,7 @@ func (s *Store) scanGroup(row *sql.Row) (Group, error) {
 		g       Group
 		created int64
 	)
-	err := row.Scan(&g.ID, &g.Name, &g.Icon, &g.Color, &g.PasswordVerifier, &g.Subnet, &g.InviteCode, &created)
+	err := row.Scan(&g.ID, &g.Name, &g.Icon, &g.Color, &g.Subnet, &g.InviteCode, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Group{}, ErrNotFound
 	}
@@ -317,7 +306,7 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 	// say which groups are worth joining right now, and asking per group would
 	// be a query each.
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.id, m.group_id, g.name, g.icon, g.color, g.subnet, m.virtual_ip, m.role, m.created_at, COALESCE(g.invite_code, ''),
+		SELECT m.id, m.group_id, g.name, g.icon, g.color, g.subnet, m.virtual_ip, m.role, m.created_at, g.invite_code,
 		       (SELECT COUNT(*) FROM sessions s WHERE s.group_id = m.group_id)
 		FROM memberships m
 		JOIN groups g ON g.id = m.group_id
@@ -391,7 +380,7 @@ func (s *Store) Membership(ctx context.Context, groupID, deviceID string) (Membe
 		created int64
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT m.id, g.name, g.icon, g.color, g.subnet, m.virtual_ip, m.role, m.created_at, COALESCE(g.invite_code, '')
+		SELECT m.id, g.name, g.icon, g.color, g.subnet, m.virtual_ip, m.role, m.created_at, g.invite_code
 		FROM memberships m
 		JOIN groups g ON g.id = m.group_id
 		WHERE m.group_id = ? AND m.device_id = ? AND m.revoked_at IS NULL`,
@@ -493,18 +482,13 @@ func (s *Store) RemoveMember(ctx context.Context, groupID, ownerDeviceID, target
 }
 
 // RenameGroup changes what the group is called.
-func (s *Store) RenameGroup(ctx context.Context, groupID, ownerDeviceID, name, normalizedName string) error {
+func (s *Store) RenameGroup(ctx context.Context, groupID, ownerDeviceID, name string) error {
 	return s.write(ctx, func(tx *sql.Tx) error {
 		if err := ownerOnly(ctx, tx, groupID, ownerDeviceID); err != nil {
 			return err
 		}
 
-		_, err := tx.ExecContext(ctx,
-			`UPDATE groups SET name = ?, name_normalized = ? WHERE id = ?`,
-			name, normalizedName, groupID)
-		if isUniqueViolation(err) {
-			return ErrConflict
-		}
+		_, err := tx.ExecContext(ctx, `UPDATE groups SET name = ? WHERE id = ?`, name, groupID)
 		if err != nil {
 			return fmt.Errorf("storage: rename group: %w", err)
 		}
@@ -523,24 +507,6 @@ func (s *Store) SetGroupAppearance(ctx context.Context, groupID, ownerDeviceID, 
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE groups SET icon = ?, color = ? WHERE id = ?`, icon, color, groupID); err != nil {
 			return fmt.Errorf("storage: set group appearance: %w", err)
-		}
-		return nil
-	})
-}
-
-// SetGroupPassword changes the password a new member joins with.
-//
-// It removes nobody. Membership is proved by the device token from then on, and
-// the password is only ever checked at the door, so this closes the door rather
-// than emptying the room.
-func (s *Store) SetGroupPassword(ctx context.Context, groupID, ownerDeviceID, verifier string) error {
-	return s.write(ctx, func(tx *sql.Tx) error {
-		if err := ownerOnly(ctx, tx, groupID, ownerDeviceID); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx,
-			`UPDATE groups SET password_verifier = ? WHERE id = ?`, verifier, groupID); err != nil {
-			return fmt.Errorf("storage: set group password: %w", err)
 		}
 		return nil
 	})

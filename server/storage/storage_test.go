@@ -38,8 +38,8 @@ func newGroup(t *testing.T, s *Store, creator, name string) (Group, Membership) 
 	if err != nil {
 		t.Fatalf("NewID: %v", err)
 	}
-	g := Group{ID: id, Name: name, PasswordVerifier: "verifier", Subnet: "10.69.0.0/24"}
-	m, err := s.CreateGroup(t.Context(), g, name, creator)
+	g := Group{ID: id, Name: name, Subnet: "10.69.0.0/24"}
+	m, err := s.CreateGroup(t.Context(), g, creator)
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
@@ -143,20 +143,16 @@ func TestCreateGroupMakesTheCreatorAMember(t *testing.T) {
 	}
 }
 
-func TestGroupNamesAreUnique(t *testing.T) {
+// Two groups can be called the same thing. The name stopped being how anybody
+// finds one when the invite code took over.
+func TestGroupNamesDoNotHaveToBeUnique(t *testing.T) {
 	s := newStore(t)
 	newDevice(t, s, "dev_1")
-	newGroup(t, s, "dev_1", "friday night")
+	_, mine := newGroup(t, s, "dev_1", "friday night")
+	_, theirs := newGroup(t, s, "dev_1", "Friday Night")
 
-	id, err := NewID("grp")
-	if err != nil {
-		t.Fatalf("NewID: %v", err)
-	}
-	_, err = s.CreateGroup(t.Context(), Group{
-		ID: id, Name: "Friday Night", PasswordVerifier: "v", Subnet: "10.69.0.0/24",
-	}, "friday night", "dev_1")
-	if !errors.Is(err, ErrConflict) {
-		t.Errorf("CreateGroup err = %v, want ErrConflict", err)
+	if mine.GroupID == theirs.GroupID || mine.InviteCode == theirs.InviteCode {
+		t.Errorf("two groups came back as one: %+v and %+v", mine, theirs)
 	}
 }
 
@@ -305,8 +301,8 @@ func TestJoiningAFullGroupFails(t *testing.T) {
 		t.Fatalf("NewID: %v", err)
 	}
 	// A /30 holds two hosts, and the creator takes one of them.
-	g := Group{ID: id, Name: "tiny", PasswordVerifier: "verifier", Subnet: "10.69.0.0/30"}
-	if _, err := s.CreateGroup(ctx, g, "tiny", "dev_1"); err != nil {
+	g := Group{ID: id, Name: "tiny", Subnet: "10.69.0.0/30"}
+	if _, err := s.CreateGroup(ctx, g, "dev_1"); err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
 	if _, err := s.AddMembership(ctx, g, "dev_2"); err != nil {

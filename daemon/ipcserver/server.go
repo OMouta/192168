@@ -36,6 +36,8 @@ type Handler interface {
 	GetGroups(ctx context.Context) ([]ipc.Group, error)
 	CreateGroup(ctx context.Context, params ipc.CreateGroupParams) (ipc.Group, error)
 	JoinGroup(ctx context.Context, params ipc.JoinGroupParams) (ipc.Group, error)
+	GetInvite(ctx context.Context, params ipc.InviteParams) (ipc.InviteResult, error)
+	ResetInvite(ctx context.Context, params ipc.GroupParams) (ipc.InviteCodeResult, error)
 	LeaveGroup(ctx context.Context, groupID string) error
 	Connect(ctx context.Context, groupID string) error
 	Disconnect(ctx context.Context) error
@@ -44,7 +46,6 @@ type Handler interface {
 	RemoveMember(ctx context.Context, params ipc.MemberParams) error
 	RenameGroup(ctx context.Context, params ipc.RenameGroupParams) error
 	SetGroupAppearance(ctx context.Context, params ipc.SetGroupAppearanceParams) error
-	SetGroupPassword(ctx context.Context, params ipc.SetGroupPasswordParams) error
 	TransferOwnership(ctx context.Context, params ipc.MemberParams) error
 	DeleteGroup(ctx context.Context, groupID string) error
 	GetServer(ctx context.Context) (string, error)
@@ -330,19 +331,26 @@ func (s *Server) call(ctx context.Context, req ipc.Request) (any, error) {
 		}
 		return nil, s.handler.RenameGroup(ctx, params)
 
+	case ipc.MethodGetInvite:
+		var params ipc.InviteParams
+		if err := req.UnmarshalParams(&params); err != nil {
+			return nil, badParams(err)
+		}
+		return s.handler.GetInvite(ctx, params)
+
+	case ipc.MethodResetInvite:
+		var params ipc.GroupParams
+		if err := req.UnmarshalParams(&params); err != nil {
+			return nil, badParams(err)
+		}
+		return s.handler.ResetInvite(ctx, params)
+
 	case ipc.MethodSetGroupAppearance:
 		var params ipc.SetGroupAppearanceParams
 		if err := req.UnmarshalParams(&params); err != nil {
 			return nil, badParams(err)
 		}
 		return nil, s.handler.SetGroupAppearance(ctx, params)
-
-	case ipc.MethodSetGroupPassword:
-		var params ipc.SetGroupPasswordParams
-		if err := req.UnmarshalParams(&params); err != nil {
-			return nil, badParams(err)
-		}
-		return nil, s.handler.SetGroupPassword(ctx, params)
 
 	case ipc.MethodTransferOwnership:
 		var params ipc.MemberParams

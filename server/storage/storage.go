@@ -63,7 +63,6 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 	for _, pragma := range []string{
 		"PRAGMA journal_mode = WAL",
 		"PRAGMA busy_timeout = 5000",
-		"PRAGMA foreign_keys = ON",
 	} {
 		if _, err := db.ExecContext(ctx, pragma); err != nil {
 			db.Close()
@@ -71,19 +70,45 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 		}
 	}
 
+	// Foreign keys stay off until the schema is settled, which is how SQLite
+	// says to change one. A migration that rebuilds a table drops the original,
+	// and dropping a parent with them on would take its children with it.
 	s := &Store{db: db}
 	if err := s.migrate(ctx); err != nil {
 		db.Close()
 		return nil, err
 	}
-	// A group made before invite codes existed needs one, and a random value
-	// per row is not something SQL should be asked to produce. It runs once and
-	// then finds nothing.
-	if err := s.mintMissingInviteCodes(ctx); err != nil {
+	if err := s.checkForeignKeys(ctx); err != nil {
 		db.Close()
 		return nil, err
 	}
+	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("storage: enable foreign keys: %w", err)
+	}
 	return s, nil
+}
+
+// checkForeignKeys refuses to open a database whose references do not line up.
+// It is the other half of migrating with foreign keys off: a rebuild that left
+// something pointing at nothing should stop the server rather than surface
+// later as a group whose members have vanished.
+func (s *Store) checkForeignKeys(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, "PRAGMA foreign_key_check")
+	if err != nil {
+		return fmt.Errorf("storage: check foreign keys: %w", err)
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		var table, parent any
+		var rowid, constraint any
+		if err := rows.Scan(&table, &rowid, &parent, &constraint); err != nil {
+			return fmt.Errorf("storage: broken references after migrating: %w", err)
+		}
+		return fmt.Errorf("storage: %v has rows pointing at a missing %v", table, parent)
+	}
+	return rows.Err()
 }
 
 // Close releases the database handle.

@@ -71,14 +71,12 @@ func New(cfg config.Config, store *storage.Store, log *slog.Logger) *Server {
 
 	mux.Handle("GET /api/groups", s.authenticated(s.handleListGroups))
 	mux.Handle("POST /api/groups", s.authenticated(s.handleCreateGroup))
-	mux.Handle("POST /api/groups/join", s.authenticated(s.handleJoinGroup))
 	mux.Handle("POST /api/groups/join-by-code", s.authenticated(s.handleJoinByCode))
 	mux.Handle("DELETE /api/groups/{groupId}", s.authenticated(s.handleDeleteGroup))
 	mux.Handle("GET /api/groups/{groupId}/members", s.authenticated(s.handleListMembers))
 	mux.Handle("DELETE /api/groups/{groupId}/members/{deviceId}", s.authenticated(s.handleRemoveMember))
 	mux.Handle("PUT /api/groups/{groupId}/name", s.authenticated(s.handleRenameGroup))
 	mux.Handle("PUT /api/groups/{groupId}/appearance", s.authenticated(s.handleSetGroupAppearance))
-	mux.Handle("PUT /api/groups/{groupId}/password", s.authenticated(s.handleSetGroupPassword))
 	mux.Handle("POST /api/groups/{groupId}/invite/reset", s.authenticated(s.handleResetInvite))
 	mux.Handle("PUT /api/groups/{groupId}/owner/{deviceId}", s.authenticated(s.handleTransferOwnership))
 	mux.Handle("DELETE /api/groups/{groupId}/membership", s.authenticated(s.handleLeaveGroup))
@@ -147,8 +145,6 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error, notFoun
 		writeError(w, http.StatusConflict, api.ErrGroupFull, "That group has no free addresses left.")
 	case errors.Is(err, storage.ErrForbidden):
 		writeError(w, http.StatusForbidden, api.ErrForbidden, "Only the group's owner can do that.")
-	case errors.Is(err, storage.ErrConflict):
-		writeError(w, http.StatusConflict, api.ErrGroupNameTaken, "A group with that name already exists.")
 	default:
 		s.log.Error("request failed", "path", r.URL.Path, "error", err)
 		writeError(w, http.StatusInternalServerError, api.ErrInternal, "Something went wrong on the server.")

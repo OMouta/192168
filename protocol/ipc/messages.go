@@ -9,24 +9,43 @@ import (
 // Params and results for every method in Method. A method with no entry here
 // takes no parameters, returns nothing, or both.
 //
-// Group passwords cross this boundary in the clear. The daemon owns all
-// cryptography, so it is the side that derives the proof, and the client never
-// implements a KDF. That makes the pipe itself a secret-bearing channel, and it
-// has to be restricted to the current user.
+// Invite codes cross this boundary, and a code is all it takes to get into a
+// group, so the pipe has to stay restricted to the current user.
 
 // CreateGroupParams creates a group and joins it in one step, with the look it
 // is made with.
 type CreateGroupParams struct {
-	Name     string `json:"name"`
-	Password string `json:"password"`
-	Icon     string `json:"icon,omitempty"`
-	Color    string `json:"color,omitempty"`
+	Name  string `json:"name"`
+	Icon  string `json:"icon,omitempty"`
+	Color string `json:"color,omitempty"`
 }
 
-// JoinGroupParams joins an existing group by name or ID.
+// JoinGroupParams joins whichever group an invite opens. Code is whatever was
+// pasted: a bare code, or the link it arrived in.
 type JoinGroupParams struct {
-	Group    string `json:"group"`
-	Password string `json:"password"`
+	Code string `json:"code"`
+}
+
+// InviteParams asks about a code without acting on it.
+type InviteParams struct {
+	Code string `json:"code"`
+}
+
+// InviteResult is what a code opens, for the screen deciding whether to join it.
+// Found is false for a code that opens nothing, which is an answer rather than
+// a failure: somebody mid-paste has an invalid code for a keystroke or two.
+type InviteResult struct {
+	Found      bool   `json:"found"`
+	Code       string `json:"code,omitempty"`
+	GroupName  string `json:"groupName,omitempty"`
+	GroupIcon  string `json:"groupIcon,omitempty"`
+	GroupColor string `json:"groupColor,omitempty"`
+	Members    int    `json:"members,omitempty"`
+}
+
+// InviteCodeResult carries a group's code after it has been replaced.
+type InviteCodeResult struct {
+	Code string `json:"code"`
 }
 
 // GroupResult is what CreateGroup and JoinGroup return.
@@ -179,11 +198,4 @@ type SetGroupAppearanceParams struct {
 	GroupID string `json:"groupId"`
 	Icon    string `json:"icon"`
 	Color   string `json:"color"`
-}
-
-// SetGroupPasswordParams changes the password a new member joins with. It
-// removes nobody: the password is only ever checked at the door.
-type SetGroupPasswordParams struct {
-	GroupID  string `json:"groupId"`
-	Password string `json:"password"`
 }

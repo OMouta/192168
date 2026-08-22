@@ -20,6 +20,7 @@ import (
 	"github.com/OMouta/192168/daemon/mesh"
 	"github.com/OMouta/192168/daemon/tun"
 	"github.com/OMouta/192168/protocol/api"
+	"github.com/OMouta/192168/protocol/invite"
 	"github.com/OMouta/192168/protocol/ipc"
 )
 
@@ -170,19 +171,15 @@ func (c *Core) GetGroups(ctx context.Context) ([]ipc.Group, error) {
 // CreateGroup makes a group and joins it. It does not connect: the user may
 // want to invite people before anyone is online.
 func (c *Core) CreateGroup(ctx context.Context, params ipc.CreateGroupParams) (ipc.Group, error) {
-	if params.Name == "" || params.Password == "" {
-		return ipc.Group{}, &ipcserver.Failure{
-			Code:    "bad_request",
-			Message: "A group needs a name and a password.",
-		}
+	if params.Name == "" {
+		return ipc.Group{}, &ipcserver.Failure{Code: "bad_request", Message: "A group needs a name."}
 	}
 
 	membership, err := withClient(c, ctx, func(client *control.Client) (api.Membership, error) {
 		return client.CreateGroup(ctx, control.NewGroup{
-			Name:     params.Name,
-			Password: params.Password,
-			Icon:     params.Icon,
-			Color:    params.Color,
+			Name:  params.Name,
+			Icon:  params.Icon,
+			Color: params.Color,
 		})
 	})
 	if err != nil {
@@ -192,24 +189,77 @@ func (c *Core) CreateGroup(ctx context.Context, params ipc.CreateGroupParams) (i
 	return toGroup(membership, false), nil
 }
 
-// JoinGroup joins an existing group. The password is used once here and never
-// stored, since the device token is what gets it back in afterwards.
+// JoinGroup joins whichever group an invite opens.
+//
+// The code is whatever was pasted, so a link is as good as a code. It is used
+// once here and never stored: the device token is what gets back in afterwards.
 func (c *Core) JoinGroup(ctx context.Context, params ipc.JoinGroupParams) (ipc.Group, error) {
-	if params.Group == "" || params.Password == "" {
+	code := invite.Parse(params.Code)
+	if code == "" {
 		return ipc.Group{}, &ipcserver.Failure{
 			Code:    "bad_request",
-			Message: "Joining needs a group and a password.",
+			Message: "That does not look like an invite.",
 		}
 	}
 
 	membership, err := withClient(c, ctx, func(client *control.Client) (api.Membership, error) {
-		return client.JoinGroup(ctx, params.Group, params.Password)
+		return client.JoinByCode(ctx, code)
 	})
 	if err != nil {
 		return ipc.Group{}, err
 	}
 	c.log.Info("group joined", "groupId", membership.GroupID)
 	return toGroup(membership, false), nil
+}
+
+// GetInvite says what a code opens, so the screen can name the group before
+// anybody commits to joining it.
+//
+// A code that opens nothing comes back as Found false rather than as an error.
+// Somebody typing one has an invalid code for as long as they are still typing,
+// and that is not a failure worth reporting.
+func (c *Core) GetInvite(ctx context.Context, params ipc.InviteParams) (ipc.InviteResult, error) {
+	code := invite.Parse(params.Code)
+	if code == "" {
+		return ipc.InviteResult{}, nil
+	}
+
+	found, err := withClient(c, ctx, func(client *control.Client) (api.Invite, error) {
+		return client.Invite(ctx, code)
+	})
+	if err != nil {
+		var failure *ipcserver.Failure
+		if errors.As(err, &failure) && failure.Code == api.ErrInviteInvalid {
+			return ipc.InviteResult{}, nil
+		}
+		return ipc.InviteResult{}, err
+	}
+
+	return ipc.InviteResult{
+		Found:      true,
+		Code:       found.Code,
+		GroupName:  found.GroupName,
+		GroupIcon:  found.GroupIcon,
+		GroupColor: found.GroupColor,
+		Members:    found.Members,
+	}, nil
+}
+
+// ResetInvite replaces a group's code. The owner's alone, which the server
+// decides.
+func (c *Core) ResetInvite(ctx context.Context, params ipc.GroupParams) (ipc.InviteCodeResult, error) {
+	if params.GroupID == "" {
+		return ipc.InviteCodeResult{}, &ipcserver.Failure{Code: "bad_request", Message: "Choose a group."}
+	}
+
+	code, err := withClient(c, ctx, func(client *control.Client) (string, error) {
+		return client.ResetInvite(ctx, params.GroupID)
+	})
+	if err != nil {
+		return ipc.InviteCodeResult{}, err
+	}
+	c.log.Info("invite code reset", "groupId", params.GroupID)
+	return ipc.InviteCodeResult{Code: code}, nil
 }
 
 // LeaveGroup gives up a membership, disconnecting first if that group is the
@@ -390,6 +440,7 @@ func toGroup(m api.Membership, active bool) ipc.Group {
 		Color:         m.GroupColor,
 		Active:        active,
 		OnlineMembers: m.OnlineMembers,
+		InviteCode:    m.InviteCode,
 		IsOwner:       m.Role == api.RoleOwner,
 	}
 }
@@ -492,30 +543,6 @@ func (c *Core) SetGroupAppearance(ctx context.Context, params ipc.SetGroupAppear
 
 	c.log.Info("group appearance changed", "groupId", params.GroupID, "icon", params.Icon, "color", params.Color)
 	c.emit(ipc.EventStateChanged, state)
-	return nil
-}
-
-// SetGroupPassword changes the password a new member joins with.
-//
-// It removes nobody, and is not meant to. Once somebody is in, the device token
-// is what proves it, and the password is only ever checked at the door.
-func (c *Core) SetGroupPassword(ctx context.Context, params ipc.SetGroupPasswordParams) error {
-	if params.GroupID == "" || params.Password == "" {
-		return &ipcserver.Failure{Code: "bad_request", Message: "That password will not work."}
-	}
-
-	// The proof is derived from the group's name, so the name has to be the one
-	// the server has rather than whatever the screen last showed.
-	name := c.describeGroup(ctx, params.GroupID).GroupName
-
-	_, err := withClient(c, ctx, func(client *control.Client) (struct{}, error) {
-		return struct{}{}, client.SetGroupPassword(ctx, params.GroupID, name, params.Password)
-	})
-	if err != nil {
-		return err
-	}
-
-	c.log.Info("group password changed", "groupId", params.GroupID)
 	return nil
 }
 

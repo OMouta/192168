@@ -1,12 +1,10 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/OMouta/192168/protocol/api"
-	"github.com/OMouta/192168/protocol/auth"
 	"github.com/OMouta/192168/server/storage"
 )
 
@@ -20,8 +18,8 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request, devic
 	}
 
 	name := strings.TrimSpace(req.Name)
-	if name == "" || len(name) > maxNameLength || req.PasswordProof == "" {
-		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "A group needs a name and a password.")
+	if name == "" || len(name) > maxNameLength {
+		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "A group needs a name.")
 		return
 	}
 	if !isAppearanceKey(req.Icon) || !isAppearanceKey(req.Color) {
@@ -29,11 +27,6 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request, devic
 		return
 	}
 
-	verifier, err := auth.NewGroupVerifier(req.PasswordProof)
-	if err != nil {
-		s.fail(w, r, err, api.ErrInternal, "")
-		return
-	}
 	id, err := storage.NewID("grp")
 	if err != nil {
 		s.fail(w, r, err, api.ErrInternal, "")
@@ -41,17 +34,12 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request, devic
 	}
 
 	membership, err := s.store.CreateGroup(r.Context(), storage.Group{
-		ID:               id,
-		Name:             name,
-		Icon:             req.Icon,
-		Color:            req.Color,
-		PasswordVerifier: verifier,
-		Subnet:           DefaultSubnet,
-	}, auth.NormalizeGroupName(name), device.ID)
-	if errors.Is(err, storage.ErrConflict) {
-		writeError(w, http.StatusConflict, api.ErrGroupNameTaken, "A group with that name already exists.")
-		return
-	}
+		ID:     id,
+		Name:   name,
+		Icon:   req.Icon,
+		Color:  req.Color,
+		Subnet: DefaultSubnet,
+	}, device.ID)
 	if err != nil {
 		s.fail(w, r, err, api.ErrInternal, "")
 		return
@@ -59,65 +47,6 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request, devic
 
 	s.log.Info("group created", "groupId", membership.GroupID, "deviceId", device.ID)
 	writeJSON(w, http.StatusCreated, toMembership(membership))
-}
-
-// handleJoinGroup adds the caller to an existing group.
-//
-// A wrong name and a wrong password get the same answer. Telling them apart
-// would turn this endpoint into a way to find out which groups exist.
-func (s *Server) handleJoinGroup(w http.ResponseWriter, r *http.Request, device storage.Device) {
-	var req api.JoinGroupRequest
-	if !decode(w, r, &req) {
-		return
-	}
-
-	name := strings.TrimSpace(req.Group)
-	if name == "" || req.PasswordProof == "" {
-		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "Joining needs a group and a password.")
-		return
-	}
-
-	// Guessing has to be slow, and the limit is per caller rather than per
-	// group so one attacker cannot lock everyone else out of a group.
-	if !s.joins.allow(clientIP(r)) {
-		writeError(w, http.StatusTooManyRequests, api.ErrRateLimited, "Too many attempts. Wait a moment and try again.")
-		return
-	}
-
-	group, err := s.store.GroupByName(r.Context(), auth.NormalizeGroupName(name))
-	if errors.Is(err, storage.ErrNotFound) {
-		writeError(w, http.StatusForbidden, api.ErrInvalidPassword, "That group name or password is not right.")
-		return
-	}
-	if err != nil {
-		s.fail(w, r, err, api.ErrInternal, "")
-		return
-	}
-
-	ok, err := auth.VerifyGroupProof(group.PasswordVerifier, req.PasswordProof)
-	if err != nil {
-		s.fail(w, r, err, api.ErrInternal, "")
-		return
-	}
-	if !ok {
-		writeError(w, http.StatusForbidden, api.ErrInvalidPassword, "That group name or password is not right.")
-		return
-	}
-
-	membership, err := s.store.AddMembership(r.Context(), group, device.ID)
-	if errors.Is(err, storage.ErrBanned) {
-		// Word for word what a wrong password gets. A device that was removed
-		// learns nothing by trying again, and cannot tell the two apart.
-		writeError(w, http.StatusForbidden, api.ErrInvalidPassword, "That group name or password is not right.")
-		return
-	}
-	if err != nil {
-		s.fail(w, r, err, api.ErrInternal, "")
-		return
-	}
-
-	s.log.Info("group joined", "groupId", group.ID, "deviceId", device.ID)
-	writeJSON(w, http.StatusOK, toMembership(membership))
 }
 
 // handleListGroups returns the groups this device belongs to, which is how a
@@ -242,7 +171,7 @@ func (s *Server) handleRenameGroup(w http.ResponseWriter, r *http.Request, devic
 	}
 
 	groupID := r.PathValue("groupId")
-	if err := s.store.RenameGroup(r.Context(), groupID, device.ID, name, auth.NormalizeGroupName(name)); err != nil {
+	if err := s.store.RenameGroup(r.Context(), groupID, device.ID, name); err != nil {
 		s.fail(w, r, err, api.ErrGroupNotFound, "You are not a member of that group.")
 		return
 	}
@@ -310,39 +239,6 @@ func isAppearanceKey(key string) bool {
 		}
 	}
 	return true
-}
-
-// handleSetGroupPassword changes the password a new member joins with.
-//
-// It removes nobody, and is not meant to. Membership is proved by the device
-// token once someone is in, so this closes the door rather than emptying the
-// room.
-func (s *Server) handleSetGroupPassword(w http.ResponseWriter, r *http.Request, device storage.Device) {
-	var req struct {
-		PasswordProof string `json:"passwordProof"`
-	}
-	if !decode(w, r, &req) {
-		return
-	}
-	if req.PasswordProof == "" {
-		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "That password will not work.")
-		return
-	}
-
-	verifier, err := auth.NewGroupVerifier(req.PasswordProof)
-	if err != nil {
-		s.fail(w, r, err, api.ErrInternal, "")
-		return
-	}
-
-	groupID := r.PathValue("groupId")
-	if err := s.store.SetGroupPassword(r.Context(), groupID, device.ID, verifier); err != nil {
-		s.fail(w, r, err, api.ErrGroupNotFound, "You are not a member of that group.")
-		return
-	}
-	s.log.Info("group password changed", "groupId", groupID, "by", device.ID)
-
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleTransferOwnership hands a group to another member.

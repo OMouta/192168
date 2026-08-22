@@ -104,6 +104,9 @@ type Group struct {
 	Color         string `json:"color,omitempty"`
 	Active        bool   `json:"active"`
 	OnlineMembers *int   `json:"onlineMembers,omitempty"`
+	// InviteCode is the group's way in, and it is only here for a group this
+	// device owns. The server decides that, not the app.
+	InviteCode string `json:"inviteCode,omitempty"`
 	// IsOwner marks the groups this device runs, so the list says which are
 	// yours to change and which you are only in.
 	IsOwner bool `json:"isOwner,omitempty"`

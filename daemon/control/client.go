@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -131,36 +132,48 @@ func (c *Client) Register(ctx context.Context, deviceID, name, publicKey, transp
 	return res.DeviceToken, nil
 }
 
-// NewGroup is everything creating one takes. A struct because four strings in
+// NewGroup is everything creating one takes. A struct because three strings in
 // a row are easy to pass in the wrong order.
 type NewGroup struct {
-	Name     string
-	Password string
-	Icon     string
-	Color    string
+	Name  string
+	Icon  string
+	Color string
 }
 
-// CreateGroup creates a group and joins it. The password is turned into a proof
-// here and never sent.
+// CreateGroup creates a group and joins it. What comes back carries the invite
+// code, which is the thing worth doing next.
 func (c *Client) CreateGroup(ctx context.Context, g NewGroup) (api.Membership, error) {
 	var m api.Membership
 	err := c.do(ctx, http.MethodPost, c.discovery.API+"/groups", api.CreateGroupRequest{
-		Name:          g.Name,
-		PasswordProof: auth.DeriveGroupProof(g.Password, g.Name),
-		Icon:          g.Icon,
-		Color:         g.Color,
+		Name:  g.Name,
+		Icon:  g.Icon,
+		Color: g.Color,
 	}, &m)
 	return m, err
 }
 
-// JoinGroup joins an existing group by name.
-func (c *Client) JoinGroup(ctx context.Context, name, password string) (api.Membership, error) {
+// JoinByCode joins whichever group an invite opens.
+func (c *Client) JoinByCode(ctx context.Context, code string) (api.Membership, error) {
 	var m api.Membership
-	err := c.do(ctx, http.MethodPost, c.discovery.API+"/groups/join", api.JoinGroupRequest{
-		Group:         name,
-		PasswordProof: auth.DeriveGroupProof(password, name),
+	err := c.do(ctx, http.MethodPost, c.discovery.API+"/groups/join-by-code", api.JoinByCodeRequest{
+		Code: code,
 	}, &m)
 	return m, err
+}
+
+// Invite says what a code opens, without joining it. It needs no token, so it
+// works before the app knows anything about the group behind the link.
+func (c *Client) Invite(ctx context.Context, code string) (api.Invite, error) {
+	var out api.Invite
+	err := c.do(ctx, http.MethodGet, c.discovery.API+"/invites/"+url.PathEscape(code), nil, &out)
+	return out, err
+}
+
+// ResetInvite replaces a group's code, retiring the one that was handed out.
+func (c *Client) ResetInvite(ctx context.Context, groupID string) (string, error) {
+	var out api.InviteCodeResponse
+	err := c.do(ctx, http.MethodPost, c.discovery.API+"/groups/"+groupID+"/invite/reset", nil, &out)
+	return out.Code, err
 }
 
 // Groups lists the groups this device belongs to.
@@ -309,18 +322,6 @@ func (c *Client) RenameGroup(ctx context.Context, groupID, name string) error {
 func (c *Client) SetGroupAppearance(ctx context.Context, groupID, icon, color string) error {
 	body := api.SetGroupAppearanceRequest{Icon: icon, Color: color}
 	return c.do(ctx, http.MethodPut, c.discovery.API+"/groups/"+groupID+"/appearance", body, nil)
-}
-
-// SetGroupPassword changes the password a new member joins with.
-//
-// The password never leaves this machine. What goes to the server is the proof
-// derived from it, the same as when creating or joining, so the server can
-// check a password it has never seen.
-func (c *Client) SetGroupPassword(ctx context.Context, groupID, groupName, password string) error {
-	body := struct {
-		PasswordProof string `json:"passwordProof"`
-	}{PasswordProof: auth.DeriveGroupProof(password, groupName)}
-	return c.do(ctx, http.MethodPut, c.discovery.API+"/groups/"+groupID+"/password", body, nil)
 }
 
 // TransferOwnership hands a group to another member.

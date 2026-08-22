@@ -53,12 +53,12 @@ func (h *fakeHandler) GetGroups(context.Context) ([]ipc.Group, error) {
 }
 
 func (h *fakeHandler) CreateGroup(_ context.Context, p ipc.CreateGroupParams) (ipc.Group, error) {
-	h.record("CreateGroup:" + p.Name + ":" + p.Password)
+	h.record("CreateGroup:" + p.Name)
 	return h.group, h.failWith
 }
 
 func (h *fakeHandler) JoinGroup(_ context.Context, p ipc.JoinGroupParams) (ipc.Group, error) {
-	h.record("JoinGroup:" + p.Group)
+	h.record("JoinGroup:" + p.Code)
 	return h.group, h.failWith
 }
 
@@ -102,9 +102,14 @@ func (h *fakeHandler) SetGroupAppearance(_ context.Context, p ipc.SetGroupAppear
 	return h.failWith
 }
 
-func (h *fakeHandler) SetGroupPassword(_ context.Context, p ipc.SetGroupPasswordParams) error {
-	h.record("SetGroupPassword:" + p.GroupID)
-	return h.failWith
+func (h *fakeHandler) GetInvite(_ context.Context, p ipc.InviteParams) (ipc.InviteResult, error) {
+	h.record("GetInvite:" + p.Code)
+	return ipc.InviteResult{Found: true, Code: p.Code, GroupName: "Friday Night"}, h.failWith
+}
+
+func (h *fakeHandler) ResetInvite(_ context.Context, p ipc.GroupParams) (ipc.InviteCodeResult, error) {
+	h.record("ResetInvite:" + p.GroupID)
+	return ipc.InviteCodeResult{Code: "freshcod"}, h.failWith
 }
 
 func (h *fakeHandler) TransferOwnership(_ context.Context, p ipc.MemberParams) error {
@@ -281,7 +286,7 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 	}
 
 	if res := s.call(ipc.MethodCreateGroup, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2",
+		Name: "Friday Night",
 	}); !res.OK {
 		t.Fatalf("CreateGroup failed: %+v", res.Err)
 	} else {
@@ -298,7 +303,9 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 		method ipc.Method
 		params any
 	}{
-		{ipc.MethodJoinGroup, ipc.JoinGroupParams{Group: "Friday Night", Password: "hunter2"}},
+		{ipc.MethodJoinGroup, ipc.JoinGroupParams{Code: "k7m2n9xq"}},
+		{ipc.MethodGetInvite, ipc.InviteParams{Code: "k7m2n9xq"}},
+		{ipc.MethodResetInvite, ipc.GroupParams{GroupID: "grp_1"}},
 		{ipc.MethodLeaveGroup, ipc.GroupParams{GroupID: "grp_1"}},
 		{ipc.MethodConnect, ipc.GroupParams{GroupID: "grp_1"}},
 		{ipc.MethodDisconnect, nil},
@@ -318,8 +325,10 @@ func TestEveryMethodReachesTheHandler(t *testing.T) {
 	want := []string{
 		"GetState",
 		"GetGroups",
-		"CreateGroup:Friday Night:hunter2",
-		"JoinGroup:Friday Night",
+		"CreateGroup:Friday Night",
+		"JoinGroup:k7m2n9xq",
+		"GetInvite:k7m2n9xq",
+		"ResetInvite:grp_1",
 		"LeaveGroup:grp_1",
 		"Connect:grp_1",
 		"Disconnect",
@@ -346,7 +355,7 @@ func TestAFailureKeepsItsCodeAndMessage(t *testing.T) {
 	h := &fakeHandler{failWith: &Failure{Code: "invalid_password", Message: "That password is not right."}}
 	s := newSession(t, h)
 
-	res := s.call(ipc.MethodJoinGroup, ipc.JoinGroupParams{Group: "Friday Night"})
+	res := s.call(ipc.MethodJoinGroup, ipc.JoinGroupParams{Code: "k7m2n9xq"})
 	if res.OK {
 		t.Fatal("a failing handler reported success")
 	}

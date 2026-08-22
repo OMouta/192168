@@ -2,89 +2,9 @@ package auth
 
 import (
 	"crypto/ed25519"
-	"strings"
 	"testing"
 	"time"
 )
-
-func TestGroupProofIsStableAcrossDevices(t *testing.T) {
-	// Two people typing the same password for the same group have to arrive at
-	// the same proof, or only the creator could ever join.
-	a := DeriveGroupProof("correct horse battery staple", "Friday Night")
-	b := DeriveGroupProof("correct horse battery staple", "  friday night ")
-	if a != b {
-		t.Errorf("proofs differ across name spelling: %q vs %q", a, b)
-	}
-
-	other := DeriveGroupProof("correct horse battery staple", "BeamNG")
-	if a == other {
-		t.Error("the same password in different groups derives the same proof")
-	}
-
-	wrong := DeriveGroupProof("Correct horse battery staple", "Friday Night")
-	if a == wrong {
-		t.Error("proof ignores password case")
-	}
-}
-
-func TestGroupVerifier(t *testing.T) {
-	proof := DeriveGroupProof("hunter2", "The Boys")
-
-	verifier, err := NewGroupVerifier(proof)
-	if err != nil {
-		t.Fatalf("NewGroupVerifier: %v", err)
-	}
-	if strings.Contains(verifier, proof) {
-		t.Fatal("verifier contains the proof it is meant to hide")
-	}
-
-	ok, err := VerifyGroupProof(verifier, proof)
-	if err != nil {
-		t.Fatalf("VerifyGroupProof: %v", err)
-	}
-	if !ok {
-		t.Error("the right proof did not verify")
-	}
-
-	ok, err = VerifyGroupProof(verifier, DeriveGroupProof("hunter3", "The Boys"))
-	if err != nil {
-		t.Fatalf("VerifyGroupProof: %v", err)
-	}
-	if ok {
-		t.Error("the wrong proof verified")
-	}
-}
-
-func TestGroupVerifierIsSaltedPerGroup(t *testing.T) {
-	proof := DeriveGroupProof("hunter2", "The Boys")
-
-	first, err := NewGroupVerifier(proof)
-	if err != nil {
-		t.Fatalf("NewGroupVerifier: %v", err)
-	}
-	second, err := NewGroupVerifier(proof)
-	if err != nil {
-		t.Fatalf("NewGroupVerifier: %v", err)
-	}
-	if first == second {
-		t.Error("two verifiers for the same proof are identical, so the salt is not random")
-	}
-}
-
-func TestVerifyGroupProofRejectsMalformedVerifiers(t *testing.T) {
-	tests := []string{
-		"",
-		"not-a-verifier",
-		"$argon2i$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA",
-		"$argon2id$v=99$m=19456,t=2,p=1$c2FsdA$aGFzaA",
-		"$argon2id$v=19$m=19456,t=2$c2FsdA$aGFzaA",
-	}
-	for _, v := range tests {
-		if _, err := VerifyGroupProof(v, "proof"); err == nil {
-			t.Errorf("VerifyGroupProof(%q) returned no error", v)
-		}
-	}
-}
 
 func TestRegisterSignature(t *testing.T) {
 	pub, priv, err := ed25519.GenerateKey(nil)

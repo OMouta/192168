@@ -137,7 +137,7 @@ func TestConnectingToAGroup(t *testing.T) {
 	named(t, c, "Tiago")
 
 	group, err := c.CreateGroup(ctx, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2",
+		Name: "Friday Night",
 	})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
@@ -194,14 +194,12 @@ func TestPeersArriveKnownButNotYetReachable(t *testing.T) {
 	named(t, host, "Tiago")
 
 	group, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2",
+		Name: "Friday Night",
 	})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
-	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{
-		Group: "Friday Night", Password: "hunter2",
-	}); err != nil {
+	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{Code: group.InviteCode}); err != nil {
 		t.Fatalf("JoinGroup: %v", err)
 	}
 
@@ -239,14 +237,12 @@ func TestAMemberWhoIsAwayHasAnAddress(t *testing.T) {
 	ctx := t.Context()
 
 	group, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2",
+		Name: "Friday Night",
 	})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
-	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{
-		Group: "Friday Night", Password: "hunter2",
-	}); err != nil {
+	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{Code: group.InviteCode}); err != nil {
 		t.Fatalf("JoinGroup: %v", err)
 	}
 
@@ -292,11 +288,11 @@ func TestSwitchingGroupsDisconnectsTheFirst(t *testing.T) {
 	c, events := newCore(t, url)
 	ctx := t.Context()
 
-	first, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "Friday Night", Password: "a"})
+	first, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "Friday Night"})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
-	second, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "BeamNG", Password: "b"})
+	second, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "BeamNG"})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
@@ -330,7 +326,7 @@ func TestConnectingToAGroupYouAreNotInFails(t *testing.T) {
 	ctx := t.Context()
 
 	group, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2",
+		Name: "Friday Night",
 	})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
@@ -353,27 +349,25 @@ func TestConnectingToAGroupYouAreNotInFails(t *testing.T) {
 	t.Fatalf("the failure was never reported: %+v", state)
 }
 
-func TestWrongPasswordIsReportedToTheUser(t *testing.T) {
+func TestAnInviteThatOpensNothingIsReportedToTheUser(t *testing.T) {
 	url := liveServer(t)
 	host, _ := newCore(t, url)
 	guest, _ := newCore(t, url)
 	ctx := t.Context()
 
 	if _, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2",
+		Name: "Friday Night",
 	}); err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
 
-	_, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{
-		Group: "Friday Night", Password: "wrong",
-	})
+	_, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{Code: "nosuchco"})
 	var failure *ipcserver.Failure
 	if err == nil || !errors.As(err, &failure) {
 		t.Fatalf("err = %v, want a failure", err)
 	}
-	if failure.Code != api.ErrInvalidPassword {
-		t.Errorf("code = %q, want %q", failure.Code, api.ErrInvalidPassword)
+	if failure.Code != api.ErrInviteInvalid {
+		t.Errorf("code = %q, want %q", failure.Code, api.ErrInviteInvalid)
 	}
 	if failure.Message == "" {
 		t.Error("the failure has nothing to show the user")
@@ -436,7 +430,7 @@ func TestChangingServerPersistsAndDisconnects(t *testing.T) {
 	c.SetEvents(events)
 	ctx := t.Context()
 
-	group, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "Friday Night", Password: "a"})
+	group, err := c.CreateGroup(ctx, ipc.CreateGroupParams{Name: "Friday Night"})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
@@ -529,14 +523,12 @@ func TestRenamingReachesTheGroupAndIsRemembered(t *testing.T) {
 	named(t, guest, "Joao")
 
 	group, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2",
+		Name: "Friday Night",
 	})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
-	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{
-		Group: "Friday Night", Password: "hunter2",
-	}); err != nil {
+	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{Code: group.InviteCode}); err != nil {
 		t.Fatalf("JoinGroup: %v", err)
 	}
 

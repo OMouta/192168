@@ -107,6 +107,19 @@ func register(t *testing.T, h http.Handler, id string) device {
 	return device{id: id, token: res.DeviceToken}
 }
 
+// joinByCode is how everybody gets into a group: one code, and nothing else to
+// be told.
+func joinByCode(t *testing.T, h http.Handler, d device, code string) papi.Membership {
+	t.Helper()
+	var m papi.Membership
+	if status := call(t, h, http.MethodPost, "/api/groups/join-by-code", d.token, papi.JoinByCodeRequest{
+		Code: code,
+	}, &m); status != http.StatusOK {
+		t.Fatalf("join as %s: status %d", d.id, status)
+	}
+	return m
+}
+
 // name picks what a device is called. It is the device that carries a name, so
 // this is a call of its own rather than a field on a join.
 func name(t *testing.T, h http.Handler, d device, nickname string) {
@@ -226,11 +239,9 @@ func TestGroupAndSessionFlow(t *testing.T) {
 	name(t, h, host, "Tiago")
 	name(t, h, guest, "João")
 
-	proof := auth.DeriveGroupProof("hunter2", "Friday Night")
-
 	var created papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: proof,
+		Name: "Friday Night",
 	}, &created); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -238,13 +249,7 @@ func TestGroupAndSessionFlow(t *testing.T) {
 		t.Fatalf("membership = %+v", created)
 	}
 
-	// The name is matched loosely, so what someone types finds the group.
-	var joined papi.Membership
-	if code := call(t, h, http.MethodPost, "/api/groups/join", guest.token, papi.JoinGroupRequest{
-		Group: "  friday night ", PasswordProof: proof,
-	}, &joined); code != http.StatusOK {
-		t.Fatalf("join group: status %d", code)
-	}
+	joined := joinByCode(t, h, guest, created.InviteCode)
 	if joined.GroupID != created.GroupID {
 		t.Fatalf("joined %q, want %q", joined.GroupID, created.GroupID)
 	}
@@ -317,52 +322,23 @@ func TestGroupAndSessionFlow(t *testing.T) {
 	}
 }
 
-func TestJoiningWithTheWrongPasswordLooksLikeAMissingGroup(t *testing.T) {
+// Two sets of friends can both have a Friday Night. The name stopped being
+// how anybody finds a group when the invite code took over.
+func TestTwoGroupsCanShareAName(t *testing.T) {
 	h := newTestServer(t)
 	host := register(t, h, "dev_host")
-	guest := register(t, h, "dev_guest")
+	other := register(t, h, "dev_other")
 
-	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
-	}, nil); code != http.StatusCreated {
-		t.Fatalf("create group: status %d", code)
+	req := papi.CreateGroupRequest{Name: "Friday Night"}
+	var mine, theirs papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups", host.token, req, &mine); code != http.StatusCreated {
+		t.Fatalf("create: status %d", code)
 	}
-
-	// A wrong password and a group that does not exist have to be told apart by
-	// nobody, or this endpoint becomes a way to enumerate groups.
-	var wrongPassword, missingGroup papi.Error
-	wrongCode := call(t, h, http.MethodPost, "/api/groups/join", guest.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: auth.DeriveGroupProof("wrong", "Friday Night"),
-	}, &wrongPassword)
-	missingCode := call(t, h, http.MethodPost, "/api/groups/join", guest.token, papi.JoinGroupRequest{
-		Group: "No Such Group", PasswordProof: auth.DeriveGroupProof("hunter2", "No Such Group"),
-	}, &missingGroup)
-
-	if wrongCode != missingCode {
-		t.Errorf("status %d for a wrong password and %d for a missing group", wrongCode, missingCode)
+	if code := call(t, h, http.MethodPost, "/api/groups", other.token, req, &theirs); code != http.StatusCreated {
+		t.Fatalf("create the same name again: status %d", code)
 	}
-	if wrongPassword != missingGroup {
-		t.Errorf("body %+v for a wrong password and %+v for a missing group", wrongPassword, missingGroup)
-	}
-}
-
-func TestDuplicateGroupNamesAreRejected(t *testing.T) {
-	h := newTestServer(t)
-	host := register(t, h, "dev_host")
-
-	req := papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
-	}
-	if code := call(t, h, http.MethodPost, "/api/groups", host.token, req, nil); code != http.StatusCreated {
-		t.Fatalf("create group: status %d", code)
-	}
-
-	var body papi.Error
-	if code := call(t, h, http.MethodPost, "/api/groups", host.token, req, &body); code != http.StatusConflict {
-		t.Errorf("duplicate name: status %d, want 409", code)
-	}
-	if body.Code != papi.ErrGroupNameTaken {
-		t.Errorf("code = %q, want %q", body.Code, papi.ErrGroupNameTaken)
+	if mine.GroupID == theirs.GroupID || mine.InviteCode == theirs.InviteCode {
+		t.Errorf("two groups came back as one: %+v and %+v", mine, theirs)
 	}
 }
 
@@ -373,7 +349,7 @@ func TestSessionsBelongToOneDevice(t *testing.T) {
 
 	var group papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
+		Name: "Friday Night",
 	}, &group); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -400,7 +376,7 @@ func TestConnectingWithoutMembershipIsRefused(t *testing.T) {
 
 	var group papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
+		Name: "Friday Night",
 	}, &group); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -425,7 +401,7 @@ func TestEndpointValidation(t *testing.T) {
 
 	var group papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
+		Name: "Friday Night",
 	}, &group); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -451,19 +427,17 @@ func TestJoinAttemptsAreRateLimited(t *testing.T) {
 	h := newTestServer(t)
 	guest := register(t, h, "dev_guest")
 
-	req := papi.JoinGroupRequest{
-		Group: "No Such Group", PasswordProof: "proof",
-	}
+	req := papi.JoinByCodeRequest{Code: "nosuchco"}
 
 	var limited bool
 	for range 20 {
-		if call(t, h, http.MethodPost, "/api/groups/join", guest.token, req, nil) == http.StatusTooManyRequests {
+		if call(t, h, http.MethodPost, "/api/groups/join-by-code", guest.token, req, nil) == http.StatusTooManyRequests {
 			limited = true
 			break
 		}
 	}
 	if !limited {
-		t.Error("20 wrong password attempts in a row were all allowed")
+		t.Error("20 wrong codes in a row were all allowed")
 	}
 }
 
@@ -502,11 +476,9 @@ func TestMembersListsEveryoneAndSaysWhoIsOnline(t *testing.T) {
 	absent := register(t, h, "dev_absent")
 	name(t, h, host, "Tiago")
 
-	proof := auth.DeriveGroupProof("hunter2", "Friday Night")
-
 	var created papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: proof,
+		Name: "Friday Night",
 	}, &created); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -516,11 +488,7 @@ func TestMembersListsEveryoneAndSaysWhoIsOnline(t *testing.T) {
 		nickname string
 	}{{guest, "Joao"}, {absent, "Pedro"}} {
 		name(t, h, joiner.device, joiner.nickname)
-		if code := call(t, h, http.MethodPost, "/api/groups/join", joiner.device.token, papi.JoinGroupRequest{
-			Group: "Friday Night", PasswordProof: proof,
-		}, nil); code != http.StatusOK {
-			t.Fatalf("join as %s: status %d", joiner.nickname, code)
-		}
+		joinByCode(t, h, joiner.device, created.InviteCode)
 	}
 
 	// Two of the three connect. The third belongs and is not here.
@@ -563,7 +531,7 @@ func TestMembersNeedsMembership(t *testing.T) {
 
 	var created papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", host.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
+		Name: "Friday Night",
 	}, &created); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -574,18 +542,17 @@ func TestMembersNeedsMembership(t *testing.T) {
 }
 
 // setUpGroup makes a group with an owner and one other member.
-func setUpGroup(t *testing.T, h *Server) (owner, member device, groupID, proof string) {
+func setUpGroup(t *testing.T, h *Server) (owner, member device, groupID, code string) {
 	t.Helper()
 
 	owner = register(t, h, "dev_owner")
 	member = register(t, h, "dev_member")
 	name(t, h, owner, "Tiago")
 	name(t, h, member, "Joao")
-	proof = auth.DeriveGroupProof("hunter2", "Friday Night")
 
 	var created papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", owner.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: proof,
+		Name: "Friday Night",
 	}, &created); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}
@@ -593,20 +560,16 @@ func setUpGroup(t *testing.T, h *Server) (owner, member device, groupID, proof s
 		t.Fatalf("creator role = %q, want owner", created.Role)
 	}
 
-	if code := call(t, h, http.MethodPost, "/api/groups/join", member.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: proof,
-	}, nil); code != http.StatusOK {
-		t.Fatalf("join: status %d", code)
-	}
-	return owner, member, created.GroupID, proof
+	joinByCode(t, h, member, created.InviteCode)
+	return owner, member, created.GroupID, created.InviteCode
 }
 
-// Removing somebody has to keep them out. They still know the name and the
-// password, so if joining again undid it then removing anybody would mean
-// nothing at all.
+// Removing somebody has to keep them out. They still hold the invite code, so
+// if using it again undid the removal then removing anybody would mean nothing
+// at all.
 func TestARemovedMemberCannotJoinAgain(t *testing.T) {
 	h := newTestServer(t)
-	owner, member, groupID, proof := setUpGroup(t, h)
+	owner, member, groupID, code := setUpGroup(t, h)
 
 	if code := call(t, h, http.MethodDelete, "/api/groups/"+groupID+"/members/dev_member", owner.token, nil, nil); code != http.StatusNoContent {
 		t.Fatalf("remove member: status %d", code)
@@ -621,31 +584,23 @@ func TestARemovedMemberCannotJoinAgain(t *testing.T) {
 		t.Fatalf("members = %+v, want only the owner", members.Members)
 	}
 
-	// And the answer is the one a wrong password gets, so being removed cannot
-	// be told apart from never having been let in.
+	// And the answer is the one an invented code gets, so being removed cannot
+	// be told apart from never having held a good code.
 	var removed papi.Error
-	code := call(t, h, http.MethodPost, "/api/groups/join", member.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: proof,
+	status := call(t, h, http.MethodPost, "/api/groups/join-by-code", member.token, papi.JoinByCodeRequest{
+		Code: code,
 	}, &removed)
-	if code != http.StatusForbidden || removed.Code != papi.ErrInvalidPassword {
-		t.Fatalf("rejoin after removal: status %d code %q, want 403 %s", code, removed.Code, papi.ErrInvalidPassword)
+	if status != http.StatusForbidden || removed.Code != papi.ErrInviteInvalid {
+		t.Fatalf("rejoin after removal: status %d code %q, want 403 %s", status, removed.Code, papi.ErrInviteInvalid)
 	}
 
 	// Leaving is a different thing and does come back.
 	other := register(t, h, "dev_other")
-	if code := call(t, h, http.MethodPost, "/api/groups/join", other.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: proof,
-	}, nil); code != http.StatusOK {
-		t.Fatalf("join: status %d", code)
-	}
+	joinByCode(t, h, other, code)
 	if code := call(t, h, http.MethodDelete, "/api/groups/"+groupID+"/membership", other.token, nil, nil); code != http.StatusNoContent {
 		t.Fatalf("leave: status %d", code)
 	}
-	if code := call(t, h, http.MethodPost, "/api/groups/join", other.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: proof,
-	}, nil); code != http.StatusOK {
-		t.Fatalf("rejoin after leaving: status %d, want 200", code)
-	}
+	joinByCode(t, h, other, code)
 }
 
 // Everything that changes a group is the owner's alone.
@@ -662,7 +617,7 @@ func TestOnlyTheOwnerCanManageAGroup(t *testing.T) {
 		{"remove a member", http.MethodDelete, "/api/groups/" + groupID + "/members/dev_owner", nil},
 		{"rename", http.MethodPut, "/api/groups/" + groupID + "/name", map[string]string{"name": "Theirs Now"}},
 		{"change the look", http.MethodPut, "/api/groups/" + groupID + "/appearance", papi.SetGroupAppearanceRequest{Icon: "star", Color: "pink"}},
-		{"change the password", http.MethodPut, "/api/groups/" + groupID + "/password", map[string]string{"passwordProof": auth.DeriveGroupProof("x", "y")}},
+		{"replace the invite code", http.MethodPost, "/api/groups/" + groupID + "/invite/reset", nil},
 		{"take ownership", http.MethodPut, "/api/groups/" + groupID + "/owner/dev_member", nil},
 	} {
 		if code := call(t, h, attempt.method, attempt.path, member.token, attempt.body, nil); code != http.StatusForbidden {
@@ -717,9 +672,7 @@ func TestAGroupKeepsTheLookItWasMadeWith(t *testing.T) {
 	owner := register(t, h, "dev_owner")
 
 	if code := call(t, h, http.MethodPost, "/api/groups", owner.token, papi.CreateGroupRequest{
-		Name:          "Sunday",
-		PasswordProof: auth.DeriveGroupProof("hunter2", "Sunday"),
-
+		Name:  "Sunday",
 		Icon:  "flag",
 		Color: "orange",
 	}, nil); code != http.StatusCreated {
@@ -756,41 +709,11 @@ func TestOwnershipCanBeHandedOver(t *testing.T) {
 	}
 }
 
-// The password is checked at the door and nowhere else, so changing it stops
-// the next person joining and removes nobody already inside.
-func TestChangingThePasswordKeepsEveryoneAndStopsTheOldOne(t *testing.T) {
-	h := newTestServer(t)
-	owner, member, groupID, oldProof := setUpGroup(t, h)
-
-	newProof := auth.DeriveGroupProof("correcthorse", "Friday Night")
-	if code := call(t, h, http.MethodPut, "/api/groups/"+groupID+"/password", owner.token,
-		map[string]string{"passwordProof": newProof}, nil); code != http.StatusNoContent {
-		t.Fatalf("change password: status %d", code)
-	}
-
-	// Still a member, and can still connect.
-	if code := call(t, h, http.MethodPost, "/api/groups/"+groupID+"/sessions", member.token, nil, nil); code != http.StatusCreated {
-		t.Fatalf("member connect after password change: status %d", code)
-	}
-
-	stranger := register(t, h, "dev_stranger")
-	if code := call(t, h, http.MethodPost, "/api/groups/join", stranger.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: oldProof,
-	}, nil); code != http.StatusForbidden {
-		t.Fatalf("join with the old password: status %d, want 403", code)
-	}
-	if code := call(t, h, http.MethodPost, "/api/groups/join", stranger.token, papi.JoinGroupRequest{
-		Group: "Friday Night", PasswordProof: newProof,
-	}, nil); code != http.StatusOK {
-		t.Fatalf("join with the new password: status %d", code)
-	}
-}
-
 // Deleting a group takes it away from everyone in it, so it is the owner's
 // alone and it takes the memberships and sessions with it.
 func TestDeletingAGroupTakesEverythingWithIt(t *testing.T) {
 	h := newTestServer(t)
-	owner, member, groupID, proof := setUpGroup(t, h)
+	owner, member, groupID, _ := setUpGroup(t, h)
 
 	if code := call(t, h, http.MethodPost, "/api/groups/"+groupID+"/sessions", member.token, nil, nil); code != http.StatusCreated {
 		t.Fatalf("member connect: status %d", code)
@@ -819,7 +742,7 @@ func TestDeletingAGroupTakesEverythingWithIt(t *testing.T) {
 
 	// And the name is free again, rather than held by a group nobody can reach.
 	if code := call(t, h, http.MethodPost, "/api/groups", member.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: proof,
+		Name: "Friday Night",
 	}, nil); code != http.StatusCreated {
 		t.Fatalf("reusing the name: status %d, want 201", code)
 	}
@@ -832,18 +755,13 @@ func TestOneNicknameCoversEveryGroup(t *testing.T) {
 	owner, member, friday, _ := setUpGroup(t, h)
 
 	// A second group, so there is more than one place the name could be wrong.
-	beamngProof := auth.DeriveGroupProof("hunter2", "BeamNG")
 	var beamng papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", owner.token, papi.CreateGroupRequest{
-		Name: "BeamNG", PasswordProof: beamngProof,
+		Name: "BeamNG",
 	}, &beamng); code != http.StatusCreated {
 		t.Fatalf("create second group: status %d", code)
 	}
-	if code := call(t, h, http.MethodPost, "/api/groups/join", member.token, papi.JoinGroupRequest{
-		Group: "BeamNG", PasswordProof: beamngProof,
-	}, nil); code != http.StatusOK {
-		t.Fatalf("join second group: status %d", code)
-	}
+	joinByCode(t, h, member, beamng.InviteCode)
 
 	if code := call(t, h, http.MethodPut, "/api/me/nickname", member.token, papi.SetNicknameRequest{
 		Nickname: "João",
@@ -899,7 +817,7 @@ func TestNicknameRejectsAnEmptyName(t *testing.T) {
 }
 
 // The whole point of a code: you send it to somebody and they are in, without
-// being told a group name or a password.
+// being told a group name or anything else.
 func TestAnInviteCodeIsTheWayIn(t *testing.T) {
 	h := newTestServer(t)
 	owner := register(t, h, "dev_owner")
@@ -907,7 +825,7 @@ func TestAnInviteCodeIsTheWayIn(t *testing.T) {
 
 	var created papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", owner.token, papi.CreateGroupRequest{
-		Name: "Friday Night", PasswordProof: auth.DeriveGroupProof("hunter2", "Friday Night"),
+		Name: "Friday Night",
 	}, &created); code != http.StatusCreated {
 		t.Fatalf("create group: status %d", code)
 	}

@@ -109,14 +109,12 @@ func TestTwoDaemonsReachEachOther(t *testing.T) {
 	named(t, guest, "João")
 
 	group, err := host.CreateGroup(ctx, ipc.CreateGroupParams{
-		Name: "Friday Night", Password: "hunter2",
+		Name: "Friday Night",
 	})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
-	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{
-		Group: "Friday Night", Password: "hunter2",
-	}); err != nil {
+	if _, err := guest.JoinGroup(ctx, ipc.JoinGroupParams{Code: group.InviteCode}); err != nil {
 		t.Fatalf("JoinGroup: %v", err)
 	}
 

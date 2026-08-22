@@ -211,8 +211,6 @@ const (
 	ErrBadRequest         = "bad_request"
 	ErrUnauthorized       = "unauthorized"
 	ErrGroupNotFound      = "group_not_found"
-	ErrGroupNameTaken     = "group_name_taken"
-	ErrInvalidPassword    = "invalid_password"
 	ErrInviteInvalid      = "invite_invalid"
 	ErrMembershipRevoked  = "membership_revoked"
 	ErrSessionInvalid     = "session_invalid"

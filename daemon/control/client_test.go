@@ -132,7 +132,7 @@ func TestFullFlowAgainstTheRealServer(t *testing.T) {
 	host, hostID := newDevice(t, url)
 	guest, guestID := newDevice(t, url)
 
-	group, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night", Password: "hunter2"})
+	group, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night"})
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
@@ -140,9 +140,9 @@ func TestFullFlowAgainstTheRealServer(t *testing.T) {
 		t.Fatalf("group = %+v", group)
 	}
 
-	joined, err := guest.JoinGroup(t.Context(), "friday night", "hunter2")
+	joined, err := guest.JoinByCode(t.Context(), group.InviteCode)
 	if err != nil {
-		t.Fatalf("JoinGroup: %v", err)
+		t.Fatalf("JoinByCode: %v", err)
 	}
 	if joined.GroupID != group.GroupID {
 		t.Fatalf("joined %q, want %q", joined.GroupID, group.GroupID)
@@ -218,7 +218,7 @@ func TestErrorsCarryTheServersCode(t *testing.T) {
 	host, _ := newDevice(t, url)
 	guest, _ := newDevice(t, url)
 
-	if _, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night", Password: "hunter2"}); err != nil {
+	if _, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night"}); err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
 
@@ -228,20 +228,12 @@ func TestErrorsCarryTheServersCode(t *testing.T) {
 		want string
 	}{
 		{
-			name: "wrong password",
+			name: "an invite that opens nothing",
 			call: func() error {
-				_, err := guest.JoinGroup(t.Context(), "Friday Night", "wrong")
+				_, err := guest.JoinByCode(t.Context(), "nosuchco")
 				return err
 			},
-			want: api.ErrInvalidPassword,
-		},
-		{
-			name: "duplicate group name",
-			call: func() error {
-				_, err := host.CreateGroup(t.Context(), NewGroup{Name: "Friday Night", Password: "hunter2"})
-				return err
-			},
-			want: api.ErrGroupNameTaken,
+			want: api.ErrInviteInvalid,
 		},
 		{
 			name: "session that does not exist",

@@ -34,7 +34,7 @@ func (s *Store) GroupByInviteCode(ctx context.Context, code string) (Group, erro
 		return Group{}, ErrNotFound
 	}
 	return s.scanGroup(s.db.QueryRowContext(ctx, `
-		SELECT id, name, icon, color, password_verifier, subnet, COALESCE(invite_code, ''), created_at
+		SELECT id, name, icon, color, subnet, invite_code, created_at
 		FROM groups WHERE invite_code = ?`, normalized))
 }
 
@@ -57,30 +57,43 @@ func (s *Store) ResetInviteCode(ctx context.Context, groupID, ownerDeviceID stri
 	return code, err
 }
 
-// setInviteCode gives a group a new code, retrying if the one it drew is
-// already spoken for. A collision is vanishingly unlikely and cheap to survive,
-// which is not a reason to let it fail.
+// setInviteCode gives a group a new code.
 func setInviteCode(ctx context.Context, tx *sql.Tx, groupID string) (string, error) {
+	code, err := freeInviteCode(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE groups SET invite_code = ? WHERE id = ?`, code, groupID)
+	if err != nil {
+		return "", fmt.Errorf("storage: set invite code: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return "", fmt.Errorf("storage: set invite code: %w", err)
+	}
+	if affected == 0 {
+		return "", ErrNotFound
+	}
+	return code, nil
+}
+
+// freeInviteCode draws a code no group holds. A collision at forty bits is not
+// something to plan around, but it costs one query to be certain rather than
+// confident.
+func freeInviteCode(ctx context.Context, tx *sql.Tx) (string, error) {
 	for attempt := 0; attempt < 5; attempt++ {
 		code, err := NewInviteCode()
 		if err != nil {
 			return "", err
 		}
-		res, err := tx.ExecContext(ctx, `UPDATE groups SET invite_code = ? WHERE id = ?`, code, groupID)
-		if isUniqueViolation(err) {
-			continue
+		var taken bool
+		if err := tx.QueryRowContext(ctx,
+			`SELECT EXISTS(SELECT 1 FROM groups WHERE invite_code = ?)`, code).Scan(&taken); err != nil {
+			return "", fmt.Errorf("storage: check invite code: %w", err)
 		}
-		if err != nil {
-			return "", fmt.Errorf("storage: set invite code: %w", err)
+		if !taken {
+			return code, nil
 		}
-		affected, err := res.RowsAffected()
-		if err != nil {
-			return "", fmt.Errorf("storage: set invite code: %w", err)
-		}
-		if affected == 0 {
-			return "", ErrNotFound
-		}
-		return code, nil
 	}
 	return "", fmt.Errorf("storage: could not find a free invite code")
 }
@@ -99,35 +112,4 @@ func (s *Store) MemberCount(ctx context.Context, groupID string) (int, error) {
 		return 0, fmt.Errorf("storage: count members: %w", err)
 	}
 	return count, nil
-}
-
-// mintMissingInviteCodes gives a code to every group that predates them.
-func (s *Store) mintMissingInviteCodes(ctx context.Context) error {
-	rows, err := s.db.QueryContext(ctx, `SELECT id FROM groups WHERE invite_code IS NULL`)
-	if err != nil {
-		return fmt.Errorf("storage: find groups without a code: %w", err)
-	}
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return fmt.Errorf("storage: scan group without a code: %w", err)
-		}
-		ids = append(ids, id)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("storage: find groups without a code: %w", err)
-	}
-
-	for _, id := range ids {
-		if err := s.write(ctx, func(tx *sql.Tx) error {
-			_, err := setInviteCode(ctx, tx, id)
-			return err
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
 }
