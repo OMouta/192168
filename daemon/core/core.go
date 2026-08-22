@@ -422,6 +422,7 @@ func (c *Core) SetLanDiscovery(_ context.Context, enabled bool) error {
 		}
 		if held != "" {
 			c.log.Warn("another adapter holds the discovery route", "adapter", held)
+			c.setMessage(discoveryHeldBy(held), ipc.MessageWarning)
 		}
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net/netip"
 
 	"github.com/OMouta/192168/daemon/mesh"
@@ -57,6 +58,7 @@ func (c *Core) startAdapter(ctx context.Context, links *mesh.Mesh, virtualIP, su
 	}
 	if held != "" {
 		c.log.Warn("another adapter holds the discovery route", "adapter", held)
+		c.setMessage(discoveryHeldBy(held), ipc.MessageWarning)
 	}
 
 	go c.pumpOut(ctx, device, links, address)
@@ -338,6 +340,16 @@ func adapterProblem(err error) string {
 	default:
 		return "Could not create the network adapter, so games will not see the other players."
 	}
+}
+
+// discoveryHeldBy says that another virtual network took the route games find
+// each other over, and what to do about it.
+//
+// It names the adapter rather than the app, because the adapter is what was
+// measured and what the name in network settings will match. Whoever installed
+// it knows which app that is.
+func discoveryHeldBy(adapter string) string {
+	return fmt.Sprintf("%s is holding this machine's discovery route, so games may not list each other. Turn it off and reconnect.", adapter)
 }
 
 // severityFor pairs a message with how it should read. Everything that ends a
