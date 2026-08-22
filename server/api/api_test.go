@@ -937,3 +937,55 @@ func TestAnInventedCodeSaysNothing(t *testing.T) {
 		t.Errorf("join with an invented code: status %d, want 403", code)
 	}
 }
+
+// A link is what somebody actually sends, so opening one has to say what it is
+// for without the app installed and without a token.
+func TestAnInviteLinkOpensAPage(t *testing.T) {
+	h := newTestServer(t)
+	owner := register(t, h, "dev_owner")
+
+	var created papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups", owner.token, papi.CreateGroupRequest{
+		Name: "Friday Night",
+	}, &created); code != http.StatusCreated {
+		t.Fatalf("create group: status %d", code)
+	}
+
+	page := getPage(t, h, invite.Path+created.InviteCode)
+	if page.status != http.StatusOK {
+		t.Fatalf("status %d", page.status)
+	}
+	for _, want := range []string{
+		"Friday Night",
+		"1 person",
+		created.InviteCode,
+		invite.DeepLink(created.InviteCode),
+	} {
+		if !strings.Contains(page.body, want) {
+			t.Errorf("the page does not mention %q", want)
+		}
+	}
+
+	// A code that opens nothing says so rather than showing an empty group.
+	gone := getPage(t, h, invite.Path+"nosuchco")
+	if gone.status != http.StatusNotFound {
+		t.Errorf("status for an invented code = %d, want 404", gone.status)
+	}
+	if !strings.Contains(gone.body, "no longer good") {
+		t.Errorf("the page does not say the invite is dead: %s", gone.body)
+	}
+}
+
+type page struct {
+	status int
+	body   string
+}
+
+func getPage(t *testing.T, h http.Handler, path string) page {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.RemoteAddr = "203.0.113.10:5000"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return page{status: rec.Code, body: rec.Body.String()}
+}

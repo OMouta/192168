@@ -41,3 +41,30 @@ func Parse(input string) string {
 	trimmed, _, _ = strings.Cut(trimmed, "#")
 	return Normalize(trimmed)
 }
+
+// Path is where a server serves invite links, and the path half of the URI the
+// app is registered for. Both sides agree on it here so a link a person is sent
+// and a link the app is handed are the same shape.
+const Path = "/join/"
+
+// Link is the address to send somebody, built from a server's invite base and a
+// code. The base is what the server publishes in its discovery document, so a
+// self-hosted instance hands out links to itself.
+func Link(base, code string) string {
+	if base == "" || code == "" {
+		return ""
+	}
+	return strings.TrimRight(base, "/") + "/" + code
+}
+
+// Scheme is the URI scheme the Windows app is registered for, so a link on a
+// page can hand a code straight to it instead of asking somebody to copy one.
+const Scheme = "192168"
+
+// DeepLink is the address that opens the app on a code.
+func DeepLink(code string) string {
+	if code == "" {
+		return ""
+	}
+	return Scheme + ":/" + Path + code
+}

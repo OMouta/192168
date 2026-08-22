@@ -11,6 +11,7 @@ import (
 
 	"github.com/OMouta/192168/protocol"
 	"github.com/OMouta/192168/protocol/api"
+	"github.com/OMouta/192168/protocol/invite"
 	"github.com/OMouta/192168/server/config"
 	"github.com/OMouta/192168/server/realtime"
 	"github.com/OMouta/192168/server/storage"
@@ -63,6 +64,7 @@ func New(cfg config.Config, store *storage.Store, log *slog.Logger) *Server {
 	// No token: whoever holds the code is who this is for, and the page a link
 	// opens has nothing else to identify itself with.
 	mux.HandleFunc("GET /api/invites/{code}", s.handleInvite)
+	mux.HandleFunc("GET "+invite.Path+"{code}", s.handleInvitePage)
 
 	mux.HandleFunc("POST /api/devices/register", s.handleRegisterDevice)
 
@@ -101,6 +103,7 @@ func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 		API:      s.cfg.APIURL(),
 		Realtime: s.cfg.RealtimeURL(),
 		STUN:     s.cfg.STUN,
+		Invite:   s.cfg.PublicURL + invite.Path,
 		Relay:    nil,
 		Features: api.Features{Relay: false, PeerRouting: false},
 	})

@@ -43,9 +43,11 @@ type InviteResult struct {
 	Members    int    `json:"members,omitempty"`
 }
 
-// InviteCodeResult carries a group's code after it has been replaced.
+// InviteCodeResult carries a group's code after it has been replaced, with the
+// link that now leads to it.
 type InviteCodeResult struct {
 	Code string `json:"code"`
+	Link string `json:"link,omitempty"`
 }
 
 // GroupResult is what CreateGroup and JoinGroup return.

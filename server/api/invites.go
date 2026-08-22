@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -61,42 +62,39 @@ func (s *Server) handleJoinByCode(w http.ResponseWriter, r *http.Request, device
 // it to show what is about to be joined. Holding the code is the whole of the
 // authorization, which is what a code is for.
 func (s *Server) handleInvite(w http.ResponseWriter, r *http.Request) {
-	preview, ok := s.lookUpInvite(w, r, r.PathValue("code"))
-	if !ok {
-		return
-	}
-	writeJSON(w, http.StatusOK, preview)
-}
-
-// lookUpInvite resolves a code to what it opens, answering the request itself
-// when it cannot. The landing page and the API both go through here, so an
-// invalid code says the same thing either way.
-func (s *Server) lookUpInvite(w http.ResponseWriter, r *http.Request, raw string) (api.Invite, bool) {
-	code := invite.Parse(raw)
-	if code == "" {
-		writeError(w, http.StatusNotFound, api.ErrInviteInvalid, "That invite is not good any more.")
-		return api.Invite{}, false
-	}
 	// Unauthenticated and cheap to ask, so it is limited like joining is.
 	if !s.joins.allow(clientIP(r)) {
 		writeError(w, http.StatusTooManyRequests, api.ErrRateLimited, "Too many attempts. Wait a moment and try again.")
-		return api.Invite{}, false
+		return
 	}
 
-	group, err := s.store.GroupByInviteCode(r.Context(), code)
+	found, err := s.findInvite(r.Context(), r.PathValue("code"))
 	if errors.Is(err, storage.ErrNotFound) {
 		writeError(w, http.StatusNotFound, api.ErrInviteInvalid, "That invite is not good any more.")
-		return api.Invite{}, false
+		return
 	}
 	if err != nil {
 		s.fail(w, r, err, api.ErrInternal, "")
-		return api.Invite{}, false
+		return
+	}
+	writeJSON(w, http.StatusOK, found)
+}
+
+// findInvite resolves a code to what it opens. The API and the page a link
+// opens share it, so an invalid code means the same thing either way.
+func (s *Server) findInvite(ctx context.Context, raw string) (api.Invite, error) {
+	code := invite.Parse(raw)
+	if code == "" {
+		return api.Invite{}, storage.ErrNotFound
 	}
 
-	members, err := s.store.MemberCount(r.Context(), group.ID)
+	group, err := s.store.GroupByInviteCode(ctx, code)
 	if err != nil {
-		s.fail(w, r, err, api.ErrInternal, "")
-		return api.Invite{}, false
+		return api.Invite{}, err
+	}
+	members, err := s.store.MemberCount(ctx, group.ID)
+	if err != nil {
+		return api.Invite{}, err
 	}
 
 	return api.Invite{
@@ -105,7 +103,7 @@ func (s *Server) lookUpInvite(w http.ResponseWriter, r *http.Request, raw string
 		GroupIcon:  group.Icon,
 		GroupColor: group.Color,
 		Members:    members,
-	}, true
+	}, nil
 }
 
 // handleResetInvite replaces a group's code, which is what makes handing one

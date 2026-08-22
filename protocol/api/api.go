@@ -13,6 +13,10 @@ type Discovery struct {
 	API      string   `json:"api"`
 	Realtime string   `json:"realtime"`
 	STUN     []string `json:"stun"`
+	// Invite is where this server serves invite links, ending in a slash. A
+	// code goes on the end of it and the result is what somebody sends a
+	// friend, so a self-hosted instance hands out links to itself.
+	Invite   string   `json:"invite,omitempty"`
 	Relay    *string  `json:"relay"`
 	Features Features `json:"features"`
 }

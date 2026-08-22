@@ -107,6 +107,10 @@ type Group struct {
 	// InviteCode is the group's way in, and it is only here for a group this
 	// device owns. The server decides that, not the app.
 	InviteCode string `json:"inviteCode,omitempty"`
+	// InviteLink is that code as the address to send somebody, which is the
+	// thing an owner actually shares. Empty where the server did not say where
+	// its links live.
+	InviteLink string `json:"inviteLink,omitempty"`
 	// IsOwner marks the groups this device runs, so the list says which are
 	// yours to change and which you are only in.
 	IsOwner bool `json:"isOwner,omitempty"`

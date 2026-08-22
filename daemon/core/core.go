@@ -46,11 +46,15 @@ type Core struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	mu      sync.Mutex
-	client  *control.Client
-	state   ipc.State
-	peers   map[string]*ipc.PeerView
-	session *activeSession
+	mu     sync.Mutex
+	client *control.Client
+	// inviteBase is where the current server says its invite links live. It is
+	// kept here because the app is handed links rather than codes, and a group
+	// list is drawn without a server call.
+	inviteBase string
+	state      ipc.State
+	peers      map[string]*ipc.PeerView
+	session    *activeSession
 
 	// mesh is the peer-to-peer socket, alive only while a group is connected.
 	mesh *mesh.Mesh
@@ -163,7 +167,7 @@ func (c *Core) GetGroups(ctx context.Context) ([]ipc.Group, error) {
 
 	groups := make([]ipc.Group, 0, len(memberships))
 	for _, m := range memberships {
-		groups = append(groups, toGroup(m, c.session != nil && c.session.groupID == m.GroupID))
+		groups = append(groups, toGroup(m, c.session != nil && c.session.groupID == m.GroupID, c.inviteBase))
 	}
 	return groups, nil
 }
@@ -186,7 +190,7 @@ func (c *Core) CreateGroup(ctx context.Context, params ipc.CreateGroupParams) (i
 		return ipc.Group{}, err
 	}
 	c.log.Info("group created", "groupId", membership.GroupID)
-	return toGroup(membership, false), nil
+	return toGroup(membership, false, c.inviteLinkBase()), nil
 }
 
 // JoinGroup joins whichever group an invite opens.
@@ -209,7 +213,7 @@ func (c *Core) JoinGroup(ctx context.Context, params ipc.JoinGroupParams) (ipc.G
 		return ipc.Group{}, err
 	}
 	c.log.Info("group joined", "groupId", membership.GroupID)
-	return toGroup(membership, false), nil
+	return toGroup(membership, false, c.inviteLinkBase()), nil
 }
 
 // GetInvite says what a code opens, so the screen can name the group before
@@ -259,7 +263,7 @@ func (c *Core) ResetInvite(ctx context.Context, params ipc.GroupParams) (ipc.Inv
 		return ipc.InviteCodeResult{}, err
 	}
 	c.log.Info("invite code reset", "groupId", params.GroupID)
-	return ipc.InviteCodeResult{Code: code}, nil
+	return ipc.InviteCodeResult{Code: code, Link: invite.Link(c.inviteLinkBase(), code)}, nil
 }
 
 // LeaveGroup gives up a membership, disconnecting first if that group is the
@@ -432,7 +436,15 @@ func (c *Core) snapshot() ipc.State {
 	return state
 }
 
-func toGroup(m api.Membership, active bool) ipc.Group {
+// inviteLinkBase reads where links live, for callers that are not already
+// holding the lock.
+func (c *Core) inviteLinkBase() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.inviteBase
+}
+
+func toGroup(m api.Membership, active bool, inviteBase string) ipc.Group {
 	return ipc.Group{
 		GroupID:       m.GroupID,
 		Name:          m.GroupName,
@@ -441,6 +453,7 @@ func toGroup(m api.Membership, active bool) ipc.Group {
 		Active:        active,
 		OnlineMembers: m.OnlineMembers,
 		InviteCode:    m.InviteCode,
+		InviteLink:    invite.Link(inviteBase, m.InviteCode),
 		IsOwner:       m.Role == api.RoleOwner,
 	}
 }

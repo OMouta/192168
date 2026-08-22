@@ -100,6 +100,7 @@ func (c *Core) ensureClient(ctx context.Context) (*control.Client, error) {
 
 	c.mu.Lock()
 	c.client = client
+	c.inviteBase = client.Discovery().Invite
 	c.mu.Unlock()
 	c.setServerOnline(true)
 

@@ -15,6 +15,7 @@ import (
 	"github.com/OMouta/192168/daemon/identity"
 	"github.com/OMouta/192168/daemon/ipcserver"
 	"github.com/OMouta/192168/protocol/api"
+	"github.com/OMouta/192168/protocol/invite"
 	"github.com/OMouta/192168/protocol/ipc"
 	serverapi "github.com/OMouta/192168/server/api"
 	serverconfig "github.com/OMouta/192168/server/config"
@@ -574,4 +575,83 @@ func waitForPeerNickname(t *testing.T, c *Core, want string) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("no peer was renamed to %q, last state was %+v", want, last)
+}
+
+// The owner is handed a link rather than a code, because a link is the thing
+// people send each other.
+func TestTheOwnerGetsALinkToSend(t *testing.T) {
+	url := liveServer(t)
+	owner, _ := newCore(t, url)
+	friend, _ := newCore(t, url)
+	ctx := t.Context()
+
+	group, err := owner.CreateGroup(ctx, ipc.CreateGroupParams{Name: "Friday Night"})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+	want := url + invite.Path + group.InviteCode
+	if group.InviteLink != want {
+		t.Errorf("link = %q, want %q", group.InviteLink, want)
+	}
+
+	// The link is as good as the code, since it is what somebody will paste.
+	joined, err := friend.JoinGroup(ctx, ipc.JoinGroupParams{Code: group.InviteLink})
+	if err != nil {
+		t.Fatalf("JoinGroup with a link: %v", err)
+	}
+	if joined.GroupID != group.GroupID {
+		t.Fatalf("joined %q, want %q", joined.GroupID, group.GroupID)
+	}
+	// The code is the owner's to give out, so a member is not handed one.
+	if joined.InviteCode != "" || joined.InviteLink != "" {
+		t.Errorf("a member was handed an invite: %+v", joined)
+	}
+
+	// Seeing what a link opens takes no membership and no token.
+	preview, err := friend.GetInvite(ctx, ipc.InviteParams{Code: group.InviteLink})
+	if err != nil {
+		t.Fatalf("GetInvite: %v", err)
+	}
+	if !preview.Found || preview.GroupName != "Friday Night" || preview.Members != 2 {
+		t.Errorf("preview = %+v", preview)
+	}
+
+	// A code that opens nothing is an answer, not a failure: somebody halfway
+	// through typing one has an invalid code for a keystroke or two.
+	missing, err := friend.GetInvite(ctx, ipc.InviteParams{Code: "nosuchco"})
+	if err != nil {
+		t.Fatalf("GetInvite for an invented code: %v", err)
+	}
+	if missing.Found {
+		t.Errorf("an invented code found something: %+v", missing)
+	}
+}
+
+// Replacing a code retires the one that was given out, which is the only thing
+// that makes handing one out safe.
+func TestResettingTheCodeStopsTheOldLink(t *testing.T) {
+	url := liveServer(t)
+	owner, _ := newCore(t, url)
+	stranger, _ := newCore(t, url)
+	ctx := t.Context()
+
+	group, err := owner.CreateGroup(ctx, ipc.CreateGroupParams{Name: "Friday Night"})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+
+	fresh, err := owner.ResetInvite(ctx, ipc.GroupParams{GroupID: group.GroupID})
+	if err != nil {
+		t.Fatalf("ResetInvite: %v", err)
+	}
+	if fresh.Code == group.InviteCode || fresh.Link == "" {
+		t.Fatalf("reset = %+v, old code was %q", fresh, group.InviteCode)
+	}
+
+	if _, err := stranger.JoinGroup(ctx, ipc.JoinGroupParams{Code: group.InviteLink}); err == nil {
+		t.Error("the retired link still worked")
+	}
+	if _, err := stranger.JoinGroup(ctx, ipc.JoinGroupParams{Code: fresh.Link}); err != nil {
+		t.Errorf("the new link did not work: %v", err)
+	}
 }
