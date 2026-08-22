@@ -15,26 +15,23 @@ import (
 //go:embed templates/invite.html
 var templates embed.FS
 
-// invitePage is parsed once. A template that will not parse is a build mistake,
-// so it fails at startup rather than on the first person to open a link.
+// invitePage is parsed once, at startup, rather than on the first person to
+// open a link.
 var invitePage = template.Must(template.ParseFS(templates, "templates/invite.html"))
 
-// downloadURL is where somebody without the app goes. Every deployment points
-// at the same releases, because a self-hosted server runs the same app.
+// downloadURL is where somebody without the app goes. A self-hosted server runs
+// the same app, so every deployment points at the same releases.
 const downloadURL = "https://github.com/OMouta/192168/releases/latest"
 
-// handleInvitePage is what a link opens in a browser.
-//
-// The server draws it rather than the website, so a self-hosted instance hands
-// out links that work with nothing else deployed. It is the same lookup the API
-// does, rendered instead of encoded.
+// handleInvitePage is what a link opens in a browser. The server draws it
+// rather than the website, so a self-hosted instance needs nothing else
+// deployed for its links to work.
 func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 	view := struct {
 		Invite  *api.Invite
 		Members string
-		// A custom scheme is not one html/template will let through on its own,
-		// and it blanks the attribute rather than saying so. This is built here
-		// out of a code the server just looked up, so it is safe to mark.
+		// html/template blanks a custom scheme in an href rather than saying so.
+		// Built here from a code the server just looked up, so marking it is safe.
 		DeepLink template.URL
 		Download string
 	}{Download: downloadURL}
@@ -53,14 +50,12 @@ func (s *Server) handleInvitePage(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}
 	if err := invitePage.Execute(w, view); err != nil {
-		// Nothing useful can be sent now: the status and part of the body are
-		// already on their way.
+		// The status and part of the body are already sent.
 		s.log.Error("could not render an invite", "error", err)
 	}
 }
 
-// members phrases the count, because "1 people" is the kind of thing that makes
-// a product look unfinished.
+// members phrases the count, so it does not read "1 people".
 func members(n int) string {
 	if n == 1 {
 		return "1 person"

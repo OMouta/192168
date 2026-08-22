@@ -23,15 +23,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     public partial string? ServerUrl { get; set; }
 
     /// <summary>
-    /// What everyone in every group sees. It belongs to this machine rather
-    /// than to a group, so this is where it lives, and it can be changed
-    /// without being connected to anything.
+    /// What everyone in every group sees. It belongs to this machine, not to a
+    /// group, so it can be changed without connecting to one.
     /// </summary>
     [ObservableProperty]
     public partial string? Nickname { get; set; }
 
-    /// <summary>What the name was on arrival, so saving can tell whether it is
-    /// worth sending.</summary>
+    /// <summary>What the name was on arrival, so Save knows whether to send it.</summary>
     private string _savedNickname = "";
 
     /// <summary>
@@ -333,7 +331,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         try
         {
             // The name goes first. Setting the server can disconnect and
-            // register again, and a name sent into that is a name sent nowhere.
+            // register again, which would swallow it.
             if (nickname != _savedNickname)
             {
                 await _daemon.SetNicknameAsync(nickname);

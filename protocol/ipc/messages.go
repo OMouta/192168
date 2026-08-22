@@ -10,7 +10,7 @@ import (
 // takes no parameters, returns nothing, or both.
 //
 // Invite codes cross this boundary, and a code is all it takes to get into a
-// group, so the pipe has to stay restricted to the current user.
+// group, so the pipe stays restricted to the current user.
 
 // CreateGroupParams creates a group and joins it in one step, with the look it
 // is made with.
@@ -21,7 +21,7 @@ type CreateGroupParams struct {
 }
 
 // JoinGroupParams joins whichever group an invite opens. Code is whatever was
-// pasted: a bare code, or the link it arrived in.
+// pasted, bare or as a link.
 type JoinGroupParams struct {
 	Code string `json:"code"`
 }
@@ -31,9 +31,9 @@ type InviteParams struct {
 	Code string `json:"code"`
 }
 
-// InviteResult is what a code opens, for the screen deciding whether to join it.
-// Found is false for a code that opens nothing, which is an answer rather than
-// a failure: somebody mid-paste has an invalid code for a keystroke or two.
+// InviteResult is what a code opens. Found is false for a code that opens
+// nothing, which is an answer rather than an error. Half-typed codes are
+// invalid and that is normal.
 type InviteResult struct {
 	Found      bool   `json:"found"`
 	Code       string `json:"code,omitempty"`
@@ -43,8 +43,7 @@ type InviteResult struct {
 	Members    int    `json:"members,omitempty"`
 }
 
-// InviteCodeResult carries a group's code after it has been replaced, with the
-// link that now leads to it.
+// InviteCodeResult is a group's new code and the link to it.
 type InviteCodeResult struct {
 	Code string `json:"code"`
 	Link string `json:"link,omitempty"`
@@ -61,7 +60,7 @@ type GroupParams struct {
 }
 
 // SetNicknameParams changes what this device is called. One name covers every
-// group, so there is nothing to say about which.
+// group, so there is no group to name.
 type SetNicknameParams struct {
 	Nickname string `json:"nickname"`
 }

@@ -112,10 +112,8 @@ func (s *Server) handleLeaveGroup(w http.ResponseWriter, r *http.Request, device
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// toMembership is what the client is handed for one group.
-//
-// The invite code goes only to the owner. Everyone else is a member of a group
-// they cannot hand out, and the server is what decides that rather than the app
+// toMembership is what the client is handed for one group. The invite code goes
+// only to the owner, and the server is what decides that rather than the app
 // choosing not to draw a button.
 func toMembership(m storage.Membership) api.Membership {
 	code := ""

@@ -27,8 +27,7 @@ const (
 	MethodGetGroups   Method = "GetGroups"
 	MethodCreateGroup Method = "CreateGroup"
 	MethodJoinGroup   Method = "JoinGroup"
-	// MethodGetInvite says what a code opens without joining it, so the screen
-	// can name the group before anybody commits to it.
+	// MethodGetInvite says what a code opens without joining it.
 	MethodGetInvite   Method = "GetInvite"
 	MethodLeaveGroup  Method = "LeaveGroup"
 	MethodConnect     Method = "ConnectGroup"
@@ -45,8 +44,7 @@ const (
 	MethodRemoveMember       Method = "RemoveMember"
 	MethodRenameGroup        Method = "RenameGroup"
 	MethodSetGroupAppearance Method = "SetGroupAppearance"
-	// MethodResetInvite replaces a group's code, retiring the one that was
-	// given out. It is what makes handing a code to somebody safe.
+	// MethodResetInvite replaces a group's code. The old one stops working.
 	MethodResetInvite       Method = "ResetInvite"
 	MethodTransferOwnership Method = "TransferOwnership"
 	MethodDeleteGroup       Method = "DeleteGroup"

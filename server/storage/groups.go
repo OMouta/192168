@@ -22,8 +22,7 @@ type Group struct {
 	Icon   string
 	Color  string
 	Subnet string
-	// InviteCode is the group's way in. Every group has one, and it is the
-	// owner's to give out and to throw away.
+	// InviteCode is the group's way in. Every group has one.
 	InviteCode string
 	CreatedAt  time.Time
 }
@@ -34,7 +33,7 @@ type Role string
 const (
 	// RoleMember can use the group and change nothing about it.
 	RoleMember Role = "member"
-	// RoleOwner can rename it, change its password, and remove people.
+	// RoleOwner can rename it, replace its invite code, and remove people.
 	RoleOwner Role = "owner"
 )
 
@@ -52,8 +51,7 @@ type Membership struct {
 	Role      Role
 	CreatedAt time.Time
 
-	// InviteCode is the group's, carried here because the client is handed a
-	// membership and has to know what to offer the owner of it.
+	// InviteCode is the group's, carried here so the API can hand it to owners.
 	InviteCode string
 
 	// OnlineMembers is how many of the group are connected right now, counting
@@ -71,8 +69,8 @@ func (s *Store) CreateGroup(ctx context.Context, g Group, deviceID string) (Memb
 	}
 	defer tx.Rollback()
 
-	// A group without a way in would be one nobody else could reach, so the
-	// code is part of making one rather than a step after it.
+	// Part of creating the group, not a step after it: a group without a code
+	// is one nobody else can reach.
 	code, err := freeInviteCode(ctx, tx)
 	if err != nil {
 		return Membership{}, err
@@ -132,8 +130,8 @@ func (s *Store) scanGroup(row *sql.Row) (Group, error) {
 // picks the old membership back up, so leaving and coming back does not leave a
 // stale row in the way.
 //
-// Being removed is different from leaving, and does not come back: a removed
-// device still knows the name and the password, so if joining undid it then
+// Being removed is different from leaving, and does not come back. A removed
+// device still holds the invite code, so if using it undid the removal then
 // removing anybody would mean nothing.
 func (s *Store) AddMembership(ctx context.Context, g Group, deviceID string) (Membership, error) {
 	tx, err := s.db.BeginTx(ctx, nil)

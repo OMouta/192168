@@ -28,11 +28,10 @@ type Identity struct {
 	// DeviceID names this installation to the server. It is random rather than
 	// derived from anything about the machine.
 	DeviceID string
-	// Name is the machine's own name, which nobody chose.
+	// Name is the machine's own name.
 	Name string
-	// Nickname is what the person wants to be called, and what the rest of a
-	// group sees. The server holds the real one; this is a copy, so the app can
-	// say who you are before it has reached anything.
+	// Nickname is what the person picked, and what the rest of a group sees. The
+	// server holds the real one; this is a copy for when it is unreachable.
 	Nickname string
 	// Signing proves the device holds its identity key, which is what makes
 	// registration trustworthy. It signs nothing else.
@@ -150,9 +149,7 @@ func create(dir string) (*Identity, error) {
 		name = "unknown"
 	}
 
-	// Until somebody says otherwise, the machine's name is what to call the
-	// person at it. It is a guess, but it is a better first impression than an
-	// empty space where a name should be.
+	// A guess until somebody picks one, and better than a blank name.
 	id := &Identity{
 		DeviceID:  deviceID,
 		Name:      name,

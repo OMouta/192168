@@ -74,9 +74,8 @@ public sealed partial class GroupListItem : ObservableObject
     public partial bool IsOwner { get; set; }
 
     /// <summary>
-    /// The link that lets somebody into this group, empty unless this device
-    /// owns it. Handing out access is the owner's, and the server decides that
-    /// rather than the row choosing what to draw.
+    /// The link into this group, empty unless this device owns it. The server
+    /// decides that, not the row.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanInvite))]
@@ -439,8 +438,7 @@ public sealed partial class HomeViewModel : ObservableObject
     /// Asks whether to leave, in the row itself.
     ///
     /// The daemon never stores an invite, so getting back in means being sent
-    /// another one. That is worth a question, and the answer names the group so
-    /// it is clear which one is going.
+    /// another one. Worth a question, and the answer names the group.
     /// </summary>
     [RelayCommand]
     public void StartLeaving(GroupListItem? item)
@@ -473,9 +471,8 @@ public sealed partial class HomeViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Puts a group's invite on the clipboard, from its row on the list. It is
-    /// the thing an owner does most often, and it is not worth a trip through
-    /// the settings screen.
+    /// Puts a group's invite on the clipboard, from its row. The common case, and
+    /// not worth a trip through settings.
     /// </summary>
     public void CopyInvite(GroupListItem group)
     {

@@ -7,11 +7,8 @@ using Windows.ApplicationModel.DataTransfer;
 namespace Net192168.Client.ViewModels;
 
 /// <summary>
-/// The create and join screen.
-///
-/// Creating asks for a name and a look, and ends holding the link to send
-/// people. Joining asks for the invite somebody sent, and says what it opens
-/// before anybody commits to it.
+/// The create and join screen. Creating asks for a name and a look, then ends on
+/// the link. Joining asks for an invite and names what it opens.
 /// </summary>
 public sealed partial class GroupViewModel : ObservableObject
 {
@@ -19,15 +16,12 @@ public sealed partial class GroupViewModel : ObservableObject
     private readonly bool _creating;
 
     /// <summary>
-    /// Waits out the typing before asking the server what an invite opens.
-    ///
-    /// Pasting a link is one change; typing a code is eight, seven of which
-    /// open nothing. Without this the screen would flicker through seven
-    /// failures on the way to an answer.
+    /// Waits out the typing before asking what an invite opens. Typing a code is
+    /// eight changes, seven of which open nothing.
     /// </summary>
     private readonly DispatcherQueueTimer? _lookUp;
 
-    /// <summary>Clears the copied tick, so the button goes back to offering.</summary>
+    /// <summary>Puts the copy button back after its tick.</summary>
     private readonly DispatcherQueueTimer? _copyFeedback;
 
     public GroupViewModel(Daemon daemon, bool creating)
@@ -66,7 +60,7 @@ public sealed partial class GroupViewModel : ObservableObject
     public string SubmitLabel => _creating ? "Create" : "Join";
 
     public string Hint => _creating
-        ? "You will get a link to send the people you want in it."
+        ? "You will get a link to send people."
         : "Paste the link or code somebody sent you.";
 
     [ObservableProperty]
@@ -80,7 +74,7 @@ public sealed partial class GroupViewModel : ObservableObject
 
     partial void OnInviteChanged(string? value)
     {
-        // Whatever the last answer was, it described the previous text.
+        // The last answer described the previous text.
         Found = null;
         _lookUp?.Stop();
         if (!string.IsNullOrWhiteSpace(value))
@@ -90,9 +84,8 @@ public sealed partial class GroupViewModel : ObservableObject
     }
 
     /// <summary>
-    /// What the invite opens, once the server has been asked. Null while nothing
-    /// has been typed, while the answer is still coming, and for an invite that
-    /// opens nothing.
+    /// What the invite opens. Null before anything is typed, while the answer is
+    /// still coming, and for an invite that opens nothing.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasFound))]
@@ -109,10 +102,7 @@ public sealed partial class GroupViewModel : ObservableObject
 
     public string FoundMembers => Found is null ? "" : Members(Found.Members);
 
-    /// <summary>
-    /// The link to the group that was just made, which is the whole point of
-    /// having made it. Null until then.
-    /// </summary>
+    /// <summary>The link to the group that was just made. Null until then.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDone))]
     [NotifyPropertyChangedFor(nameof(IsNotDone))]
@@ -131,9 +121,8 @@ public sealed partial class GroupViewModel : ObservableObject
     public partial bool JustCopied { get; set; }
 
     /// <summary>
-    /// What went wrong, shown under the form. The screen stays put when this
-    /// fails, because the fix is usually a character of the invite and re-typing
-    /// it all would be a punishment.
+    /// What went wrong, shown under the form. The screen stays put, since the fix
+    /// is usually one character.
     /// </summary>
     [ObservableProperty]
     public partial string? Error { get; set; }
@@ -150,9 +139,7 @@ public sealed partial class GroupViewModel : ObservableObject
         ? (GroupName ?? "").Trim().Length > 0
         : (Invite ?? "").Trim().Length > 0);
 
-    /// <summary>
-    /// Creates or joins.
-    /// </summary>
+    /// <summary>Creates or joins.</summary>
     /// <returns>Whether the screen is finished with. Creating is not: it has a
     /// link to hand over first.</returns>
     public async Task<bool> SubmitAsync()
@@ -166,7 +153,7 @@ public sealed partial class GroupViewModel : ObservableObject
                 var group = await _daemon.CreateGroupAsync(
                     (GroupName ?? "").Trim(), Appearance.Icon.Key, Appearance.Color.Key);
                 // A server that did not say where its links live still gives a
-                // code, and a code is enough to send somebody.
+                // code, and a code is enough to send.
                 Link = group.InviteLink.Length > 0 ? group.InviteLink : group.InviteCode;
                 return false;
             }
@@ -185,8 +172,7 @@ public sealed partial class GroupViewModel : ObservableObject
         }
     }
 
-    /// <summary>Puts the new group's link on the clipboard, which is the one
-    /// thing worth doing on this screen.</summary>
+    /// <summary>Puts the new group's link on the clipboard.</summary>
     [RelayCommand]
     public void CopyLink()
     {
@@ -204,10 +190,8 @@ public sealed partial class GroupViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Asks the server what the current invite opens. Failing is quiet: the
-    /// screen simply does not name a group, which is how it looks before
-    /// anything has been typed. Joining is where a bad invite gets said out
-    /// loud, because that is where somebody asked for an answer.
+    /// Asks what the current invite opens. Failing is quiet: the screen just does
+    /// not name a group. Joining is where a bad invite is reported.
     /// </summary>
     private async Task LookUpInviteAsync()
     {
@@ -220,7 +204,7 @@ public sealed partial class GroupViewModel : ObservableObject
         try
         {
             var found = await _daemon.GetInviteAsync(asked);
-            // The text may have moved on while the server was answering.
+            // The text may have moved on while the server answered.
             if (found.Found && asked == (Invite ?? "").Trim())
             {
                 Found = found;

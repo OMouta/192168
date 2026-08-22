@@ -102,9 +102,7 @@ public partial class App : Application
         _window = new MainWindow();
         _window.Closed += (_, _) => Daemon.Shutdown();
 
-        // An invite link opens the app straight onto the group it names, which
-        // is the difference between sending a friend a link and sending them
-        // instructions.
+        // An invite link opens the app on the group it names.
         var invite = InviteFromActivation(AppInstance.GetCurrent().GetActivatedEventArgs());
 
         // Started at sign-in, the tray icon is the whole UI until asked for more.
@@ -113,8 +111,8 @@ public partial class App : Application
             _window.Activate();
         }
 
-        // A link is somebody asking for the app, so it opens the window even
-        // when this launch was meant to stay in the tray.
+        // A link opens the window even when this launch was meant to stay in
+        // the tray.
         if (invite is not null)
         {
             _window.OpenInvite(invite);
@@ -122,10 +120,8 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// A link that arrived while the app was already running.
-    ///
-    /// It comes in on a background thread, because the instance that received
-    /// it is a different process handing it over.
+    /// A link that arrived while the app was already running. It comes in on a
+    /// background thread: a different process is handing it over.
     /// </summary>
     internal void OnRedirected(AppActivationArguments args)
     {
@@ -138,17 +134,15 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// The invite a launch carries, or null for an ordinary one.
-    ///
-    /// Unpackaged, a protocol launch arrives as an argument rather than as
-    /// protocol activation, so both shapes are read. Whether the string is
-    /// really an invite is the daemon's business, and this only has to tell a
-    /// link apart from a switch.
+    /// The invite a launch carries, or null for an ordinary one. Unpackaged, a
+    /// protocol launch can arrive as an argument rather than as protocol
+    /// activation, so both shapes are read. Whether the string is a real invite
+    /// is the daemon's problem.
     /// </summary>
     private static string? InviteFromActivation(AppActivationArguments? args)
     {
-        // Fully qualified: this namespace also has a LaunchActivatedEventArgs, and
-        // importing it would shadow the one OnLaunched is handed.
+        // Fully qualified. Importing this namespace would shadow the
+        // LaunchActivatedEventArgs OnLaunched is handed.
         if (args?.Data is Windows.ApplicationModel.Activation.IProtocolActivatedEventArgs protocol)
         {
             return protocol.Uri.AbsoluteUri;

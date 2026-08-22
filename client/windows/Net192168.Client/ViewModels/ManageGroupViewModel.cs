@@ -7,9 +7,8 @@ using Windows.ApplicationModel.DataTransfer;
 namespace Net192168.Client.ViewModels;
 
 /// <summary>
-/// What an owner can change about a group itself: what it is called, how it is
-/// shown, and the invite that lets the next person in. Who is in it is managed
-/// from the rows on the screen this came from, where the people are.
+/// What an owner can change about a group itself: its name, its look, and its
+/// invite. Who is in it is managed from the rows on the screen this came from.
 /// </summary>
 public sealed partial class ManageGroupViewModel : ObservableObject
 {
@@ -36,11 +35,7 @@ public sealed partial class ManageGroupViewModel : ObservableObject
         }
     }
 
-    /// <summary>
-    /// The link that lets somebody in. There is one per group and it does not
-    /// expire: if it reaches the wrong person, it is replaced rather than
-    /// managed.
-    /// </summary>
+    /// <summary>The link that lets somebody in. One per group, replaceable.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasInvite))]
     public partial string InviteLink { get; set; }
@@ -51,7 +46,7 @@ public sealed partial class ManageGroupViewModel : ObservableObject
     [ObservableProperty]
     public partial bool JustCopied { get; set; }
 
-    /// <summary>Puts the link on the clipboard, which is the whole of sharing it.</summary>
+    /// <summary>Puts the link on the clipboard.</summary>
     [RelayCommand]
     private void CopyInvite()
     {
@@ -69,9 +64,8 @@ public sealed partial class ManageGroupViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Draws a new link and retires the one that was given out. Applied at once
-    /// rather than on Save: the old link stops working the moment this is
-    /// pressed, and a Save that could undo it would be a lie.
+    /// Draws a new link and retires the old one. Applied on press rather than on
+    /// Save, because a Save that could undo it would be a lie.
     /// </summary>
     [RelayCommand]
     private async Task ResetInviteAsync()

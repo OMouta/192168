@@ -37,11 +37,7 @@
         <ScrollViewer Grid.Row="0">
             <StackPanel Margin="16,8,16,16" Spacing="20">
 
-                <!--
-                    First, because it is the only thing here about the person
-                    rather than the machine. One name covers every group, and it
-                    can be changed without being connected to one.
-                -->
+                <!--  First, and the only thing here about the person rather than the machine.  -->
                 <StackPanel Spacing="8">
                     <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Your name" />
 

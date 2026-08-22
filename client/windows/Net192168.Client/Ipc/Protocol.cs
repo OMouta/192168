@@ -71,8 +71,8 @@ public sealed record DaemonState
     /// the same way its row in the list was.</summary>
     public string? GroupIcon { get; init; }
     public string? GroupColor { get; init; }
-    /// <summary>What this device is called, in every group. It is there whether
-    /// or not one is connected.</summary>
+    /// <summary>What this device is called, in every group. Set whether or not
+    /// one is connected.</summary>
     public string? Nickname { get; init; }
     public string? VirtualIp { get; init; }
 
@@ -123,9 +123,8 @@ public sealed record Group
     public bool Active { get; init; }
     public int? OnlineMembers { get; init; }
 
-    /// <summary>The group's way in, and that code as the link to send somebody.
-    /// Both are empty unless this device owns the group: handing out access is
-    /// the owner's, and the server is what decides it.</summary>
+    /// <summary>The group's code, and that code as a link. Both empty unless
+    /// this device owns the group, which the server decides.</summary>
     public string InviteCode { get; init; } = "";
     public string InviteLink { get; init; } = "";
 
@@ -164,16 +163,15 @@ public sealed record TestServerResult
 /// <summary>Creates a group, with the look it is made with.</summary>
 public sealed record CreateGroupParams(string Name, string Icon, string Color);
 
-/// <summary>Joins whichever group an invite opens. Code is whatever was pasted:
-/// a bare code, or the link it arrived in.</summary>
+/// <summary>Joins whichever group an invite opens. Code is whatever was pasted,
+/// bare or as a link.</summary>
 public sealed record JoinGroupParams(string Code);
 
 /// <summary>Asks what a code opens without acting on it.</summary>
 public sealed record InviteParams(string Code);
 
-/// <summary>What an invite opens, for the screen deciding whether to take it.
-/// Found is false for a code that opens nothing, which is an answer rather than
-/// a failure: somebody mid-paste has an invalid code for a keystroke or two.</summary>
+/// <summary>What an invite opens. Found is false for a code that opens nothing,
+/// which is an answer rather than an error: half-typed codes are invalid.</summary>
 public sealed record InviteResult
 {
     public bool Found { get; init; }
@@ -184,8 +182,7 @@ public sealed record InviteResult
     public int Members { get; init; }
 }
 
-/// <summary>A group's code after it has been replaced, with the link that now
-/// leads to it.</summary>
+/// <summary>A group's new code, and the link to it.</summary>
 public sealed record InviteCodeResult
 {
     public string Code { get; init; } = "";

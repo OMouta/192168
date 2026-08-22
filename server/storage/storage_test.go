@@ -540,8 +540,7 @@ func TestNicknameFollowsTheDeviceIntoEveryGroup(t *testing.T) {
 		t.Fatalf("SetDeviceNickname: %v", err)
 	}
 
-	// One rename, and it is true in both groups rather than the one it was
-	// asked for.
+	// One rename, true in both groups.
 	for _, g := range []Group{friday, beamng} {
 		members, err := s.Members(ctx, g.ID)
 		if err != nil {
@@ -568,8 +567,8 @@ func TestRegisteringAgainKeepsAChosenNickname(t *testing.T) {
 		t.Fatalf("SetDeviceNickname: %v", err)
 	}
 
-	// A reinstall registers again and offers the machine name once more. It is
-	// a fallback for a device with no name, not an instruction.
+	// A reinstall offers the machine name again. It is a fallback, not an
+	// instruction.
 	token, err := s.RegisterDevice(ctx, d)
 	if err != nil {
 		t.Fatalf("RegisterDevice again: %v", err)
@@ -592,8 +591,7 @@ func TestConnectedGroupIDsIsWhereARenameHasToReach(t *testing.T) {
 	if _, err := s.CreateSession(ctx, m); err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	// A group this device belongs to but is not connected in has nobody to
-	// tell.
+	// A group it belongs to but is not connected in has nobody to tell.
 	newGroup(t, s, "dev_1", "beamng")
 
 	ids, err := s.ConnectedGroupIDs(ctx, "dev_1")

@@ -13,10 +13,8 @@ import (
 
 // Device is one installation.
 //
-// Name is the machine's own name, which the device registers with and nobody
-// chooses. Nickname is what the person wants to be called, and it is what the
-// rest of a group sees. It sits here rather than on each membership, so
-// somebody is the same person in every group they turn up in.
+// Name is the machine's own name. Nickname is what the person picked, and it is
+// what the rest of a group sees. One per device, not one per membership.
 type Device struct {
 	ID           string
 	PublicKey    string
@@ -31,8 +29,8 @@ type Device struct {
 // device ID that already exists updates its keys and name, so reinstalling over
 // an existing identity works instead of colliding.
 //
-// The nickname is a seed rather than an assignment. Registering again must not
-// undo a name somebody chose, so it only lands on a device that has none.
+// The nickname is a seed, not an assignment: it only lands on a device with
+// none, so registering again does not undo a chosen name.
 //
 // The returned token is the only time the plaintext exists on this side.
 func (s *Store) RegisterDevice(ctx context.Context, d Device) (token string, err error) {
@@ -125,11 +123,8 @@ func (s *Store) SetDeviceNickname(ctx context.Context, deviceID, nickname string
 	return nil
 }
 
-// ConnectedGroupIDs is every group this device has a live session in.
-//
-// A nickname belongs to the device, so changing it has to reach each group that
-// can currently see this person rather than one of them. In practice there is
-// never more than one, since only one group can be connected at a time.
+// ConnectedGroupIDs is every group this device has a live session in. A rename
+// is broadcast to each of them. In practice there is at most one.
 func (s *Store) ConnectedGroupIDs(ctx context.Context, deviceID string) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT DISTINCT s.group_id

@@ -29,15 +29,15 @@ public static class ErrorCopy
 
     private static string? Copy(DaemonException error, ErrorContext context) => error.Code switch
     {
-        // A code that was never good, one that has been replaced, and one for a
-        // group this device was removed from are answered identically on
-        // purpose. The copy has to keep that promise.
-        "invite_invalid" => "That invite is not good any more. Ask for a new one.",
+        // A code that never existed, one that was replaced, and one for a group
+        // this device was removed from are answered identically on purpose. The
+        // copy has to keep that promise.
+        "invite_invalid" => "That invite no longer works. Ask for a new one.",
 
         // Reached by connecting to or leaving a group this device was removed
         // from, which reads as the group being gone.
         "group_not_found" => context == ErrorContext.Join
-            ? "That invite is not good any more. Ask for a new one."
+            ? "That invite no longer works. Ask for a new one."
             : "You are not in that group any more.",
 
         "membership_revoked" => "You were removed from that group.",

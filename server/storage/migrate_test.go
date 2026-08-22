@@ -8,19 +8,17 @@ import (
 )
 
 // A database that predates invite codes and device nicknames has to come
-// through the migrations with its groups, its members, and their addresses
-// intact.
+// through with its groups, members, and addresses intact.
 //
-// Every other test starts from an empty file, which exercises the schema but
-// never the data. This is the case that only happens once, on somebody's real
-// server, where getting it wrong loses the thing the server is for.
+// Every other test starts from an empty file, which covers the schema and never
+// the data. This happens once, on a real server, and getting it wrong loses
+// what the server is for.
 func TestAnOlderDatabaseKeepsItsGroupsAndMembers(t *testing.T) {
 	ctx := t.Context()
 	path := filepath.Join(t.TempDir(), "old.db")
 
-	// Version 16 is the last schema before a nickname belonged to the device.
-	// Built by running the migrations of the day rather than by writing the
-	// schema out again, so this cannot drift from what was actually shipped.
+	// 16 is the last schema before a nickname belonged to the device. Built by
+	// running the migrations of the day, so it cannot drift from what shipped.
 	seedOldDatabase(t, ctx, path, 16)
 
 	s, err := Open(ctx, path)
@@ -29,7 +27,7 @@ func TestAnOlderDatabaseKeepsItsGroupsAndMembers(t *testing.T) {
 	}
 	t.Cleanup(func() { s.Close() })
 
-	// The group survived, with its look, and it has a code it never had before.
+	// The group survived with its look, and gained a code.
 	group, err := s.GroupByID(ctx, "grp_1")
 	if err != nil {
 		t.Fatalf("GroupByID: %v", err)
@@ -44,8 +42,8 @@ func TestAnOlderDatabaseKeepsItsGroupsAndMembers(t *testing.T) {
 		t.Errorf("the minted code does not open the group: %v", err)
 	}
 
-	// Both members are still in it, at the addresses they had, and each answers
-	// to the name they last used rather than to their machine name.
+	// Both members are still in, at the addresses they had, under the name they
+	// last used.
 	members, err := s.Members(ctx, "grp_1")
 	if err != nil {
 		t.Fatalf("Members: %v", err)
@@ -64,8 +62,7 @@ func TestAnOlderDatabaseKeepsItsGroupsAndMembers(t *testing.T) {
 		t.Errorf("dev_2 = %+v", got)
 	}
 
-	// A device that never joined anything falls back to its machine name, since
-	// there was no other name to take.
+	// Nothing to take a name from, so it falls back to the machine name.
 	third, err := s.DeviceByToken(ctx, "token-3")
 	if err != nil {
 		t.Fatalf("DeviceByToken: %v", err)
@@ -74,14 +71,14 @@ func TestAnOlderDatabaseKeepsItsGroupsAndMembers(t *testing.T) {
 		t.Errorf("nickname = %q, want the machine name", third.Nickname)
 	}
 
-	// Two groups can share a name now, which the rebuilt table has to allow.
+	// The rebuilt table has to allow two groups with one name.
 	if _, err := s.CreateGroup(ctx, Group{ID: "grp_2", Name: "Friday Night", Subnet: "10.69.0.0/24"}, "dev_1"); err != nil {
 		t.Errorf("a second Friday Night: %v", err)
 	}
 }
 
-// seedOldDatabase builds a database at an earlier schema version, with the kind
-// of rows a real one would have by then.
+// seedOldDatabase builds a database at an earlier schema version, with the rows
+// a real one would have by then.
 func seedOldDatabase(t *testing.T, ctx context.Context, path string, version int) {
 	t.Helper()
 

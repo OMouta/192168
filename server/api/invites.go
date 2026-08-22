@@ -12,10 +12,9 @@ import (
 
 // handleJoinByCode puts the caller in whichever group a code opens.
 //
-// Every way this can fail gets the same answer. A code that never existed, one
-// that has been replaced, and one belonging to a group this device was removed
-// from are indistinguishable from outside, so none of them is a way to learn
-// anything.
+// Every failure gets the same answer. A code that never existed, one that has
+// been replaced, and one for a group this device was removed from all look
+// alike from outside.
 func (s *Server) handleJoinByCode(w http.ResponseWriter, r *http.Request, device storage.Device) {
 	var req api.JoinByCodeRequest
 	if !decode(w, r, &req) {
@@ -34,7 +33,7 @@ func (s *Server) handleJoinByCode(w http.ResponseWriter, r *http.Request, device
 
 	group, err := s.store.GroupByInviteCode(r.Context(), code)
 	if errors.Is(err, storage.ErrNotFound) {
-		writeError(w, http.StatusForbidden, api.ErrInviteInvalid, "That invite is not good any more.")
+		writeError(w, http.StatusForbidden, api.ErrInviteInvalid, "That invite no longer works.")
 		return
 	}
 	if err != nil {
@@ -44,7 +43,7 @@ func (s *Server) handleJoinByCode(w http.ResponseWriter, r *http.Request, device
 
 	membership, err := s.store.AddMembership(r.Context(), group, device.ID)
 	if errors.Is(err, storage.ErrBanned) {
-		writeError(w, http.StatusForbidden, api.ErrInviteInvalid, "That invite is not good any more.")
+		writeError(w, http.StatusForbidden, api.ErrInviteInvalid, "That invite no longer works.")
 		return
 	}
 	if err != nil {
@@ -56,13 +55,11 @@ func (s *Server) handleJoinByCode(w http.ResponseWriter, r *http.Request, device
 	writeJSON(w, http.StatusOK, toMembership(membership))
 }
 
-// handleInvite says what a code opens, without joining anything.
-//
-// It takes no token: the landing page a link opens has none, and the app uses
-// it to show what is about to be joined. Holding the code is the whole of the
-// authorization, which is what a code is for.
+// handleInvite says what a code opens, without joining anything. No token: the
+// landing page a link opens has none, and holding the code is the
+// authorization.
 func (s *Server) handleInvite(w http.ResponseWriter, r *http.Request) {
-	// Unauthenticated and cheap to ask, so it is limited like joining is.
+	// Unauthenticated, so it shares the join limiter.
 	if !s.joins.allow(clientIP(r)) {
 		writeError(w, http.StatusTooManyRequests, api.ErrRateLimited, "Too many attempts. Wait a moment and try again.")
 		return
@@ -70,7 +67,7 @@ func (s *Server) handleInvite(w http.ResponseWriter, r *http.Request) {
 
 	found, err := s.findInvite(r.Context(), r.PathValue("code"))
 	if errors.Is(err, storage.ErrNotFound) {
-		writeError(w, http.StatusNotFound, api.ErrInviteInvalid, "That invite is not good any more.")
+		writeError(w, http.StatusNotFound, api.ErrInviteInvalid, "That invite no longer works.")
 		return
 	}
 	if err != nil {
@@ -80,8 +77,8 @@ func (s *Server) handleInvite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, found)
 }
 
-// findInvite resolves a code to what it opens. The API and the page a link
-// opens share it, so an invalid code means the same thing either way.
+// findInvite resolves a code to what it opens. The API and the landing page
+// share it, so a bad code means the same thing to both.
 func (s *Server) findInvite(ctx context.Context, raw string) (api.Invite, error) {
 	code := invite.Parse(raw)
 	if code == "" {
@@ -106,8 +103,7 @@ func (s *Server) findInvite(ctx context.Context, raw string) (api.Invite, error)
 	}, nil
 }
 
-// handleResetInvite replaces a group's code, which is what makes handing one
-// out safe: a code that reached the wrong person stops working.
+// handleResetInvite replaces a group's code. The old one stops working.
 func (s *Server) handleResetInvite(w http.ResponseWriter, r *http.Request, device storage.Device) {
 	groupID := r.PathValue("groupId")
 

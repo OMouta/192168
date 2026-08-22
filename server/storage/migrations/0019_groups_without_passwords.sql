@@ -1,9 +1,7 @@
--- A code is the way into a group now, so the password is gone and with it the
--- reason group names had to be unique. Two sets of friends can both have a
--- Friday Night.
+-- A code is the way into a group now. The password is gone, and with it the
+-- reason names had to be unique.
 --
--- Rebuilt rather than altered, because both of the things going away were part
--- of the table's own definition.
+-- Rebuilt rather than altered: both were part of the table's own definition.
 CREATE TABLE groups_new (
 	id                   TEXT PRIMARY KEY,
 	name                 TEXT NOT NULL,

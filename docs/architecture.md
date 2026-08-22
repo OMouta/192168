@@ -40,17 +40,17 @@ timestamp and a nonce. The server rejects anything stale or repeated and hands
 back a bearer token. Every later request carries that token.
 
 A group has no secret of its own. Getting into one means holding its invite
-code: eight characters, forty bits, drawn at random and stored as it is. There
-is nothing to derive and nothing to verify, only a lookup.
+code: eight characters, 40 bits, random, stored as it is. Nothing is derived and
+nothing is verified. It is a lookup.
 
-That is worth being plain about. A code is a bearer token for a group, so
-anybody who sees one is in. It is guarded by being unguessable rather than by
-being checked: joining is rate limited per caller, forty bits is far beyond what
-that allows, and the control plane refuses anything but TLS.
+So a code is a bearer token for a group. Anybody who sees one is in. What guards
+it is that it cannot be guessed, not that it is checked: joins are rate limited
+per caller, 40 bits is far past what that allows, and the control plane refuses
+anything but TLS.
 
 What makes it safe to hand out is that it can be taken back. One code per group,
-replaceable by the owner, and replacing it retires the old one at once. A device
-removed from a group stays removed whether or not it still holds a code.
+the owner can replace it, and replacing retires the old one at once. Removal
+sticks whether or not the device still holds a code.
 
 There is no membership credential. The token identifies the device and the
 server knows its groups. Revoking a membership is a row on the server, so it

@@ -50,9 +50,9 @@ func New(cfg config.Config, store *storage.Store, log *slog.Logger) *Server {
 		store: store,
 		log:   log,
 		hub:   realtime.NewHub(log),
-		// Group passwords are the weakest secret in the system, so guessing at
-		// them has to be slow. Registration is limited too, since it is the one
-		// unauthenticated write.
+		// An invite code is all it takes to get into a group, so guessing at one
+		// has to be slow. Registration is limited too, as the one unauthenticated
+		// write.
 		joins:   newRateLimiter(10, time.Minute),
 		devices: newRateLimiter(20, time.Minute),
 	}
@@ -61,8 +61,8 @@ func New(cfg config.Config, store *storage.Store, log *slog.Logger) *Server {
 	mux.HandleFunc("GET "+protocol.WellKnownPath, s.handleDiscovery)
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 
-	// No token: whoever holds the code is who this is for, and the page a link
-	// opens has nothing else to identify itself with.
+	// No token: holding the code is the authorization, and the landing page has
+	// nothing else to identify itself with.
 	mux.HandleFunc("GET /api/invites/{code}", s.handleInvite)
 	mux.HandleFunc("GET "+invite.Path+"{code}", s.handleInvitePage)
 

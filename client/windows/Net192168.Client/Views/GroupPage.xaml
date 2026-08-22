@@ -59,14 +59,10 @@
                 <TextBox
                     x:Name="InviteBox"
                     Header="Invite"
-                    PlaceholderText="192168.lol/join/…"
+                    PlaceholderText="192168.lol/join/..."
                     Text="{x:Bind ViewModel.Invite, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                <!--
-                    What the invite opens, before agreeing to join it. Being put
-                    on somebody's network is worth seeing the name of first, and
-                    it is also how a mistyped code shows itself.
-                -->
+                <!--  What the invite opens, before agreeing to it. A mistyped code shows itself here.  -->
                 <Border
                     Padding="12,10"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -114,11 +110,7 @@
                 TextWrapping="Wrap" />
         </StackPanel>
 
-        <!--
-            The group exists, and the only thing left worth doing is sending the
-            link. It gets the screen rather than a line under a form, because
-            this is the moment the product is for.
-        -->
+        <!--  The group exists. Sending the link is all that is left.  -->
         <StackPanel
             Grid.Row="0"
             Margin="16,8,16,0"

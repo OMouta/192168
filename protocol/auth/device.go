@@ -1,11 +1,10 @@
 // Package auth defines how a device proves who it is.
 //
-// A device signs its registration with the private half of a key pair that
-// never leaves the machine, which is what makes the registration trustworthy.
-// After that it carries a bearer token.
+// A device signs its registration with a private key that never leaves the
+// machine. After that it carries a bearer token.
 //
 // Groups have no secret of their own. Getting into one means holding its invite
-// code, and a code is checked by looking it up rather than by proving anything.
+// code, which the server looks up rather than verifies.
 package auth
 
 import (

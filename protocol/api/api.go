@@ -14,8 +14,7 @@ type Discovery struct {
 	Realtime string   `json:"realtime"`
 	STUN     []string `json:"stun"`
 	// Invite is where this server serves invite links, ending in a slash. A
-	// code goes on the end of it and the result is what somebody sends a
-	// friend, so a self-hosted instance hands out links to itself.
+	// code goes on the end. Empty from a server that predates them.
 	Invite   string   `json:"invite,omitempty"`
 	Relay    *string  `json:"relay"`
 	Features Features `json:"features"`
@@ -55,16 +54,14 @@ type RegisterDeviceResponse struct {
 	DeviceToken string `json:"deviceToken"`
 }
 
-// Me is what the calling device is, which is currently the name it goes by.
-// A client that has lost its local copy asks here rather than falling back to
-// the machine's own name.
+// Me is what the calling device is: for now, the name it goes by. A client
+// that has lost its local copy reads it back from here.
 type Me struct {
 	DeviceID string `json:"deviceId"`
 	Nickname string `json:"nickname"`
 }
 
-// SetNicknameRequest changes what this device is called. One name covers every
-// group: somebody is the same person wherever they turn up.
+// SetNicknameRequest changes what this device is called, in every group.
 type SetNicknameRequest struct {
 	Nickname string `json:"nickname"`
 }
@@ -89,15 +86,14 @@ type JoinGroupRequest struct {
 	PasswordProof string `json:"passwordProof"`
 }
 
-// JoinByCodeRequest joins whichever group an invite code opens. The device
-// token says who is asking, so the code is the whole of it.
+// JoinByCodeRequest joins whichever group a code opens. The device token says
+// who is asking, so the code is the whole body.
 type JoinByCodeRequest struct {
 	Code string `json:"code"`
 }
 
-// Invite is what a code says about the group behind it, before anybody commits
-// to joining. It is the one thing served without a token: holding the code is
-// what makes it yours to see.
+// Invite is what a code opens, shown before anybody joins. It is served
+// without a token, because holding the code is the authorization.
 type Invite struct {
 	Code       string `json:"code"`
 	GroupName  string `json:"groupName"`
@@ -131,8 +127,7 @@ type Membership struct {
 	Subnet       string `json:"subnet"`
 	VirtualIP    string `json:"virtualIp"`
 	Role         string `json:"role"`
-	// InviteCode is the group's way in, sent only to its owner. Everybody else
-	// gets nothing here, because handing out access is not theirs to do.
+	// InviteCode is sent only to the group's owner. Empty for everybody else.
 	InviteCode string `json:"inviteCode,omitempty"`
 	// OnlineMembers is how many of the group are connected, counting this
 	// device. Absent where the server was not asked to count, which is not the

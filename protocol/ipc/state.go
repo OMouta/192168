@@ -60,8 +60,8 @@ type State struct {
 	// row in the list wore.
 	GroupIcon  string `json:"groupIcon,omitempty"`
 	GroupColor string `json:"groupColor,omitempty"`
-	// Nickname is what this device is called, everywhere. It is here rather
-	// than on each group, and it is there whether or not one is connected.
+	// Nickname is what this device is called, everywhere. Set whether or not a
+	// group is connected.
 	Nickname  string `json:"nickname,omitempty"`
 	VirtualIP string `json:"virtualIp,omitempty"`
 	// IsOwner says whether this device runs the connected group, which is what
@@ -104,12 +104,11 @@ type Group struct {
 	Color         string `json:"color,omitempty"`
 	Active        bool   `json:"active"`
 	OnlineMembers *int   `json:"onlineMembers,omitempty"`
-	// InviteCode is the group's way in, and it is only here for a group this
-	// device owns. The server decides that, not the app.
+	// InviteCode is only here for a group this device owns. The server decides
+	// that, not the app.
 	InviteCode string `json:"inviteCode,omitempty"`
-	// InviteLink is that code as the address to send somebody, which is the
-	// thing an owner actually shares. Empty where the server did not say where
-	// its links live.
+	// InviteLink is that code as an address. Empty if the server did not say
+	// where its links live.
 	InviteLink string `json:"inviteLink,omitempty"`
 	// IsOwner marks the groups this device runs, so the list says which are
 	// yours to change and which you are only in.

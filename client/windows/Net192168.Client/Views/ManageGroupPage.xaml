@@ -98,12 +98,7 @@
                         IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource NotBoolean}}" />
                 </Grid>
 
-                <!--
-                    The one thing here worth saying, because everybody expects
-                    the other. An invite is checked when somebody joins and
-                    never again, so a new one stops the next person and moves
-                    nobody already in.
-                -->
+                <!--  Everybody expects the other, so this is worth saying.  -->
                 <TextBlock
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     Style="{StaticResource CaptionTextBlockStyle}"

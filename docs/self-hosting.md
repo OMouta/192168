@@ -57,8 +57,7 @@ and clients will be sent to an address that does not answer.
 Game traffic never touches it. The server hands out addresses and says who is
 online, so a group of six is a few requests an hour and one WebSocket each.
 
-It stores one invite code per group. There are no group passwords: a code is
-what lets somebody in, and the owner can replace it.
+It stores one invite code per group. There are no group passwords.
 
 If it goes down, games already running keep going. Nobody new can connect until
 it is back.

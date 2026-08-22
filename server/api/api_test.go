@@ -107,8 +107,7 @@ func register(t *testing.T, h http.Handler, id string) device {
 	return device{id: id, token: res.DeviceToken}
 }
 
-// joinByCode is how everybody gets into a group: one code, and nothing else to
-// be told.
+// joinByCode is how everybody gets into a group.
 func joinByCode(t *testing.T, h http.Handler, d device, code string) papi.Membership {
 	t.Helper()
 	var m papi.Membership
@@ -120,8 +119,8 @@ func joinByCode(t *testing.T, h http.Handler, d device, code string) papi.Member
 	return m
 }
 
-// name picks what a device is called. It is the device that carries a name, so
-// this is a call of its own rather than a field on a join.
+// name picks what a device is called. The device carries it, so this is a call
+// of its own rather than a field on a join.
 func name(t *testing.T, h http.Handler, d device, nickname string) {
 	t.Helper()
 	if code := call(t, h, http.MethodPut, "/api/me/nickname", d.token, papi.SetNicknameRequest{
@@ -322,8 +321,8 @@ func TestGroupAndSessionFlow(t *testing.T) {
 	}
 }
 
-// Two sets of friends can both have a Friday Night. The name stopped being
-// how anybody finds a group when the invite code took over.
+// Two sets of friends can both have a Friday Night, now that the name is not
+// how anybody finds a group.
 func TestTwoGroupsCanShareAName(t *testing.T) {
 	h := newTestServer(t)
 	host := register(t, h, "dev_host")
@@ -564,9 +563,7 @@ func setUpGroup(t *testing.T, h *Server) (owner, member device, groupID, code st
 	return owner, member, created.GroupID, created.InviteCode
 }
 
-// Removing somebody has to keep them out. They still hold the invite code, so
-// if using it again undid the removal then removing anybody would mean nothing
-// at all.
+// Removing somebody has to keep them out. They still hold the invite code.
 func TestARemovedMemberCannotJoinAgain(t *testing.T) {
 	h := newTestServer(t)
 	owner, member, groupID, code := setUpGroup(t, h)
@@ -584,8 +581,7 @@ func TestARemovedMemberCannotJoinAgain(t *testing.T) {
 		t.Fatalf("members = %+v, want only the owner", members.Members)
 	}
 
-	// And the answer is the one an invented code gets, so being removed cannot
-	// be told apart from never having held a good code.
+	// Same answer an invented code gets, so the two cannot be told apart.
 	var removed papi.Error
 	status := call(t, h, http.MethodPost, "/api/groups/join-by-code", member.token, papi.JoinByCodeRequest{
 		Code: code,
@@ -748,13 +744,12 @@ func TestDeletingAGroupTakesEverythingWithIt(t *testing.T) {
 	}
 }
 
-// A name belongs to the person, so setting it once is enough and every group
-// they are in shows it.
+// Setting a name once is enough. Every group they are in shows it.
 func TestOneNicknameCoversEveryGroup(t *testing.T) {
 	h := newTestServer(t)
 	owner, member, friday, _ := setUpGroup(t, h)
 
-	// A second group, so there is more than one place the name could be wrong.
+	// A second group, so there is more than one place to be wrong.
 	var beamng papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups", owner.token, papi.CreateGroupRequest{
 		Name: "BeamNG",
@@ -790,8 +785,7 @@ func TestOneNicknameCoversEveryGroup(t *testing.T) {
 	}
 }
 
-// Until a device is named it answers to the machine it runs on, which is
-// better than an empty row where a person should be.
+// Until a device is named it answers to the machine it runs on.
 func TestAnUnnamedDeviceUsesItsMachineName(t *testing.T) {
 	h := newTestServer(t)
 	d := register(t, h, "dev_1")
@@ -816,8 +810,7 @@ func TestNicknameRejectsAnEmptyName(t *testing.T) {
 	}
 }
 
-// The whole point of a code: you send it to somebody and they are in, without
-// being told a group name or anything else.
+// The whole point of a code. Send it to somebody and they are in.
 func TestAnInviteCodeIsTheWayIn(t *testing.T) {
 	h := newTestServer(t)
 	owner := register(t, h, "dev_owner")
@@ -833,7 +826,7 @@ func TestAnInviteCodeIsTheWayIn(t *testing.T) {
 		t.Fatalf("invite code = %q", created.InviteCode)
 	}
 
-	// What the link shows before anybody commits to anything.
+	// What the link shows before anybody joins.
 	var preview papi.Invite
 	if code := call(t, h, http.MethodGet, "/api/invites/"+created.InviteCode, "", nil, &preview); code != http.StatusOK {
 		t.Fatalf("preview: status %d", code)
@@ -842,7 +835,7 @@ func TestAnInviteCodeIsTheWayIn(t *testing.T) {
 		t.Fatalf("preview = %+v", preview)
 	}
 
-	// Pasted with the link it arrived in, and shouted in capitals.
+	// Pasted as the link it arrived in, and shouted in capitals.
 	var joined papi.Membership
 	if code := call(t, h, http.MethodPost, "/api/groups/join-by-code", friend.token, papi.JoinByCodeRequest{
 		Code: "https://192168.lol/join/" + strings.ToUpper(created.InviteCode),
@@ -853,14 +846,13 @@ func TestAnInviteCodeIsTheWayIn(t *testing.T) {
 		t.Fatalf("joined = %+v", joined)
 	}
 
-	// The code is the owner's to give out, so it is the owner who is given it.
+	// Only the owner is handed the code.
 	if joined.InviteCode != "" {
 		t.Errorf("a member was handed the invite code: %q", joined.InviteCode)
 	}
 }
 
-// A code that has been replaced stops working, which is the only thing that
-// makes handing one out safe.
+// A replaced code stops working. That is what makes handing one out safe.
 func TestResettingACodeRetiresTheOldOne(t *testing.T) {
 	h := newTestServer(t)
 	owner, member, groupID, _ := setUpGroup(t, h)
@@ -872,8 +864,7 @@ func TestResettingACodeRetiresTheOldOne(t *testing.T) {
 	}
 	old := groups[0].InviteCode
 
-	// Only the owner. A member being able to hand out the group would make the
-	// owner's control over it a suggestion.
+	// Owner only. A member handing out the group would make owning it a label.
 	if code := call(t, h, http.MethodPost, "/api/groups/"+groupID+"/invite/reset", member.token, nil, nil); code != http.StatusForbidden {
 		t.Fatalf("member reset: status %d, want 403", code)
 	}
@@ -898,8 +889,7 @@ func TestResettingACodeRetiresTheOldOne(t *testing.T) {
 	}
 }
 
-// Being removed has to survive an invite, or removing anybody would mean
-// nothing while a code is in circulation.
+// Being removed has to survive an invite still being in circulation.
 func TestAnInviteDoesNotLetBackSomebodyWhoWasRemoved(t *testing.T) {
 	h := newTestServer(t)
 	owner, member, groupID, _ := setUpGroup(t, h)
@@ -917,8 +907,7 @@ func TestAnInviteDoesNotLetBackSomebodyWhoWasRemoved(t *testing.T) {
 	code := call(t, h, http.MethodPost, "/api/groups/join-by-code", member.token, papi.JoinByCodeRequest{
 		Code: groups[0].InviteCode,
 	}, &rejected)
-	// Word for word what an invented code gets, so being removed cannot be told
-	// apart from holding a code that was never good.
+	// Word for word what an invented code gets, so the two cannot be told apart.
 	if code != http.StatusForbidden || rejected.Code != papi.ErrInviteInvalid {
 		t.Fatalf("rejoin by code: status %d code %q", code, rejected.Code)
 	}
@@ -938,8 +927,8 @@ func TestAnInventedCodeSaysNothing(t *testing.T) {
 	}
 }
 
-// A link is what somebody actually sends, so opening one has to say what it is
-// for without the app installed and without a token.
+// A link is what somebody sends, so it has to say what it opens without the
+// app installed and without a token.
 func TestAnInviteLinkOpensAPage(t *testing.T) {
 	h := newTestServer(t)
 	owner := register(t, h, "dev_owner")
@@ -966,12 +955,12 @@ func TestAnInviteLinkOpensAPage(t *testing.T) {
 		}
 	}
 
-	// A code that opens nothing says so rather than showing an empty group.
+	// A code that opens nothing says so, rather than showing an empty group.
 	gone := getPage(t, h, invite.Path+"nosuchco")
 	if gone.status != http.StatusNotFound {
 		t.Errorf("status for an invented code = %d, want 404", gone.status)
 	}
-	if !strings.Contains(gone.body, "no longer good") {
+	if !strings.Contains(gone.body, "no longer works") {
 		t.Errorf("the page does not say the invite is dead: %s", gone.body)
 	}
 }

@@ -162,7 +162,7 @@ public sealed class Daemon
     public Task<InviteResult> GetInviteAsync(string code)
         => _client.CallAsync<InviteResult>("GetInvite", new InviteParams(code), _lifetime.Token);
 
-    /// <summary>Replaces a group's code, retiring the one that was given out.</summary>
+    /// <summary>Replaces a group's code. The old one stops working.</summary>
     public Task<InviteCodeResult> ResetInviteAsync(string groupId)
         => _client.CallAsync<InviteCodeResult>("ResetInvite", new GroupParams(groupId), _lifetime.Token);
 

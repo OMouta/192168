@@ -141,7 +141,7 @@ type NewGroup struct {
 }
 
 // CreateGroup creates a group and joins it. What comes back carries the invite
-// code, which is the thing worth doing next.
+// code.
 func (c *Client) CreateGroup(ctx context.Context, g NewGroup) (api.Membership, error) {
 	var m api.Membership
 	err := c.do(ctx, http.MethodPost, c.discovery.API+"/groups", api.CreateGroupRequest{
@@ -161,15 +161,14 @@ func (c *Client) JoinByCode(ctx context.Context, code string) (api.Membership, e
 	return m, err
 }
 
-// Invite says what a code opens, without joining it. It needs no token, so it
-// works before the app knows anything about the group behind the link.
+// Invite says what a code opens, without joining it. Needs no token.
 func (c *Client) Invite(ctx context.Context, code string) (api.Invite, error) {
 	var out api.Invite
 	err := c.do(ctx, http.MethodGet, c.discovery.API+"/invites/"+url.PathEscape(code), nil, &out)
 	return out, err
 }
 
-// ResetInvite replaces a group's code, retiring the one that was handed out.
+// ResetInvite replaces a group's code. The old one stops working.
 func (c *Client) ResetInvite(ctx context.Context, groupID string) (string, error) {
 	var out api.InviteCodeResponse
 	err := c.do(ctx, http.MethodPost, c.discovery.API+"/groups/"+groupID+"/invite/reset", nil, &out)
@@ -195,7 +194,7 @@ func (c *Client) LeaveGroup(ctx context.Context, groupID string) error {
 	return c.do(ctx, http.MethodDelete, c.discovery.API+"/groups/"+groupID+"/membership", nil, nil)
 }
 
-// Me is what the server says this device is, which is the name it goes by.
+// Me is what the server says this device is called.
 func (c *Client) Me(ctx context.Context) (api.Me, error) {
 	var me api.Me
 	err := c.do(ctx, http.MethodGet, c.discovery.API+"/me", nil, &me)

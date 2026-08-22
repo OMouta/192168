@@ -107,15 +107,13 @@ func (c *Core) ensureClient(ctx context.Context) (*control.Client, error) {
 	return client, nil
 }
 
-// adoptNickname takes the name the server holds for this device.
+// adoptNickname takes the name the server holds for this device. The server is
+// where the name lives; the copy on disk is so the app can say who you are
+// before reaching one.
 //
-// The server is where the name lives, and the copy on disk is only so the app
-// can say who you are before reaching one. They part company in exactly one
-// case: an app updating from when names were picked per group, where the server
-// has a name the person chose and this machine has nothing but a hostname.
-//
-// Failing is not worth stopping for. The local copy is what gets used, and the
-// worst of it is being shown a stale name.
+// They only disagree after an upgrade from per-group names, where the server has
+// a chosen name and this machine has a hostname. Failing here is not fatal: the
+// local copy stands and the worst of it is a stale name.
 func (c *Core) adoptNickname(ctx context.Context, client *control.Client) {
 	me, err := client.Me(ctx)
 	if err != nil {

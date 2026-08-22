@@ -9,17 +9,12 @@ import (
 )
 
 // handleMe reports what this device is called. A client that has lost its local
-// copy, which is what upgrading from per-group nicknames looks like, gets the
-// name back from here rather than reverting the person to their machine name.
+// copy reads the name back from here instead of falling back to the hostname.
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request, device storage.Device) {
 	writeJSON(w, http.StatusOK, api.Me{DeviceID: device.ID, Nickname: device.Nickname})
 }
 
 // handleSetNickname changes what this device is called, in every group at once.
-//
-// It also serves the old per-group route, which ignores the group in the path.
-// An older client renaming itself somewhere means the same thing it does here,
-// and refusing would break a working app for the sake of a URL.
 func (s *Server) handleSetNickname(w http.ResponseWriter, r *http.Request, device storage.Device) {
 	var req api.SetNicknameRequest
 	if !decode(w, r, &req) {
@@ -41,17 +36,13 @@ func (s *Server) handleSetNickname(w http.ResponseWriter, r *http.Request, devic
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// announceNickname tells everyone who can currently see this person that they
-// are called something else now. Without it the new name only arrived with the
-// next peer list, so everyone else kept the old one until they reconnected.
-//
-// A name is the device's, so this goes to every group the device is connected
-// in rather than to one of them.
+// announceNickname pushes a rename to everyone who can see this person now.
+// Without it the new name only arrived with the next peer list. A name belongs
+// to the device, so this goes to every group it is connected in.
 func (s *Server) announceNickname(r *http.Request, deviceID, nickname string) {
 	groupIDs, err := s.store.ConnectedGroupIDs(r.Context(), deviceID)
 	if err != nil {
-		// The rename itself worked. Telling the group is worth a log line and
-		// not worth failing a request that already took effect.
+		// The rename worked. Failing the request now would be a lie.
 		s.log.Error("could not announce a rename", "deviceId", deviceID, "error", err)
 		return
 	}

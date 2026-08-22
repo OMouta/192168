@@ -26,11 +26,11 @@ import (
 var ErrNotFound = errors.New("storage: not found")
 
 // ErrConflict is returned when a write loses a uniqueness race, such as two
-// devices creating the same group name at once.
+// devices registering the same public key.
 var ErrConflict = errors.New("storage: conflict")
 
 // ErrBanned is returned when a device that was removed from a group tries to
-// join it again. It knows the name and the password; that is the point.
+// join it again. It still holds the invite code; that is the point.
 var ErrBanned = errors.New("storage: removed from this group")
 
 // ErrForbidden is returned when a caller is a member but not allowed to do this
@@ -70,9 +70,9 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 		}
 	}
 
-	// Foreign keys stay off until the schema is settled, which is how SQLite
-	// says to change one. A migration that rebuilds a table drops the original,
-	// and dropping a parent with them on would take its children with it.
+	// Foreign keys stay off until the schema is settled, which is how SQLite says
+	// to change one. A migration that rebuilds a table drops the original, and
+	// dropping a parent with them on takes its children too.
 	s := &Store{db: db}
 	if err := s.migrate(ctx); err != nil {
 		db.Close()
@@ -90,9 +90,8 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 }
 
 // checkForeignKeys refuses to open a database whose references do not line up.
-// It is the other half of migrating with foreign keys off: a rebuild that left
-// something pointing at nothing should stop the server rather than surface
-// later as a group whose members have vanished.
+// The other half of migrating with foreign keys off: a rebuild that broke one
+// should stop the server, not show up later as a group with no members.
 func (s *Store) checkForeignKeys(ctx context.Context) error {
 	rows, err := s.db.QueryContext(ctx, "PRAGMA foreign_key_check")
 	if err != nil {

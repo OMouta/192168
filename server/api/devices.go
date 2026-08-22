@@ -53,9 +53,8 @@ func (s *Server) handleRegisterDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The machine's name is also the first thing to call the person behind it,
-	// so a device that has never been named answers to it until somebody says
-	// otherwise. Registering again leaves a chosen name alone.
+	// A device with no name yet answers to the machine it runs on. Registering
+	// again leaves a chosen name alone.
 	token, err := s.store.RegisterDevice(r.Context(), storage.Device{
 		ID:           req.DeviceID,
 		PublicKey:    req.PublicKey,

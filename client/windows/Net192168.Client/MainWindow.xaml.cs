@@ -179,11 +179,8 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Opens the join screen on a link somebody clicked.
-    ///
-    /// Joining is not done for them. Being put on somebody's network is worth
-    /// seeing the name of first, and the screen says whose group it is before
-    /// there is a button to agree with.
+    /// Opens the join screen on a link somebody clicked. It does not join for
+    /// them: the screen names the group first.
     /// </summary>
     public void OpenInvite(string invite)
     {

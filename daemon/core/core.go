@@ -48,9 +48,9 @@ type Core struct {
 
 	mu     sync.Mutex
 	client *control.Client
-	// inviteBase is where the current server says its invite links live. It is
-	// kept here because the app is handed links rather than codes, and a group
-	// list is drawn without a server call.
+	// inviteBase is where the current server says its invite links live. Kept
+	// here because the app is handed links, and the group list is built without
+	// a server call.
 	inviteBase string
 	state      ipc.State
 	peers      map[string]*ipc.PeerView
@@ -108,8 +108,8 @@ func New(ctx context.Context, id *identity.Identity, dataDir, defaultServer stri
 		state: ipc.State{
 			Connection: ipc.StateDisconnected,
 			ServerURL:  set.ServerURL,
-			// Who you are does not depend on being connected to anything, so
-			// the app can say it straight away and let you change it.
+			// Available before anything is connected, so the app can show it and
+			// let you change it.
 			Nickname: id.Nickname,
 			Peers:    []ipc.PeerView{},
 		},
@@ -193,10 +193,9 @@ func (c *Core) CreateGroup(ctx context.Context, params ipc.CreateGroupParams) (i
 	return toGroup(membership, false, c.inviteLinkBase()), nil
 }
 
-// JoinGroup joins whichever group an invite opens.
-//
-// The code is whatever was pasted, so a link is as good as a code. It is used
-// once here and never stored: the device token is what gets back in afterwards.
+// JoinGroup joins whichever group an invite opens. The code is whatever was
+// pasted, so a link works too. It is used once and never stored; the device
+// token is what gets back in afterwards.
 func (c *Core) JoinGroup(ctx context.Context, params ipc.JoinGroupParams) (ipc.Group, error) {
 	code := invite.Parse(params.Code)
 	if code == "" {
@@ -216,12 +215,10 @@ func (c *Core) JoinGroup(ctx context.Context, params ipc.JoinGroupParams) (ipc.G
 	return toGroup(membership, false, c.inviteLinkBase()), nil
 }
 
-// GetInvite says what a code opens, so the screen can name the group before
-// anybody commits to joining it.
+// GetInvite says what a code opens, so the screen can name the group first.
 //
-// A code that opens nothing comes back as Found false rather than as an error.
-// Somebody typing one has an invalid code for as long as they are still typing,
-// and that is not a failure worth reporting.
+// A code that opens nothing comes back Found false rather than as an error. A
+// half-typed code is invalid and that is not worth reporting.
 func (c *Core) GetInvite(ctx context.Context, params ipc.InviteParams) (ipc.InviteResult, error) {
 	code := invite.Parse(params.Code)
 	if code == "" {
@@ -249,8 +246,7 @@ func (c *Core) GetInvite(ctx context.Context, params ipc.InviteParams) (ipc.Invi
 	}, nil
 }
 
-// ResetInvite replaces a group's code. The owner's alone, which the server
-// decides.
+// ResetInvite replaces a group's code. Owner only, which the server decides.
 func (c *Core) ResetInvite(ctx context.Context, params ipc.GroupParams) (ipc.InviteCodeResult, error) {
 	if params.GroupID == "" {
 		return ipc.InviteCodeResult{}, &ipcserver.Failure{Code: "bad_request", Message: "Choose a group."}
@@ -436,8 +432,7 @@ func (c *Core) snapshot() ipc.State {
 	return state
 }
 
-// inviteLinkBase reads where links live, for callers that are not already
-// holding the lock.
+// inviteLinkBase reads where links live, for callers not holding the lock.
 func (c *Core) inviteLinkBase() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()

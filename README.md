@@ -36,10 +36,6 @@ A group is a private LAN that sticks around between sessions. Its owner gets a
 link to send people, and clicking it opens the app on the group. After that the
 app remembers you and connecting is one click.
 
-There is one link per group and it does not expire. If it reaches somebody it
-should not have, the owner draws a new one and the old one stops working.
-Nobody already in the group is removed.
-
 You can belong to any number of groups, and one of them can be connected at a
 time. While you are connected you see everyone else in the group and the address
 each of them has, online or not.

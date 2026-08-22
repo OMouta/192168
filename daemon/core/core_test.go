@@ -122,7 +122,7 @@ func newCore(t *testing.T, serverURL string) (*Core, *recorder) {
 }
 
 // named picks what a core is called. Without it a device answers to the machine
-// it runs on, which is a different string on every machine the tests run on.
+// it runs on, which differs per machine.
 func named(t *testing.T, c *Core, nickname string) {
 	t.Helper()
 	if err := c.SetNickname(t.Context(), ipc.SetNicknameParams{Nickname: nickname}); err != nil {
@@ -513,8 +513,8 @@ func TestARevokedTokenIsRecoveredFrom(t *testing.T) {
 	}
 }
 
-// Renaming has to reach whoever is looking at you now, rather than waiting for
-// them to reconnect, and it has to survive the daemon being restarted.
+// A rename has to reach whoever is looking at you now, not wait for them to
+// reconnect, and it has to be written down.
 func TestRenamingReachesTheGroupAndIsRemembered(t *testing.T) {
 	url := liveServer(t)
 	host, hostEvents := newCore(t, url)
@@ -545,8 +545,7 @@ func TestRenamingReachesTheGroupAndIsRemembered(t *testing.T) {
 	named(t, guest, "João")
 	waitForPeerNickname(t, host, "João")
 
-	// The guest's own state says so too, without being connected to anything
-	// in particular.
+	// The guest's own state says so too.
 	state, _ := guest.GetState(ctx)
 	if state.Nickname != "João" {
 		t.Errorf("state = %+v", state)
@@ -577,8 +576,7 @@ func waitForPeerNickname(t *testing.T, c *Core, want string) {
 	t.Fatalf("no peer was renamed to %q, last state was %+v", want, last)
 }
 
-// The owner is handed a link rather than a code, because a link is the thing
-// people send each other.
+// The owner is handed a link, not a code. A link is what people send.
 func TestTheOwnerGetsALinkToSend(t *testing.T) {
 	url := liveServer(t)
 	owner, _ := newCore(t, url)
@@ -594,7 +592,7 @@ func TestTheOwnerGetsALinkToSend(t *testing.T) {
 		t.Errorf("link = %q, want %q", group.InviteLink, want)
 	}
 
-	// The link is as good as the code, since it is what somebody will paste.
+	// The link works as well as the code, and it is what gets pasted.
 	joined, err := friend.JoinGroup(ctx, ipc.JoinGroupParams{Code: group.InviteLink})
 	if err != nil {
 		t.Fatalf("JoinGroup with a link: %v", err)
@@ -602,12 +600,12 @@ func TestTheOwnerGetsALinkToSend(t *testing.T) {
 	if joined.GroupID != group.GroupID {
 		t.Fatalf("joined %q, want %q", joined.GroupID, group.GroupID)
 	}
-	// The code is the owner's to give out, so a member is not handed one.
+	// A member is not handed one.
 	if joined.InviteCode != "" || joined.InviteLink != "" {
 		t.Errorf("a member was handed an invite: %+v", joined)
 	}
 
-	// Seeing what a link opens takes no membership and no token.
+	// Seeing what a link opens takes no membership.
 	preview, err := friend.GetInvite(ctx, ipc.InviteParams{Code: group.InviteLink})
 	if err != nil {
 		t.Fatalf("GetInvite: %v", err)
@@ -616,8 +614,8 @@ func TestTheOwnerGetsALinkToSend(t *testing.T) {
 		t.Errorf("preview = %+v", preview)
 	}
 
-	// A code that opens nothing is an answer, not a failure: somebody halfway
-	// through typing one has an invalid code for a keystroke or two.
+	// A code that opens nothing is an answer, not a failure. Half-typed codes
+	// are invalid on the way to being valid.
 	missing, err := friend.GetInvite(ctx, ipc.InviteParams{Code: "nosuchco"})
 	if err != nil {
 		t.Fatalf("GetInvite for an invented code: %v", err)
@@ -627,8 +625,7 @@ func TestTheOwnerGetsALinkToSend(t *testing.T) {
 	}
 }
 
-// Replacing a code retires the one that was given out, which is the only thing
-// that makes handing one out safe.
+// Replacing a code retires the one that was given out.
 func TestResettingTheCodeStopsTheOldLink(t *testing.T) {
 	url := liveServer(t)
 	owner, _ := newCore(t, url)

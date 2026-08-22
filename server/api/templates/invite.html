@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{if .Invite}}Join {{.Invite.GroupName}}{{else}}Invite expired{{end}} — 192168</title>
+<title>{{if .Invite}}Join {{.Invite.GroupName}}{{else}}Invite expired{{end}} - 192168</title>
 <meta name="robots" content="noindex">
 <style>
   :root {
@@ -80,11 +80,7 @@
 
   <a class="open" href="{{.DeepLink}}">Open in 192168</a>
 
-  <!--
-    The code is here as well as behind the button. The button needs the app
-    installed and the link registered with Windows, and neither is true on the
-    phone somebody read this on.
-  -->
+  <!-- Also as text: the button needs the app, which a phone will not have. -->
   <div class="code">
     <p>Or paste this into the app</p>
     <strong>{{.Invite.Code}}</strong>
@@ -92,8 +88,8 @@
 
   <p class="get">Do not have it yet? <a href="{{.Download}}">Get 192168 for Windows</a></p>
 {{else}}
-  <h1>This invite is no longer good</h1>
-  <p class="who">It may have been replaced. Ask whoever sent it for a new one.</p>
+  <h1>This invite no longer works</h1>
+  <p class="who">Ask whoever sent it for a new one.</p>
 
   <p class="get"><a href="{{.Download}}">Get 192168 for Windows</a></p>
 {{end}}
