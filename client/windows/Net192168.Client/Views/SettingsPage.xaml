@@ -2,8 +2,7 @@
 <Page
     x:Class="Net192168.Client.Views.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:Net192168.Client">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Page.Resources>
         <!--  The row shape the About screen uses, so settings reads as lists rather than loose controls.  -->
@@ -30,6 +29,21 @@
             <Setter Property="Margin" Value="16,12,16,16" />
             <Setter Property="Spacing" Value="20" />
         </Style>
+        <!--
+            The tabs themselves. Buttons rather than the usual underlined text,
+            so which one is on is the shape of the thing and not a two pixel
+            line under it. Checked fills with the accent, which is the only
+            state that needs to carry across a glance.
+        -->
+        <Style x:Key="TabButton" TargetType="ToggleButton">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <!--  Buttons are 120 wide by default, which is four times what fits.  -->
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="4,5" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
     </Page.Resources>
 
     <!--  Back and the title of this screen are in the window header.  -->
@@ -42,19 +56,46 @@
 
         <!--
             Four groups that had been one scroll long enough to have to hunt
-            through. The window is narrow, so these are the widest four labels
-            that still fit on one line.
+            through. Equal columns rather than a row of natural widths, so the
+            set fills the window instead of trailing off to the left.
         -->
-        <SelectorBar
-            x:Name="Tabs"
+        <Grid
             Grid.Row="0"
-            Margin="12,0,12,0"
-            SelectionChanged="OnTabChanged">
-            <SelectorBarItem IsSelected="True" Text="General" />
-            <SelectorBarItem Text="Network" />
-            <SelectorBarItem Text="Updates" />
-            <SelectorBarItem Text="About" />
-        </SelectorBar>
+            Margin="16,4,16,8"
+            ColumnSpacing="6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <ToggleButton
+                x:Name="GeneralButton"
+                Grid.Column="0"
+                Click="OnTabClicked"
+                Content="General"
+                IsChecked="True"
+                Style="{StaticResource TabButton}" />
+            <ToggleButton
+                x:Name="NetworkButton"
+                Grid.Column="1"
+                Click="OnTabClicked"
+                Content="Network"
+                Style="{StaticResource TabButton}" />
+            <ToggleButton
+                x:Name="UpdatesButton"
+                Grid.Column="2"
+                Click="OnTabClicked"
+                Content="Updates"
+                Style="{StaticResource TabButton}" />
+            <ToggleButton
+                x:Name="AboutButton"
+                Grid.Column="3"
+                Click="OnTabClicked"
+                Content="About"
+                Style="{StaticResource TabButton}" />
+        </Grid>
 
         <ScrollViewer x:Name="TabScroll" Grid.Row="1">
             <!--  One at a time, stacked rather than swapped, so each keeps what was typed into it.  -->
@@ -386,51 +427,60 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!--  App: what it is, and how to be rid of it.  -->
+                <!--  About: what this is, who made it, and how to be rid of it.  -->
                 <StackPanel
-                    x:Name="AppTab"
+                    x:Name="AboutTab"
                     Style="{StaticResource Tab}"
                     Visibility="Collapsed">
+                    <StackPanel HorizontalAlignment="Center" Spacing="8">
+                        <Image Height="56" Source="ms-appx:///Assets/wordmark.png" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            Text="{x:Bind Version}" />
+                    </StackPanel>
+
+                    <TextBlock
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Text="Puts you and your friends on the same LAN from different networks, so you can play LAN games together."
+                        TextAlignment="Center"
+                        TextWrapping="Wrap" />
+
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <!--
-                                Where the version and the links live. It is on
-                                the only screen that is not about connecting,
-                                which is where somebody looks for it.
-                            -->
-                            <Button
-                                Padding="12,10"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Stretch"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Click="OnAbout"
-                                CornerRadius="0">
-                                <Grid ColumnSpacing="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+                            <Grid Padding="12,8" ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="Source code" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="GitHub"
+                                    NavigateUri="https://github.com/OMouta/192168" />
+                            </Grid>
 
-                                    <TextBlock
-                                        Grid.Column="0"
-                                        VerticalAlignment="Center"
-                                        Text="About 192168" />
-                                    <TextBlock
-                                        Grid.Column="1"
-                                        VerticalAlignment="Center"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        Style="{StaticResource CaptionTextBlockStyle}"
-                                        Text="{x:Bind local:AppInfo.Version}" />
-                                    <FontIcon
-                                        Grid.Column="2"
-                                        VerticalAlignment="Center"
-                                        FontSize="12"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        Glyph="&#xE76C;" />
-                                </Grid>
-                            </Button>
+                            <Border Style="{StaticResource RowDivider}" />
+
+                            <Grid Padding="12,8" ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="Website" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="192168.lol"
+                                    NavigateUri="https://192168.lol" />
+                            </Grid>
 
                             <Border Style="{StaticResource RowDivider}" />
 
@@ -453,6 +503,12 @@
                             </Grid>
                         </StackPanel>
                     </Border>
+
+                    <TextBlock
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Text="MIT licensed"
+                        TextAlignment="Center" />
                 </StackPanel>
             </Grid>
         </ScrollViewer>

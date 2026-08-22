@@ -256,7 +256,6 @@ public sealed partial class MainWindow : Window
         var title = e.Content switch
         {
             SettingsPage => "Settings",
-            AboutPage => "About",
             // From the parameter, not the page: the page sets its own title in
             // OnNavigatedTo, which has not run by the time this does.
             ManageGroupPage => ManageGroupPage.TitleFor(e.Parameter),

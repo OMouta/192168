@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Navigation;
 using Net192168.Client.Ipc;
 using Net192168.Client.Services;
@@ -28,16 +29,26 @@ public sealed partial class SettingsPage : Page
         General,
         Network,
         Updates,
-        App,
+        About,
     }
+
+    /// <summary>
+    /// The tab buttons in the order the enum names them, so a click can be
+    /// turned into a tab and back without either list being written twice.
+    /// </summary>
+    private readonly ToggleButton[] _tabs;
 
     public SettingsPage()
     {
         InitializeComponent();
         ViewModel = new SettingsViewModel(App.Daemon);
+        _tabs = [GeneralButton, NetworkButton, UpdatesButton, AboutButton];
     }
 
     public SettingsViewModel ViewModel { get; }
+
+    /// <summary>What the About tab shows under the wordmark.</summary>
+    public string Version => $"Version {AppInfo.Version}";
 
     /// <summary>The update, shared with the banner on home.</summary>
     public UpdateViewModel Update => UpdateViewModel.Current;
@@ -48,18 +59,32 @@ public sealed partial class SettingsPage : Page
         await ViewModel.LoadAsync();
     }
 
+    private void OnTabClicked(object sender, RoutedEventArgs e)
+    {
+        var picked = Array.IndexOf(_tabs, sender);
+        if (picked >= 0)
+        {
+            ShowTab((Tab)picked);
+        }
+    }
+
     /// <summary>
     /// Shows one tab and hides the rest, and puts the Save bar up only where
     /// there is something to save.
     /// </summary>
-    private void OnTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    private void ShowTab(Tab tab)
     {
-        var tab = (Tab)sender.Items.IndexOf(sender.SelectedItem);
+        // Set rather than toggled. Clicking the tab already showing would
+        // otherwise turn its button off and leave nothing selected.
+        for (var i = 0; i < _tabs.Length; i++)
+        {
+            _tabs[i].IsChecked = i == (int)tab;
+        }
 
         GeneralTab.Visibility = Show(tab is Tab.General);
         NetworkTab.Visibility = Show(tab is Tab.Network);
         UpdatesTab.Visibility = Show(tab is Tab.Updates);
-        AppTab.Visibility = Show(tab is Tab.App);
+        AboutTab.Visibility = Show(tab is Tab.About);
 
         // Your name and the server address are the only two things here that
         // wait to be saved. Everything else applies as it is touched, and a
@@ -70,14 +95,11 @@ public sealed partial class SettingsPage : Page
         // left.
         TabScroll.ChangeView(null, 0, null, disableAnimation: true);
 
-        if (tab is Tab.Updates)
+        // Opening this tab is somebody asking, so it goes and looks even when
+        // the app is set not to on its own.
+        if (tab is Tab.Updates && Update.CheckCommand.CanExecute(null))
         {
-            // Opening this tab is somebody asking, so it goes and looks even
-            // when the app is set not to on its own.
-            if (Update.CheckCommand.CanExecute(null))
-            {
-                Update.CheckCommand.Execute(null);
-            }
+            Update.CheckCommand.Execute(null);
         }
     }
 
@@ -98,8 +120,6 @@ public sealed partial class SettingsPage : Page
     // Reset stays on the screen so the result is visible in the field and in
     // the line under it.
     private async void OnReset(object sender, RoutedEventArgs e) => await ViewModel.ResetAsync();
-
-    private void OnAbout(object sender, RoutedEventArgs e) => Frame.Navigate(typeof(AboutPage));
 
     /// <summary>
     /// Opens the folder holding the logs, with the daemon's picked out. That is
