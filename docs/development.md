@@ -41,8 +41,9 @@ peer wire format, `ipc` is the local client to daemon protocol, `api` is the
 control plane, `auth` is device signatures, `invite` is the shape of an invite
 code, and `session` is the Noise handshake.
 
-`daemon` runs on a player's machine. `server` is the coordination server.
-`client/windows` is the WinUI 3 app. `deploy` has the Docker and Railway setups.
+`daemon` runs on a player's machine. `server` is the coordination server, and
+`server/web` is the site it serves. `client/windows` is the WinUI 3 app.
+`deploy` has the Docker and Railway setups.
 
 ## Naming
 

@@ -15,6 +15,7 @@ import (
 	"github.com/OMouta/192168/server/config"
 	"github.com/OMouta/192168/server/realtime"
 	"github.com/OMouta/192168/server/storage"
+	"github.com/OMouta/192168/server/web"
 )
 
 // DefaultSubnet is the address range every group gets. A group is under ten
@@ -65,7 +66,6 @@ func New(cfg config.Config, store *storage.Store, log *slog.Logger) *Server {
 	// nothing else to identify itself with.
 	mux.HandleFunc("GET /api/invites/{code}", s.handleInvite)
 	mux.HandleFunc("GET "+invite.Path+"{code}", s.handleInvitePage)
-	mux.HandleFunc("GET /assets/wordmark.png", s.handleWordmark)
 
 	mux.HandleFunc("POST /api/devices/register", s.handleRegisterDevice)
 
@@ -90,6 +90,10 @@ func New(cfg config.Config, store *storage.Store, log *slog.Logger) *Server {
 	mux.Handle("DELETE /api/sessions/{sessionId}", s.authenticated(s.handleDeleteSession))
 
 	mux.Handle("GET /realtime", s.authenticated(s.handleRealtime))
+
+	// The site, last, because every pattern above it is more specific. It is
+	// also what answers a path nothing else claimed.
+	mux.Handle("GET /", http.FileServerFS(web.Files))
 
 	s.mux = mux
 	return s

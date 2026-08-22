@@ -998,3 +998,35 @@ func TestTheInvitePageWearsTheWordmark(t *testing.T) {
 		t.Errorf("wordmark is %d bytes starting %q", len(image.body), image.body[:min(8, len(image.body))])
 	}
 }
+
+// The server is the whole product at one address: the site, the invite page a
+// link opens, and the API underneath both.
+func TestTheServerServesTheSite(t *testing.T) {
+	h := newTestServer(t)
+
+	home := getPage(t, h, "/")
+	if home.status != http.StatusOK {
+		t.Fatalf("GET /: status %d", home.status)
+	}
+	if !strings.Contains(home.body, "<title>192168") {
+		t.Errorf("the root is not the site: %.200s", home.body)
+	}
+
+	// The invite page points at the site's copy of the wordmark, so there is
+	// one of it rather than one per page that wants it.
+	for _, path := range []string{"/styles.css", "/assets/wordmark.png"} {
+		if got := getPage(t, h, path); got.status != http.StatusOK {
+			t.Errorf("GET %s: status %d", path, got.status)
+		}
+	}
+
+	// A path nothing claimed is the site's 404, not a route.
+	if got := getPage(t, h, "/nothing-here"); got.status != http.StatusNotFound {
+		t.Errorf("GET /nothing-here: status %d, want 404", got.status)
+	}
+
+	// The API still answers from under it.
+	if got := getPage(t, h, "/api/health"); got.status != http.StatusOK {
+		t.Errorf("the site shadowed the API: status %d", got.status)
+	}
+}

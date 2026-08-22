@@ -42,7 +42,7 @@ each of them has, online or not.
 
 ## Servers
 
-The app talks to `https://api.192168.lol`. To use another one, type its URL into
+The app talks to `https://192168.lol`. To use another one, type its URL into
 Settings. To run your own, see [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Hacking on it

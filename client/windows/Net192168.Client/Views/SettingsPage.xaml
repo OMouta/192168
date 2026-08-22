@@ -58,7 +58,7 @@
                         <TextBox
                             x:Name="ServerBox"
                             Grid.Column="0"
-                            PlaceholderText="https://api.192168.lol"
+                            PlaceholderText="https://192168.lol"
                             Text="{x:Bind ViewModel.ServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                         <!--  Beside the field it belongs to, since it tests what is in it.  -->

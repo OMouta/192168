@@ -16,7 +16,11 @@ import (
 // it somewhere else. Self-hosted servers are reached by typing their URL in
 // directly. Either way this is the only address a user ever sees: the API,
 // realtime, and STUN endpoints all come from the server's discovery document.
-const DefaultServerURL = "https://api.192168.lol"
+//
+// The bare domain, because the server is the site as well: it answers an invite
+// link and a browser at the same address. api.192168.lol still works and is
+// what installs from before this carry, so nobody has to be moved.
+const DefaultServerURL = "https://192168.lol"
 
 // Config is the daemon's local configuration.
 type Config struct {

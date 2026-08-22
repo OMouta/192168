@@ -49,8 +49,14 @@ Open the app, enter `https://lan.example.com` as the server, press Test, save.
 | `NET192168_STUN` | no | Comma-separated STUN servers to advertise. Defaults to a public one. |
 | `NET192168_DATABASE_URL` | no | Storage path or DSN. Defaults to SQLite in the working directory. |
 
-The API and realtime URLs come from `NET192168_PUBLIC_URL`. Set that one wrong
-and clients will be sent to an address that does not answer.
+The API, realtime, and invite URLs all come from `NET192168_PUBLIC_URL`. Set
+that one wrong and clients will be sent to an address that does not answer, and
+the links you hand out will point at it too.
+
+Whatever hostname you pick, use one for everything. The server answers a browser
+at the root with a page explaining what it is, and invite links come off that
+same hostname as `/join/<code>`. Splitting the API onto its own subdomain means
+the links you hand out point at a host that only ever shows an API.
 
 ## What running this signs you up for
 
