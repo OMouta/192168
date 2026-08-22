@@ -48,12 +48,17 @@ func Link(base, code string) string {
 }
 
 // Scheme is the URI scheme setup registers the Windows app for.
-const Scheme = "192168"
+//
+// Not "192168": a scheme has to start with a letter (RFC 3986), and a browser
+// treats one that does not as a relative path. The app has the same prefix in
+// its assembly name, for the same reason.
+const Scheme = "net192168"
 
 // DeepLink is the address that opens the app on a code.
 func DeepLink(code string) string {
 	if code == "" {
 		return ""
 	}
+	// Path opens with a slash, so one more here makes the empty authority.
 	return Scheme + ":/" + Path + code
 }

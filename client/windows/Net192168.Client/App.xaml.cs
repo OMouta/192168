@@ -153,8 +153,9 @@ public partial class App : Application
             .FirstOrDefault(argument => argument.StartsWith(InviteScheme, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>The URI scheme setup registers this app for.</summary>
-    private const string InviteScheme = "192168:";
+    /// <summary>The URI scheme setup registers this app for. It starts with a
+    /// letter because a scheme has to.</summary>
+    private const string InviteScheme = "net192168:";
 
     private static async Task EnsureServiceRunningAsync()
     {

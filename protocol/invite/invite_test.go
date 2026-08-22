@@ -12,7 +12,7 @@ func TestParseTakesACodeOutOfWhateverWasPasted(t *testing.T) {
 		"https://192168.lol/join/k7m2n9xq",
 		"https://192168.lol/join/k7m2n9xq/",
 		"https://api.example.com/join/K7M2N9XQ?from=discord",
-		"192168://join/k7m2n9xq",
+		"net192168://join/k7m2n9xq",
 	} {
 		if got := Parse(input); got != want {
 			t.Errorf("Parse(%q) = %q, want %q", input, got, want)
@@ -26,5 +26,16 @@ func TestNormalizeKeepsOnlyWhatACodeIsMadeOf(t *testing.T) {
 	}
 	if got := Normalize("----"); got != "" {
 		t.Errorf("Normalize of punctuation alone = %q, want empty", got)
+	}
+}
+
+// A scheme has to start with a letter. One that does not is not a scheme at
+// all, and a browser resolves the whole string against the page it is on.
+func TestTheSchemeStartsWithALetter(t *testing.T) {
+	if Scheme[0] < 'a' || Scheme[0] > 'z' {
+		t.Fatalf("scheme %q does not start with a letter", Scheme)
+	}
+	if got := DeepLink("k7m2n9xq"); got != "net192168://join/k7m2n9xq" {
+		t.Errorf("DeepLink = %q", got)
 	}
 }

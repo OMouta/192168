@@ -88,12 +88,18 @@ Source: "{#StageDir}\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignorever
 ; machine, so this goes under HKLM rather than one account's HKCU: whoever signs
 ; in and clicks a link should get the app.
 ;
+; net192168 rather than 192168, because a URI scheme has to start with a letter
+; and browsers treat one that does not as a relative path.
+;
 ; uninsdeletekey on the root removes the whole scheme when the app goes, so a
 ; dead link stops opening a program that is no longer there.
-Root: HKLM; Subkey: "Software\Classes\192168"; ValueType: string; ValueName: ""; ValueData: "URL:192168 invite"; Flags: uninsdeletekey
-Root: HKLM; Subkey: "Software\Classes\192168"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
-Root: HKLM; Subkey: "Software\Classes\192168\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#ClientExe},0"
-Root: HKLM; Subkey: "Software\Classes\192168\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ClientExe}"" ""%1"""
+Root: HKLM; Subkey: "Software\Classes\net192168"; ValueType: string; ValueName: ""; ValueData: "URL:192168 invite"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "Software\Classes\net192168"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKLM; Subkey: "Software\Classes\net192168\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#ClientExe},0"
+Root: HKLM; Subkey: "Software\Classes\net192168\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ClientExe}"" ""%1"""
+
+; v0.2.0 registered an invalid scheme. Nothing can open it, so take it away.
+Root: HKLM; Subkey: "Software\Classes\192168"; Flags: deletekey
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#ClientExe}"
