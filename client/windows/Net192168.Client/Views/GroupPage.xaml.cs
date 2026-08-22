@@ -28,6 +28,13 @@ public sealed partial class GroupPage : Page
         ViewModel = new GroupViewModel(App.Daemon, creating: true);
     }
 
+    /// <summary>
+    /// A link somebody clicked, which opens this screen on Join with the invite
+    /// already in it. A record rather than a bare string so it cannot be
+    /// confused with the mode.
+    /// </summary>
+    public sealed record Invitation(string Code);
+
     public GroupViewModel ViewModel { get; private set; }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -36,8 +43,16 @@ public sealed partial class GroupPage : Page
 
         // The mode decides every word on the screen, including the name the
         // window header shows, so it has to be in place before anything binds.
-        var creating = e.Parameter is not GroupPageMode.Join;
+        var invitation = e.Parameter as Invitation;
+        var creating = invitation is null && e.Parameter is not GroupPageMode.Join;
+
         ViewModel = new GroupViewModel(App.Daemon, creating);
+        if (invitation is not null)
+        {
+            // Setting it starts the look-up, so the group is named by the time
+            // somebody has read this far.
+            ViewModel.Invite = invitation.Code;
+        }
         Bindings.Update();
 
         if (creating)

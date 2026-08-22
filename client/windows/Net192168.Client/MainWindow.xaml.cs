@@ -178,6 +178,19 @@ public sealed partial class MainWindow : Window
         Activate();
     }
 
+    /// <summary>
+    /// Opens the join screen on a link somebody clicked.
+    ///
+    /// Joining is not done for them. Being put on somebody's network is worth
+    /// seeing the name of first, and the screen says whose group it is before
+    /// there is a button to agree with.
+    /// </summary>
+    public void OpenInvite(string invite)
+    {
+        ShowWindow();
+        ContentFrame.Navigate(typeof(GroupPage), new GroupPage.Invitation(invite));
+    }
+
     [RelayCommand]
     private async Task TrayDisconnectAsync()
     {

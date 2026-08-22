@@ -1,6 +1,7 @@
 using System.IO;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.Windows.AppLifecycle;
 using Net192168.Client.Ipc;
 using Net192168.Client.Services;
 
@@ -8,7 +9,7 @@ namespace Net192168.Client;
 
 public partial class App : Application
 {
-    private Window? _window;
+    private MainWindow? _window;
 
     public App()
     {
@@ -101,12 +102,65 @@ public partial class App : Application
         _window = new MainWindow();
         _window.Closed += (_, _) => Daemon.Shutdown();
 
+        // An invite link opens the app straight onto the group it names, which
+        // is the difference between sending a friend a link and sending them
+        // instructions.
+        var invite = InviteFromActivation(AppInstance.GetCurrent().GetActivatedEventArgs());
+
         // Started at sign-in, the tray icon is the whole UI until asked for more.
         if (!StartedHidden)
         {
             _window.Activate();
         }
+
+        // A link is somebody asking for the app, so it opens the window even
+        // when this launch was meant to stay in the tray.
+        if (invite is not null)
+        {
+            _window.OpenInvite(invite);
+        }
     }
+
+    /// <summary>
+    /// A link that arrived while the app was already running.
+    ///
+    /// It comes in on a background thread, because the instance that received
+    /// it is a different process handing it over.
+    /// </summary>
+    internal void OnRedirected(AppActivationArguments args)
+    {
+        if (InviteFromActivation(args) is not string invite)
+        {
+            return;
+        }
+
+        _window?.DispatcherQueue.TryEnqueue(() => _window?.OpenInvite(invite));
+    }
+
+    /// <summary>
+    /// The invite a launch carries, or null for an ordinary one.
+    ///
+    /// Unpackaged, a protocol launch arrives as an argument rather than as
+    /// protocol activation, so both shapes are read. Whether the string is
+    /// really an invite is the daemon's business, and this only has to tell a
+    /// link apart from a switch.
+    /// </summary>
+    private static string? InviteFromActivation(AppActivationArguments? args)
+    {
+        // Fully qualified: this namespace also has a LaunchActivatedEventArgs, and
+        // importing it would shadow the one OnLaunched is handed.
+        if (args?.Data is Windows.ApplicationModel.Activation.IProtocolActivatedEventArgs protocol)
+        {
+            return protocol.Uri.AbsoluteUri;
+        }
+
+        return Environment.GetCommandLineArgs()
+            .Skip(1)
+            .FirstOrDefault(argument => argument.StartsWith(InviteScheme, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>The URI scheme setup registers this app for.</summary>
+    private const string InviteScheme = "192168:";
 
     private static async Task EnsureServiceRunningAsync()
     {
