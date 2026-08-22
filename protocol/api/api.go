@@ -66,24 +66,15 @@ type SetNicknameRequest struct {
 	Nickname string `json:"nickname"`
 }
 
-// CreateGroupRequest creates a new virtual LAN. PasswordProof comes out of the
-// client-side KDF in protocol/auth. The password itself never leaves the
-// machine.
+// CreateGroupRequest creates a new virtual LAN.
 //
 // Icon and Color are the look it is made with, in the keys
 // SetGroupAppearanceRequest carries. Set here rather than straight after, so a
 // group is never briefly something other than what its maker picked.
 type CreateGroupRequest struct {
-	Name          string `json:"name"`
-	PasswordProof string `json:"passwordProof"`
-	Icon          string `json:"icon,omitempty"`
-	Color         string `json:"color,omitempty"`
-}
-
-// JoinGroupRequest joins an existing group by name or ID.
-type JoinGroupRequest struct {
-	Group         string `json:"group"`
-	PasswordProof string `json:"passwordProof"`
+	Name  string `json:"name"`
+	Icon  string `json:"icon,omitempty"`
+	Color string `json:"color,omitempty"`
 }
 
 // JoinByCodeRequest joins whichever group a code opens. The device token says
@@ -108,8 +99,8 @@ type InviteCodeResponse struct {
 }
 
 // Membership is the relationship between a device and a group. It is what lets
-// the daemon reconnect without the group password: the device token
-// authenticates the caller, and the server looks up what it is a member of.
+// the daemon reconnect without the invite code: the device token authenticates
+// the caller, and the server looks up what it is a member of.
 // Revoking a membership is a server-side change, so it takes effect whether or
 // not that device is online.
 // VirtualIP is the address this device holds in the group. It is given when
