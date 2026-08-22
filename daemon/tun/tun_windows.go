@@ -70,6 +70,13 @@ type Device struct {
 	mu        sync.RWMutex
 	closing   atomic.Bool
 	closeOnce sync.Once
+
+	// metricMu guards yielded, which connecting, the discovery switch and
+	// closing all reach from different goroutines. Deliberately not mu:
+	// nothing under it goes near the driver, and Close undoes what is in here
+	// on its way to taking mu.
+	metricMu sync.Mutex
+	yielded  []yielded
 }
 
 // Open creates the adapter, gives it an address, and routes the group's subnet
@@ -148,30 +155,46 @@ const preferredMetric = 1
 // all of them, reaches whichever wins. Replicating multicast across the tunnel
 // achieves nothing if the game's announcement went out the Wi-Fi card instead.
 //
+// Winning it takes two things. This adapter's own metric goes to the floor, and
+// anything already sitting on that floor is moved up one, because another
+// virtual network pins its metric for the same reason and a tie is settled
+// against the tunnel. See takeMulticastRoute.
+//
+// It reports the name of an adapter left holding the route, which is either one
+// carrying the machine's internet traffic or one that would not be moved. Empty
+// means this adapter has it.
+//
 // The cost is that it wins for everything else too: while this is on, nearby
 // speakers, printers and TVs stop being found, because mDNS and SSDP go down
 // the tunnel with the games. That is why it is a switch and not a constant.
 //
 // Only multicast and the group's own subnet are affected. This adapter carries
 // no default route, so nothing decides where ordinary internet traffic goes.
-func (d *Device) PreferForMulticast(prefer bool) error {
-	iface, err := d.luid.IPInterface(winipcfg.AddressFamily(windows.AF_INET))
+func (d *Device) PreferForMulticast(prefer bool) (string, error) {
+	// Whatever was moved last time goes back first: either the switch is going
+	// off, or the standings are about to be measured again and an adapter this
+	// one demoted would read as one that never competed.
+	d.yieldBack()
+
+	if !prefer {
+		if err := setInterfaceMetric(d.luid, 0, true); err != nil {
+			return "", err
+		}
+		d.log.Info("multicast preference", "preferred", false)
+		return "", nil
+	}
+
+	if err := setInterfaceMetric(d.luid, preferredMetric, false); err != nil {
+		return "", err
+	}
+
+	held, err := d.takeMulticastRoute()
 	if err != nil {
-		return fmt.Errorf("tun: read the adapter interface: %w", err)
+		return "", err
 	}
 
-	if prefer {
-		iface.UseAutomaticMetric = false
-		iface.Metric = preferredMetric
-	} else {
-		iface.UseAutomaticMetric = true
-	}
-	if err := iface.Set(); err != nil {
-		return fmt.Errorf("tun: set the adapter metric: %w", err)
-	}
-
-	d.log.Info("multicast preference", "preferred", prefer)
-	return nil
+	d.log.Info("multicast preference", "preferred", true, "heldBy", held)
+	return held, nil
 }
 
 // Read returns the next packet Windows wants sent. It blocks until there is
@@ -274,6 +297,10 @@ func (d *Device) Write(packet []byte) error {
 // while a game is running is exactly when that would happen.
 func (d *Device) Close() error {
 	d.closeOnce.Do(func() {
+		// Before the adapter goes, so a disconnect does not leave an adapter
+		// this one demoted stuck that way.
+		d.yieldBack()
+
 		// Set before taking the lock, so a reader that wakes from its wait
 		// sees it and returns instead of going back into the driver.
 		d.closing.Store(true)

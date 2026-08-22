@@ -49,10 +49,14 @@ func (c *Core) startAdapter(ctx context.Context, links *mesh.Mesh, virtualIP, su
 	lanDiscovery := c.settings.LanDiscovery
 	c.mu.Unlock()
 
-	if err := device.PreferForMulticast(lanDiscovery); err != nil {
+	held, err := device.PreferForMulticast(lanDiscovery)
+	if err != nil {
 		// Games that find each other by scanning may not, and everything else
 		// works. Not worth failing a connect over.
 		c.log.Warn("cannot set the adapter's multicast preference", "error", err)
+	}
+	if held != "" {
+		c.log.Warn("another adapter holds the discovery route", "adapter", held)
 	}
 
 	go c.pumpOut(ctx, device, links, address)

@@ -416,8 +416,12 @@ func (c *Core) SetLanDiscovery(_ context.Context, enabled bool) error {
 	// effect. The multicast route is a property of the adapter, and only there
 	// is one to change.
 	if device != nil {
-		if err := device.PreferForMulticast(enabled); err != nil {
+		held, err := device.PreferForMulticast(enabled)
+		if err != nil {
 			c.log.Warn("cannot change the adapter's multicast preference", "error", err)
+		}
+		if held != "" {
+			c.log.Warn("another adapter holds the discovery route", "adapter", held)
 		}
 	}
 

@@ -45,6 +45,6 @@ func (d *Device) Read(ctx context.Context) ([]byte, error) { return nil, ErrUnsu
 
 func (d *Device) Write(packet []byte) error { return ErrUnsupported }
 
-func (d *Device) PreferForMulticast(prefer bool) error { return ErrUnsupported }
+func (d *Device) PreferForMulticast(prefer bool) (string, error) { return "", ErrUnsupported }
 
 func (d *Device) Close() error { return nil }
