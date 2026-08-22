@@ -55,7 +55,7 @@ func (c *Core) startAdapter(ctx context.Context, links *mesh.Mesh, virtualIP, su
 	}
 
 	go c.pumpOut(ctx, device, links, address)
-	go c.pumpIn(ctx, device, links)
+	go c.pumpIn(ctx, device, links, address.Addr())
 }
 
 // pumpOut takes what Windows wants to send and gives it to whoever owns the
@@ -108,7 +108,7 @@ func (c *Core) pumpOut(ctx context.Context, device *tun.Device, links *mesh.Mesh
 }
 
 // pumpIn takes what peers sent and hands it to Windows.
-func (c *Core) pumpIn(ctx context.Context, device *tun.Device, links *mesh.Mesh) {
+func (c *Core) pumpIn(ctx context.Context, device *tun.Device, links *mesh.Mesh, local netip.Addr) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -116,6 +116,12 @@ func (c *Core) pumpIn(ctx context.Context, device *tun.Device, links *mesh.Mesh)
 		case packet, ok := <-links.Inbound():
 			if !ok {
 				return
+			}
+			// Read per packet for the same reason the outgoing copies are:
+			// turning the switch off stops discovery in both directions at
+			// once rather than at the next connect.
+			if c.lanDiscovery() {
+				localiseMulticast(packet, local)
 			}
 			if err := device.Write(packet); err != nil {
 				c.log.Info("cannot write to the adapter", "error", err)
@@ -180,6 +186,99 @@ func broadcastOf(subnet netip.Prefix) netip.Addr {
 	host := ^uint32(0) >> subnet.Bits()
 	binary.BigEndian.PutUint32(raw[:], binary.BigEndian.Uint32(raw[:])|host)
 	return netip.AddrFrom4(raw)
+}
+
+const (
+	// protocolUDP is the IPv4 protocol number for UDP, which every game's
+	// discovery traffic is.
+	protocolUDP = 17
+
+	// udpHeaderSize is source(2) | destination(2) | length(2) | checksum(2).
+	udpHeaderSize = 8
+
+	// fragmentBits are the more-fragments flag and the fragment offset, taken
+	// together because either one being set means this is part of a datagram
+	// rather than all of it.
+	fragmentBits = 0x3fff
+)
+
+// localiseMulticast readdresses a packet meant for a multicast group to this
+// machine, so Windows hands it to the game instead of dropping it.
+//
+// Copying the packet onto every link is only half of what a shared segment
+// would have done. The other half is delivery, and that is where a layer 3
+// tunnel runs out: a program listening for a group tells Windows to join it,
+// Windows binds that membership to whichever single interface wins the route
+// for 224.0.0.0/4, and even when the tunnel wins there is no segment beneath
+// it and so no flooded frame for the membership to catch. The packet reaches
+// the adapter and goes nowhere. This is why the LAN list stays empty against a
+// tunnel and fills against Radmin or Hamachi, which put a real Ethernet
+// segment underneath and get the flooding for free.
+//
+// Addressing the copy to this machine steps around the whole thing. A program
+// listening for discovery binds the wildcard address, so an ordinary unicast
+// datagram on the right port reaches it with no membership involved, and what
+// a game reads to find the host is the source address, which is untouched.
+//
+// Only whole UDP datagrams are rewritten. Anything else is left as it is:
+// without the transport header there is no checksum to correct, and moving the
+// address on one fragment of a datagram would leave it unreassemblable.
+func localiseMulticast(packet []byte, local netip.Addr) {
+	const minimumHeader = 20
+
+	if len(packet) < minimumHeader || packet[0]>>4 != 4 || !local.Is4() {
+		return
+	}
+	if !netip.AddrFrom4([4]byte(packet[16:20])).IsMulticast() {
+		return
+	}
+	if packet[9] != protocolUDP || binary.BigEndian.Uint16(packet[6:8])&fragmentBits != 0 {
+		return
+	}
+
+	// Options are rare and legal, so the transport header is found through the
+	// header length rather than assumed to be at twenty bytes.
+	headerLen := int(packet[0]&0x0f) * 4
+	if headerLen < minimumHeader || len(packet) < headerLen+udpHeaderSize {
+		return
+	}
+
+	was, now := [4]byte(packet[16:20]), local.As4()
+	copy(packet[16:20], now[:])
+
+	header := packet[10:12]
+	binary.BigEndian.PutUint16(header, adjustChecksum(binary.BigEndian.Uint16(header), was, now))
+
+	// A UDP checksum is optional over IPv4, and one that was never computed is
+	// left as it is rather than turned into a wrong one.
+	body := packet[headerLen+6 : headerLen+8]
+	if sum := binary.BigEndian.Uint16(body); sum != 0 {
+		updated := adjustChecksum(sum, was, now)
+		if updated == 0 {
+			// Zero on the wire means there is no checksum, so a checksum that
+			// really is zero goes out as its other representation.
+			updated = 0xffff
+		}
+		binary.BigEndian.PutUint16(body, updated)
+	}
+}
+
+// adjustChecksum folds an address change into a one's complement checksum
+// instead of recomputing it over the packet. RFC 1624.
+//
+// The IP header checksum and the UDP checksum both cover the destination
+// address and nothing else that moves here, so the same correction applies to
+// each of them.
+func adjustChecksum(checksum uint16, was, now [4]byte) uint16 {
+	sum := uint32(^checksum)
+	for i := 0; i < len(was); i += 2 {
+		sum += uint32(^binary.BigEndian.Uint16(was[i : i+2]))
+		sum += uint32(binary.BigEndian.Uint16(now[i : i+2]))
+	}
+	for sum > 0xffff {
+		sum = sum&0xffff + sum>>16
+	}
+	return ^uint16(sum)
 }
 
 // destinationOf reads where an IPv4 packet is headed. Bytes 16 to 20 of the
