@@ -21,15 +21,15 @@ Three things stay separate.
 The private halves never leave the machine.
 
 **Membership.** A device's place in a group, and the virtual IP it holds there.
-You create it by joining with the group password. After that the device token
-gets you back in.
+You create it by joining with the group's invite code. After that the device
+token gets you back in.
 
 **Session.** Exists only while connected. Holds the current endpoint candidates
 and the peer list.
 
 One session at a time. Switching groups disconnects the first one first.
 
-## Identity and passwords
+## Identity and invites
 
 A device has two keys. Ed25519 signs its registration, which proves it holds the
 key it is registering. Curve25519 is the static key peers run the Noise
@@ -39,21 +39,25 @@ Registration is the only unauthenticated write in the API, so it carries a
 timestamp and a nonce. The server rejects anything stale or repeated and hands
 back a bearer token. Every later request carries that token.
 
-The group password stays on the machine. The daemon runs Argon2id over it and
-sends the result, called the proof. The salt is the group name, so two people
-typing the same password produce the same proof. The server runs Argon2id over
-the proof with a random salt and stores that.
+A group has no secret of its own. Getting into one means holding its invite
+code: eight characters, forty bits, drawn at random and stored as it is. There
+is nothing to derive and nothing to verify, only a lookup.
 
-Steal the database and you get an offline guessing problem. Intercept a proof and
-you are in the group, so the control plane refuses anything but TLS.
+That is worth being plain about. A code is a bearer token for a group, so
+anybody who sees one is in. It is guarded by being unguessable rather than by
+being checked: joining is rate limited per caller, forty bits is far beyond what
+that allows, and the control plane refuses anything but TLS.
+
+What makes it safe to hand out is that it can be taken back. One code per group,
+replaceable by the owner, and replacing it retires the old one at once. A device
+removed from a group stays removed whether or not it still holds a code.
 
 There is no membership credential. The token identifies the device and the
 server knows its groups. Revoking a membership is a row on the server, so it
 takes effect while the device is online.
 
-The password crosses the named pipe in the clear. The daemon owns all
-cryptography and the UI never implements a KDF, so the pipe is ACLed to the
-current user.
+Invite codes cross the named pipe, and a code is all it takes to get into a
+group, so the pipe is ACLed to the current user.
 
 ## Processes
 
@@ -211,4 +215,4 @@ their own schedules. When they disagree the user gets a clear message.
 ## Logging
 
 Structured logs with component, group, peer, session, endpoint, and state
-transitions. Never log passwords, private keys, tokens, or decrypted packets.
+transitions. Never log invite codes, private keys, tokens, or decrypted packets.

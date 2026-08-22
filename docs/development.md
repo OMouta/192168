@@ -38,8 +38,8 @@ server refuse anything else that is not HTTPS.
 `protocol` holds everything that crosses a process or machine boundary, so a
 message shape changes in one place instead of three. `transport` is the binary
 peer wire format, `ipc` is the local client to daemon protocol, `api` is the
-control plane, `auth` is passwords and device signatures, and `session` is the
-Noise handshake.
+control plane, `auth` is device signatures, `invite` is the shape of an invite
+code, and `session` is the Noise handshake.
 
 `daemon` runs on a player's machine. `server` is the coordination server.
 `client/windows` is the WinUI 3 app. `deploy` has the Docker and Railway setups.

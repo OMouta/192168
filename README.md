@@ -6,8 +6,8 @@
 192168 is a Windows app that puts you and your friends on the same LAN from
 different networks, so you can play LAN games together.
 
-Create a private group and give your friends its name and password. Everyone who
-joins gets a virtual LAN IP like `10.69.0.2`, and it does not change.
+Create a private group and send your friends the link. Everyone who joins gets a
+virtual LAN IP like `10.69.0.2`, and it does not change.
 
 Traffic goes straight between players, encrypted. The server hands out the
 addresses and says who is online. Game packets never reach it.
@@ -32,9 +32,13 @@ switch for it in Settings.
 
 ## Groups
 
-A group is a private LAN that sticks around between sessions. You join with its
-name and password once. After that the app remembers you and connecting is one
-click.
+A group is a private LAN that sticks around between sessions. Its owner gets a
+link to send people, and clicking it opens the app on the group. After that the
+app remembers you and connecting is one click.
+
+There is one link per group and it does not expire. If it reaches somebody it
+should not have, the owner draws a new one and the old one stops working.
+Nobody already in the group is removed.
 
 You can belong to any number of groups, and one of them can be connected at a
 time. While you are connected you see everyone else in the group and the address
