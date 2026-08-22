@@ -24,6 +24,7 @@ func newDevice(t *testing.T, s *Store, id string) Device {
 		PublicKey:    "pub-" + id,
 		TransportKey: "transport-" + id,
 		Name:         id + "-PC",
+		Nickname:     id + "-PC",
 	}
 	if _, err := s.RegisterDevice(t.Context(), d); err != nil {
 		t.Fatalf("RegisterDevice: %v", err)
@@ -38,7 +39,7 @@ func newGroup(t *testing.T, s *Store, creator, name string) (Group, Membership) 
 		t.Fatalf("NewID: %v", err)
 	}
 	g := Group{ID: id, Name: name, PasswordVerifier: "verifier", Subnet: "10.69.0.0/24"}
-	m, err := s.CreateGroup(t.Context(), g, name, creator, "creator")
+	m, err := s.CreateGroup(t.Context(), g, name, creator)
 	if err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
@@ -129,7 +130,7 @@ func TestCreateGroupMakesTheCreatorAMember(t *testing.T) {
 	newDevice(t, s, "dev_1")
 
 	_, m := newGroup(t, s, "dev_1", "friday night")
-	if m.Nickname != "creator" || m.Subnet != "10.69.0.0/24" {
+	if m.Nickname != "dev_1-PC" || m.Subnet != "10.69.0.0/24" {
 		t.Errorf("membership = %+v", m)
 	}
 
@@ -153,7 +154,7 @@ func TestGroupNamesAreUnique(t *testing.T) {
 	}
 	_, err = s.CreateGroup(t.Context(), Group{
 		ID: id, Name: "Friday Night", PasswordVerifier: "v", Subnet: "10.69.0.0/24",
-	}, "friday night", "dev_1", "creator")
+	}, "friday night", "dev_1")
 	if !errors.Is(err, ErrConflict) {
 		t.Errorf("CreateGroup err = %v, want ErrConflict", err)
 	}
@@ -166,7 +167,7 @@ func TestRejoiningClearsRevocation(t *testing.T) {
 	newDevice(t, s, "dev_2")
 	g, _ := newGroup(t, s, "dev_1", "friday night")
 
-	if _, err := s.AddMembership(ctx, g, "dev_2", "joao"); err != nil {
+	if _, err := s.AddMembership(ctx, g, "dev_2"); err != nil {
 		t.Fatalf("AddMembership: %v", err)
 	}
 	if err := s.RevokeMembership(ctx, g.ID, "dev_2"); err != nil {
@@ -176,7 +177,7 @@ func TestRejoiningClearsRevocation(t *testing.T) {
 		t.Errorf("Membership after revoke err = %v, want ErrNotFound", err)
 	}
 
-	if _, err := s.AddMembership(ctx, g, "dev_2", "joao"); err != nil {
+	if _, err := s.AddMembership(ctx, g, "dev_2"); err != nil {
 		t.Fatalf("AddMembership after revoke: %v", err)
 	}
 	if _, err := s.Membership(ctx, g.ID, "dev_2"); err != nil {
@@ -192,11 +193,11 @@ func TestMembersGetTheLowestFreeAddress(t *testing.T) {
 	newDevice(t, s, "dev_3")
 	g, first := newGroup(t, s, "dev_1", "friday night")
 
-	second, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	second, err := s.AddMembership(ctx, g, "dev_2")
 	if err != nil {
 		t.Fatalf("AddMembership: %v", err)
 	}
-	third, err := s.AddMembership(ctx, g, "dev_3", "pedro")
+	third, err := s.AddMembership(ctx, g, "dev_3")
 	if err != nil {
 		t.Fatalf("AddMembership: %v", err)
 	}
@@ -218,7 +219,7 @@ func TestAnAddressSurvivesDisconnecting(t *testing.T) {
 	newDevice(t, s, "dev_2")
 	g, host := newGroup(t, s, "dev_1", "friday night")
 
-	guest, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	guest, err := s.AddMembership(ctx, g, "dev_2")
 	if err != nil {
 		t.Fatalf("AddMembership: %v", err)
 	}
@@ -255,7 +256,7 @@ func TestLeavingFreesAnAddressAndRejoiningTakesItBack(t *testing.T) {
 	newDevice(t, s, "dev_3")
 	g, _ := newGroup(t, s, "dev_1", "friday night")
 
-	left, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	left, err := s.AddMembership(ctx, g, "dev_2")
 	if err != nil {
 		t.Fatalf("AddMembership: %v", err)
 	}
@@ -264,7 +265,7 @@ func TestLeavingFreesAnAddressAndRejoiningTakesItBack(t *testing.T) {
 	}
 
 	// Nobody took it while they were away, so it is theirs again.
-	back, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	back, err := s.AddMembership(ctx, g, "dev_2")
 	if err != nil {
 		t.Fatalf("AddMembership after leaving: %v", err)
 	}
@@ -277,14 +278,14 @@ func TestLeavingFreesAnAddressAndRejoiningTakesItBack(t *testing.T) {
 	if err := s.RevokeMembership(ctx, g.ID, "dev_2"); err != nil {
 		t.Fatalf("RevokeMembership: %v", err)
 	}
-	newcomer, err := s.AddMembership(ctx, g, "dev_3", "pedro")
+	newcomer, err := s.AddMembership(ctx, g, "dev_3")
 	if err != nil {
 		t.Fatalf("AddMembership: %v", err)
 	}
 	if newcomer.VirtualIP != left.VirtualIP {
 		t.Fatalf("newcomer got %q, want the freed %q", newcomer.VirtualIP, left.VirtualIP)
 	}
-	moved, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	moved, err := s.AddMembership(ctx, g, "dev_2")
 	if err != nil {
 		t.Fatalf("AddMembership after losing an address: %v", err)
 	}
@@ -305,15 +306,15 @@ func TestJoiningAFullGroupFails(t *testing.T) {
 	}
 	// A /30 holds two hosts, and the creator takes one of them.
 	g := Group{ID: id, Name: "tiny", PasswordVerifier: "verifier", Subnet: "10.69.0.0/30"}
-	if _, err := s.CreateGroup(ctx, g, "tiny", "dev_1", "creator"); err != nil {
+	if _, err := s.CreateGroup(ctx, g, "tiny", "dev_1"); err != nil {
 		t.Fatalf("CreateGroup: %v", err)
 	}
-	if _, err := s.AddMembership(ctx, g, "dev_2", "joao"); err != nil {
+	if _, err := s.AddMembership(ctx, g, "dev_2"); err != nil {
 		t.Fatalf("AddMembership: %v", err)
 	}
 
 	newDevice(t, s, "dev_3")
-	if _, err := s.AddMembership(ctx, g, "dev_3", "pedro"); !errors.Is(err, ErrGroupFull) {
+	if _, err := s.AddMembership(ctx, g, "dev_3"); !errors.Is(err, ErrGroupFull) {
 		t.Errorf("AddMembership to a full group err = %v, want ErrGroupFull", err)
 	}
 }
@@ -348,7 +349,7 @@ func TestPeersInGroupLeavesOutTheCaller(t *testing.T) {
 	newDevice(t, s, "dev_2")
 	g, mine := newGroup(t, s, "dev_1", "friday night")
 
-	theirs, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	theirs, err := s.AddMembership(ctx, g, "dev_2")
 	if err != nil {
 		t.Fatalf("AddMembership: %v", err)
 	}
@@ -397,7 +398,7 @@ func TestMembershipsCountWhoIsConnected(t *testing.T) {
 	newDevice(t, s, "dev_2")
 	g, mine := newGroup(t, s, "dev_1", "friday night")
 
-	theirs, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	theirs, err := s.AddMembership(ctx, g, "dev_2")
 	if err != nil {
 		t.Fatalf("AddMembership: %v", err)
 	}
@@ -456,7 +457,7 @@ func TestRevokingAMembershipEndsItsSession(t *testing.T) {
 	newDevice(t, s, "dev_2")
 	g, _ := newGroup(t, s, "dev_1", "friday night")
 
-	m, err := s.AddMembership(ctx, g, "dev_2", "joao")
+	m, err := s.AddMembership(ctx, g, "dev_2")
 	if err != nil {
 		t.Fatalf("AddMembership: %v", err)
 	}
@@ -521,5 +522,101 @@ func TestFreeAddress(t *testing.T) {
 
 	if _, err := freeAddress("not-a-subnet", nil); err == nil {
 		t.Error("freeAddress accepted a malformed subnet")
+	}
+}
+
+func TestNicknameFollowsTheDeviceIntoEveryGroup(t *testing.T) {
+	s := newStore(t)
+	ctx := t.Context()
+	newDevice(t, s, "dev_1")
+	newDevice(t, s, "dev_2")
+
+	friday, _ := newGroup(t, s, "dev_1", "friday night")
+	beamng, _ := newGroup(t, s, "dev_1", "beamng")
+	if _, err := s.AddMembership(ctx, friday, "dev_2"); err != nil {
+		t.Fatalf("AddMembership: %v", err)
+	}
+	if _, err := s.AddMembership(ctx, beamng, "dev_2"); err != nil {
+		t.Fatalf("AddMembership: %v", err)
+	}
+
+	if err := s.SetDeviceNickname(ctx, "dev_2", "joao"); err != nil {
+		t.Fatalf("SetDeviceNickname: %v", err)
+	}
+
+	// One rename, and it is true in both groups rather than the one it was
+	// asked for.
+	for _, g := range []Group{friday, beamng} {
+		members, err := s.Members(ctx, g.ID)
+		if err != nil {
+			t.Fatalf("Members: %v", err)
+		}
+		for _, member := range members {
+			if member.DeviceID == "dev_2" && member.Nickname != "joao" {
+				t.Errorf("in %s, dev_2 is %q, want joao", g.Name, member.Nickname)
+			}
+		}
+	}
+
+	memberships, err := s.MembershipsByDevice(ctx, "dev_2")
+	if err != nil {
+		t.Fatalf("MembershipsByDevice: %v", err)
+	}
+	if len(memberships) != 2 {
+		t.Fatalf("memberships = %+v", memberships)
+	}
+	for _, m := range memberships {
+		if m.Nickname != "joao" {
+			t.Errorf("membership of %s carries %q, want joao", m.GroupName, m.Nickname)
+		}
+	}
+}
+
+func TestRegisteringAgainKeepsAChosenNickname(t *testing.T) {
+	s := newStore(t)
+	ctx := t.Context()
+
+	d := Device{ID: "dev_1", PublicKey: "pub", TransportKey: "t", Name: "TIAGO-PC", Nickname: "TIAGO-PC"}
+	if _, err := s.RegisterDevice(ctx, d); err != nil {
+		t.Fatalf("RegisterDevice: %v", err)
+	}
+	if err := s.SetDeviceNickname(ctx, "dev_1", "tiago"); err != nil {
+		t.Fatalf("SetDeviceNickname: %v", err)
+	}
+
+	// A reinstall registers again and offers the machine name once more. It is
+	// a fallback for a device with no name, not an instruction.
+	token, err := s.RegisterDevice(ctx, d)
+	if err != nil {
+		t.Fatalf("RegisterDevice again: %v", err)
+	}
+	got, err := s.DeviceByToken(ctx, token)
+	if err != nil {
+		t.Fatalf("DeviceByToken: %v", err)
+	}
+	if got.Nickname != "tiago" {
+		t.Errorf("nickname = %q, want tiago", got.Nickname)
+	}
+}
+
+func TestConnectedGroupIDsIsWhereARenameHasToReach(t *testing.T) {
+	s := newStore(t)
+	ctx := t.Context()
+	newDevice(t, s, "dev_1")
+
+	g, m := newGroup(t, s, "dev_1", "friday night")
+	if _, err := s.CreateSession(ctx, m); err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	// A group this device belongs to but is not connected in has nobody to
+	// tell.
+	newGroup(t, s, "dev_1", "beamng")
+
+	ids, err := s.ConnectedGroupIDs(ctx, "dev_1")
+	if err != nil {
+		t.Fatalf("ConnectedGroupIDs: %v", err)
+	}
+	if len(ids) != 1 || ids[0] != g.ID {
+		t.Errorf("ids = %v, want just %s", ids, g.ID)
 	}
 }

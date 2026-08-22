@@ -51,6 +51,20 @@ type RegisterDeviceResponse struct {
 	DeviceToken string `json:"deviceToken"`
 }
 
+// Me is what the calling device is, which is currently the name it goes by.
+// A client that has lost its local copy asks here rather than falling back to
+// the machine's own name.
+type Me struct {
+	DeviceID string `json:"deviceId"`
+	Nickname string `json:"nickname"`
+}
+
+// SetNicknameRequest changes what this device is called. One name covers every
+// group: somebody is the same person wherever they turn up.
+type SetNicknameRequest struct {
+	Nickname string `json:"nickname"`
+}
+
 // CreateGroupRequest creates a new virtual LAN. PasswordProof comes out of the
 // client-side KDF in protocol/auth. The password itself never leaves the
 // machine.
@@ -61,16 +75,21 @@ type RegisterDeviceResponse struct {
 type CreateGroupRequest struct {
 	Name          string `json:"name"`
 	PasswordProof string `json:"passwordProof"`
-	Nickname      string `json:"nickname"`
-	Icon          string `json:"icon,omitempty"`
-	Color         string `json:"color,omitempty"`
+	// Nickname is only sent by clients from before names belonged to the
+	// device. The server adopts it as the device's name; a current client
+	// leaves it empty and sets the name through SetNicknameRequest.
+	Nickname string `json:"nickname,omitempty"`
+	Icon     string `json:"icon,omitempty"`
+	Color    string `json:"color,omitempty"`
 }
 
 // JoinGroupRequest joins an existing group by name or ID.
 type JoinGroupRequest struct {
 	Group         string `json:"group"`
 	PasswordProof string `json:"passwordProof"`
-	Nickname      string `json:"nickname"`
+	// Nickname carries the same meaning it does on CreateGroupRequest, and is
+	// there for the same older clients.
+	Nickname string `json:"nickname,omitempty"`
 }
 
 // Membership is the relationship between a device and a group. It is what lets
@@ -90,10 +109,13 @@ type Membership struct {
 	GroupName    string `json:"groupName"`
 	GroupIcon    string `json:"groupIcon,omitempty"`
 	GroupColor   string `json:"groupColor,omitempty"`
-	Nickname     string `json:"nickname"`
-	Subnet       string `json:"subnet"`
-	VirtualIP    string `json:"virtualIp"`
-	Role         string `json:"role"`
+	// Nickname is the device's name rather than anything about this group, and
+	// is here for clients from before that was true. Current ones read it from
+	// Me and ignore this.
+	Nickname  string `json:"nickname"`
+	Subnet    string `json:"subnet"`
+	VirtualIP string `json:"virtualIp"`
+	Role      string `json:"role"`
 	// OnlineMembers is how many of the group are connected, counting this
 	// device. Absent where the server was not asked to count, which is not the
 	// same as nobody being there.

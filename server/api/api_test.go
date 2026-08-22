@@ -805,3 +805,109 @@ func TestDeletingAGroupTakesEverythingWithIt(t *testing.T) {
 		t.Fatalf("reusing the name: status %d, want 201", code)
 	}
 }
+
+// A name belongs to the person, so setting it once is enough and every group
+// they are in shows it.
+func TestOneNicknameCoversEveryGroup(t *testing.T) {
+	h := newTestServer(t)
+	owner, member, friday, _ := setUpGroup(t, h)
+
+	// A second group, so there is more than one place the name could be wrong.
+	beamngProof := auth.DeriveGroupProof("hunter2", "BeamNG")
+	var beamng papi.Membership
+	if code := call(t, h, http.MethodPost, "/api/groups", owner.token, papi.CreateGroupRequest{
+		Name: "BeamNG", PasswordProof: beamngProof,
+	}, &beamng); code != http.StatusCreated {
+		t.Fatalf("create second group: status %d", code)
+	}
+	if code := call(t, h, http.MethodPost, "/api/groups/join", member.token, papi.JoinGroupRequest{
+		Group: "BeamNG", PasswordProof: beamngProof,
+	}, nil); code != http.StatusOK {
+		t.Fatalf("join second group: status %d", code)
+	}
+
+	if code := call(t, h, http.MethodPut, "/api/me/nickname", member.token, papi.SetNicknameRequest{
+		Nickname: "João",
+	}, nil); code != http.StatusNoContent {
+		t.Fatalf("set nickname: status %d", code)
+	}
+
+	for _, groupID := range []string{friday, beamng.GroupID} {
+		var members papi.MembersResponse
+		if code := call(t, h, http.MethodGet, "/api/groups/"+groupID+"/members", owner.token, nil, &members); code != http.StatusOK {
+			t.Fatalf("list members: status %d", code)
+		}
+		for _, m := range members.Members {
+			if m.DeviceID == member.id && m.Nickname != "João" {
+				t.Errorf("in %s, the member is %q, want João", groupID, m.Nickname)
+			}
+		}
+	}
+
+	var me papi.Me
+	if code := call(t, h, http.MethodGet, "/api/me", member.token, nil, &me); code != http.StatusOK {
+		t.Fatalf("get me: status %d", code)
+	}
+	if me.DeviceID != member.id || me.Nickname != "João" {
+		t.Errorf("me = %+v", me)
+	}
+}
+
+// Until a device is named it answers to the machine it runs on, which is
+// better than an empty row where a person should be.
+func TestAnUnnamedDeviceUsesItsMachineName(t *testing.T) {
+	h := newTestServer(t)
+	d := register(t, h, "dev_1")
+
+	var me papi.Me
+	if code := call(t, h, http.MethodGet, "/api/me", d.token, nil, &me); code != http.StatusOK {
+		t.Fatalf("get me: status %d", code)
+	}
+	if me.Nickname != "dev_1-PC" {
+		t.Errorf("nickname = %q, want dev_1-PC", me.Nickname)
+	}
+}
+
+// An app from before nicknames belonged to the device still sends one when it
+// joins, and still renames itself through the group it is in. Both have to keep
+// working, or updating the server breaks every client that has not updated.
+func TestAnOlderClientCanStillNameItself(t *testing.T) {
+	h := newTestServer(t)
+	owner, member, groupID, _ := setUpGroup(t, h)
+
+	// The name it sent while joining is the name it gets back.
+	var groups []papi.Membership
+	if code := call(t, h, http.MethodGet, "/api/groups", member.token, nil, &groups); code != http.StatusOK {
+		t.Fatalf("list groups: status %d", code)
+	}
+	if len(groups) != 1 || groups[0].Nickname != "Joao" {
+		t.Fatalf("groups = %+v", groups)
+	}
+
+	if code := call(t, h, http.MethodPut, "/api/groups/"+groupID+"/nickname", member.token, papi.SetNicknameRequest{
+		Nickname: "João",
+	}, nil); code != http.StatusNoContent {
+		t.Fatalf("set nickname the old way: status %d", code)
+	}
+
+	var members papi.MembersResponse
+	if code := call(t, h, http.MethodGet, "/api/groups/"+groupID+"/members", owner.token, nil, &members); code != http.StatusOK {
+		t.Fatalf("list members: status %d", code)
+	}
+	for _, m := range members.Members {
+		if m.DeviceID == member.id && m.Nickname != "João" {
+			t.Errorf("member = %+v", m)
+		}
+	}
+}
+
+func TestNicknameRejectsAnEmptyName(t *testing.T) {
+	h := newTestServer(t)
+	d := register(t, h, "dev_1")
+
+	if code := call(t, h, http.MethodPut, "/api/me/nickname", d.token, papi.SetNicknameRequest{
+		Nickname: "   ",
+	}, nil); code != http.StatusBadRequest {
+		t.Errorf("set an empty nickname: status %d, want 400", code)
+	}
+}

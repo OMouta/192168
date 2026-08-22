@@ -44,7 +44,10 @@ type Membership struct {
 	GroupIcon  string
 	GroupColor string
 
-	DeviceID  string
+	DeviceID string
+	// Nickname is the device's, not the membership's. It is carried here
+	// because the client renders a group and the name it appears under
+	// together.
 	Nickname  string
 	Subnet    string
 	VirtualIP string
@@ -59,7 +62,7 @@ type Membership struct {
 
 // CreateGroup creates a group and makes its creator the first member, in one
 // transaction. A group with no members would be unreachable.
-func (s *Store) CreateGroup(ctx context.Context, g Group, normalizedName, deviceID, nickname string) (Membership, error) {
+func (s *Store) CreateGroup(ctx context.Context, g Group, normalizedName, deviceID string) (Membership, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Membership{}, fmt.Errorf("storage: begin: %w", err)
@@ -78,7 +81,7 @@ func (s *Store) CreateGroup(ctx context.Context, g Group, normalizedName, device
 		return Membership{}, fmt.Errorf("storage: create group: %w", err)
 	}
 
-	m, err := insertMembership(ctx, tx, g, deviceID, nickname, now)
+	m, err := insertMembership(ctx, tx, g, deviceID, now)
 	if err != nil {
 		return Membership{}, err
 	}
@@ -133,7 +136,7 @@ func (s *Store) scanGroup(row *sql.Row) (Group, error) {
 // Being removed is different from leaving, and does not come back: a removed
 // device still knows the name and the password, so if joining undid it then
 // removing anybody would mean nothing.
-func (s *Store) AddMembership(ctx context.Context, g Group, deviceID, nickname string) (Membership, error) {
+func (s *Store) AddMembership(ctx context.Context, g Group, deviceID string) (Membership, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Membership{}, fmt.Errorf("storage: begin: %w", err)
@@ -151,7 +154,7 @@ func (s *Store) AddMembership(ctx context.Context, g Group, deviceID, nickname s
 		return Membership{}, fmt.Errorf("storage: check removal: %w", err)
 	}
 
-	m, err := insertMembership(ctx, tx, g, deviceID, nickname, time.Now())
+	m, err := insertMembership(ctx, tx, g, deviceID, time.Now())
 	if err != nil {
 		return Membership{}, err
 	}
@@ -161,7 +164,7 @@ func (s *Store) AddMembership(ctx context.Context, g Group, deviceID, nickname s
 	return m, nil
 }
 
-func insertMembership(ctx context.Context, tx *sql.Tx, g Group, deviceID, nickname string, now time.Time) (Membership, error) {
+func insertMembership(ctx context.Context, tx *sql.Tx, g Group, deviceID string, now time.Time) (Membership, error) {
 	id, err := NewID("mem")
 	if err != nil {
 		return Membership{}, err
@@ -181,13 +184,12 @@ func insertMembership(ctx context.Context, tx *sql.Tx, g Group, deviceID, nickna
 	// that still names an address somebody else took meanwhile would collide
 	// with the uniqueness index.
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO memberships (id, group_id, device_id, nickname, created_at)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO memberships (id, group_id, device_id, created_at)
+		VALUES (?, ?, ?, ?)
 		ON CONFLICT (group_id, device_id) DO UPDATE SET
-			nickname   = excluded.nickname,
 			revoked_at = NULL,
 			virtual_ip = NULL`,
-		id, g.ID, deviceID, nickname, now.Unix())
+		id, g.ID, deviceID, now.Unix())
 	if err != nil {
 		return Membership{}, fmt.Errorf("storage: add membership: %w", err)
 	}
@@ -200,11 +202,15 @@ func insertMembership(ctx context.Context, tx *sql.Tx, g Group, deviceID, nickna
 	// The insert may have updated an existing row, so the authoritative ID
 	// comes back from a read rather than from the value just generated.
 	var (
-		created int64
-		role    Role
+		created  int64
+		role     Role
+		nickname string
 	)
 	err = tx.QueryRowContext(ctx, `
-		SELECT id, nickname, role, created_at FROM memberships WHERE group_id = ? AND device_id = ?`,
+		SELECT m.id, d.nickname, m.role, m.created_at
+		FROM memberships m
+		JOIN devices d ON d.id = m.device_id
+		WHERE m.group_id = ? AND m.device_id = ?`,
 		g.ID, deviceID,
 	).Scan(&id, &nickname, &role, &created)
 	if err != nil {
@@ -305,10 +311,11 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 	// say which groups are worth joining right now, and asking per group would
 	// be a query each.
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.id, m.group_id, g.name, g.icon, g.color, m.nickname, g.subnet, m.virtual_ip, m.role, m.created_at,
+		SELECT m.id, m.group_id, g.name, g.icon, g.color, d.nickname, g.subnet, m.virtual_ip, m.role, m.created_at,
 		       (SELECT COUNT(*) FROM sessions s WHERE s.group_id = m.group_id)
 		FROM memberships m
-		JOIN groups g ON g.id = m.group_id
+		JOIN groups g  ON g.id = m.group_id
+		JOIN devices d ON d.id = m.device_id
 		WHERE m.device_id = ? AND m.revoked_at IS NULL
 		ORDER BY m.created_at`, deviceID)
 	if err != nil {
@@ -350,9 +357,10 @@ type Member struct {
 // is in the group rather than only who is here right now.
 func (s *Store) Members(ctx context.Context, groupID string) ([]Member, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.device_id, m.nickname, m.virtual_ip, m.role, s.id IS NOT NULL
+		SELECT m.device_id, d.nickname, m.virtual_ip, m.role, s.id IS NOT NULL
 		FROM memberships m
-		LEFT JOIN sessions s ON s.membership_id = m.id
+		JOIN devices d        ON d.id = m.device_id
+		LEFT JOIN sessions s  ON s.membership_id = m.id
 		WHERE m.group_id = ? AND m.revoked_at IS NULL
 		ORDER BY m.created_at`, groupID)
 	if err != nil {
@@ -378,9 +386,10 @@ func (s *Store) Membership(ctx context.Context, groupID, deviceID string) (Membe
 		created int64
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT m.id, g.name, g.icon, g.color, m.nickname, g.subnet, m.virtual_ip, m.role, m.created_at
+		SELECT m.id, g.name, g.icon, g.color, d.nickname, g.subnet, m.virtual_ip, m.role, m.created_at
 		FROM memberships m
-		JOIN groups g ON g.id = m.group_id
+		JOIN groups g  ON g.id = m.group_id
+		JOIN devices d ON d.id = m.device_id
 		WHERE m.group_id = ? AND m.device_id = ? AND m.revoked_at IS NULL`,
 		groupID, deviceID,
 	).Scan(&m.ID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Nickname, &m.Subnet, &m.VirtualIP, &m.Role, &created)
@@ -418,24 +427,6 @@ func (s *Store) RevokeMembership(ctx context.Context, groupID, deviceID string) 
 		WHERE membership_id IN (SELECT id FROM memberships WHERE group_id = ? AND device_id = ?)`,
 		groupID, deviceID); err != nil {
 		return fmt.Errorf("storage: end sessions: %w", err)
-	}
-	return nil
-}
-
-// SetNickname changes a device's nickname in one group.
-func (s *Store) SetNickname(ctx context.Context, groupID, deviceID, nickname string) error {
-	res, err := s.db.ExecContext(ctx,
-		`UPDATE memberships SET nickname = ? WHERE group_id = ? AND device_id = ? AND revoked_at IS NULL`,
-		nickname, groupID, deviceID)
-	if err != nil {
-		return fmt.Errorf("storage: set nickname: %w", err)
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("storage: set nickname: %w", err)
-	}
-	if affected == 0 {
-		return ErrNotFound
 	}
 	return nil
 }

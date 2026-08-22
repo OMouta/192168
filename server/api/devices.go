@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/OMouta/192168/protocol/api"
@@ -52,11 +53,15 @@ func (s *Server) handleRegisterDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The machine's name is also the first thing to call the person behind it,
+	// so a device that has never been named answers to it until somebody says
+	// otherwise. Registering again leaves a chosen name alone.
 	token, err := s.store.RegisterDevice(r.Context(), storage.Device{
 		ID:           req.DeviceID,
 		PublicKey:    req.PublicKey,
 		TransportKey: req.TransportKey,
 		Name:         req.DeviceName,
+		Nickname:     strings.TrimSpace(req.DeviceName),
 	})
 	if errors.Is(err, storage.ErrConflict) {
 		writeError(w, http.StatusConflict, api.ErrBadRequest, "That key is already registered to another device.")

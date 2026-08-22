@@ -12,11 +12,17 @@ import (
 )
 
 // Device is one installation.
+//
+// Name is the machine's own name, which the device registers with and nobody
+// chooses. Nickname is what the person wants to be called, and it is what the
+// rest of a group sees. It sits here rather than on each membership, so
+// somebody is the same person in every group they turn up in.
 type Device struct {
 	ID           string
 	PublicKey    string
 	TransportKey string
 	Name         string
+	Nickname     string
 	CreatedAt    time.Time
 	LastSeenAt   time.Time
 }
@@ -24,6 +30,9 @@ type Device struct {
 // RegisterDevice stores a device and issues its first token. Registering a
 // device ID that already exists updates its keys and name, so reinstalling over
 // an existing identity works instead of colliding.
+//
+// The nickname is a seed rather than an assignment. Registering again must not
+// undo a name somebody chose, so it only lands on a device that has none.
 //
 // The returned token is the only time the plaintext exists on this side.
 func (s *Store) RegisterDevice(ctx context.Context, d Device) (token string, err error) {
@@ -40,14 +49,15 @@ func (s *Store) RegisterDevice(ctx context.Context, d Device) (token string, err
 
 	now := time.Now().Unix()
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO devices (id, public_key, transport_key, name, created_at, last_seen_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO devices (id, public_key, transport_key, name, nickname, created_at, last_seen_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET
 			public_key    = excluded.public_key,
 			transport_key = excluded.transport_key,
 			name          = excluded.name,
+			nickname      = CASE WHEN devices.nickname = '' THEN excluded.nickname ELSE devices.nickname END,
 			last_seen_at  = excluded.last_seen_at`,
-		d.ID, d.PublicKey, d.TransportKey, d.Name, now, now)
+		d.ID, d.PublicKey, d.TransportKey, d.Name, d.Nickname, now, now)
 	if err != nil {
 		if isUniqueViolation(err) {
 			// The public key belongs to a different device ID.
@@ -78,12 +88,12 @@ func (s *Store) DeviceByToken(ctx context.Context, token string) (Device, error)
 		lastSeen int64
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT d.id, d.public_key, d.transport_key, d.name, d.created_at, d.last_seen_at
+		SELECT d.id, d.public_key, d.transport_key, d.name, d.nickname, d.created_at, d.last_seen_at
 		FROM device_tokens t
 		JOIN devices d ON d.id = t.device_id
 		WHERE t.token_hash = ? AND t.revoked_at IS NULL`,
 		hashToken(token),
-	).Scan(&d.ID, &d.PublicKey, &d.TransportKey, &d.Name, &created, &lastSeen)
+	).Scan(&d.ID, &d.PublicKey, &d.TransportKey, &d.Name, &d.Nickname, &created, &lastSeen)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Device{}, ErrNotFound
 	}
@@ -97,6 +107,49 @@ func (s *Store) DeviceByToken(ctx context.Context, token string) (Device, error)
 		return Device{}, fmt.Errorf("storage: touch device: %w", err)
 	}
 	return d, nil
+}
+
+// SetDeviceNickname changes what this device is called, everywhere at once.
+func (s *Store) SetDeviceNickname(ctx context.Context, deviceID, nickname string) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE devices SET nickname = ? WHERE id = ?`, nickname, deviceID)
+	if err != nil {
+		return fmt.Errorf("storage: set nickname: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("storage: set nickname: %w", err)
+	}
+	if affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ConnectedGroupIDs is every group this device has a live session in.
+//
+// A nickname belongs to the device, so changing it has to reach each group that
+// can currently see this person rather than one of them. In practice there is
+// never more than one, since only one group can be connected at a time.
+func (s *Store) ConnectedGroupIDs(ctx context.Context, deviceID string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT DISTINCT s.group_id
+		FROM sessions s
+		JOIN memberships m ON m.id = s.membership_id
+		WHERE m.device_id = ?`, deviceID)
+	if err != nil {
+		return nil, fmt.Errorf("storage: list connected groups: %w", err)
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("storage: scan connected group: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // ClaimRegisterNonce records a registration nonce and reports whether it was

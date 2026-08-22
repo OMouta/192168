@@ -106,7 +106,7 @@ func (s *Store) SessionByID(ctx context.Context, id string) (Session, error) {
 // asking, since nobody needs to be told about themselves.
 func (s *Store) PeersInGroup(ctx context.Context, groupID, exceptDeviceID string) ([]SessionPeer, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT m.device_id, m.nickname, m.virtual_ip, d.transport_key, s.endpoint_address, s.endpoint_port
+		SELECT m.device_id, d.nickname, m.virtual_ip, d.transport_key, s.endpoint_address, s.endpoint_port
 		FROM sessions s
 		JOIN memberships m ON m.id = s.membership_id
 		JOIN devices d     ON d.id = m.device_id

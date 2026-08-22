@@ -20,13 +20,15 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request, devic
 	}
 
 	name := strings.TrimSpace(req.Name)
-	nickname := strings.TrimSpace(req.Nickname)
-	if name == "" || len(name) > maxNameLength || req.PasswordProof == "" || nickname == "" {
-		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "A group needs a name, a password, and a nickname.")
+	if name == "" || len(name) > maxNameLength || req.PasswordProof == "" {
+		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "A group needs a name and a password.")
 		return
 	}
 	if !isAppearanceKey(req.Icon) || !isAppearanceKey(req.Color) {
 		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "That icon or colour will not work.")
+		return
+	}
+	if !s.adoptNickname(w, r, device, req.Nickname) {
 		return
 	}
 
@@ -48,7 +50,7 @@ func (s *Server) handleCreateGroup(w http.ResponseWriter, r *http.Request, devic
 		Color:            req.Color,
 		PasswordVerifier: verifier,
 		Subnet:           DefaultSubnet,
-	}, auth.NormalizeGroupName(name), device.ID, nickname)
+	}, auth.NormalizeGroupName(name), device.ID)
 	if errors.Is(err, storage.ErrConflict) {
 		writeError(w, http.StatusConflict, api.ErrGroupNameTaken, "A group with that name already exists.")
 		return
@@ -73,9 +75,11 @@ func (s *Server) handleJoinGroup(w http.ResponseWriter, r *http.Request, device 
 	}
 
 	name := strings.TrimSpace(req.Group)
-	nickname := strings.TrimSpace(req.Nickname)
-	if name == "" || req.PasswordProof == "" || nickname == "" {
-		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "Joining needs a group, a password, and a nickname.")
+	if name == "" || req.PasswordProof == "" {
+		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "Joining needs a group and a password.")
+		return
+	}
+	if !s.adoptNickname(w, r, device, req.Nickname) {
 		return
 	}
 
@@ -106,7 +110,7 @@ func (s *Server) handleJoinGroup(w http.ResponseWriter, r *http.Request, device 
 		return
 	}
 
-	membership, err := s.store.AddMembership(r.Context(), group, device.ID, nickname)
+	membership, err := s.store.AddMembership(r.Context(), group, device.ID)
 	if errors.Is(err, storage.ErrBanned) {
 		// Word for word what a wrong password gets. A device that was removed
 		// learns nothing by trying again, and cannot tell the two apart.
@@ -181,39 +185,6 @@ func (s *Server) handleLeaveGroup(w http.ResponseWriter, r *http.Request, device
 	// hear from a disconnect.
 	s.hub.Broadcast(groupID, device.ID, api.EventPeerOffline, api.PeerOfflineData{DeviceID: device.ID})
 	s.hub.SendTo(groupID, device.ID, api.EventMembershipRevoked, api.PeerOfflineData{DeviceID: device.ID})
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// handleSetNickname changes the caller's nickname in one group. Nicknames are
-// per group, so this leaves the others alone.
-func (s *Server) handleSetNickname(w http.ResponseWriter, r *http.Request, device storage.Device) {
-	var req struct {
-		Nickname string `json:"nickname"`
-	}
-	if !decode(w, r, &req) {
-		return
-	}
-
-	nickname := strings.TrimSpace(req.Nickname)
-	if nickname == "" || len(nickname) > maxNameLength {
-		writeError(w, http.StatusBadRequest, api.ErrBadRequest, "That nickname will not work.")
-		return
-	}
-
-	groupID := r.PathValue("groupId")
-	if err := s.store.SetNickname(r.Context(), groupID, device.ID, nickname); err != nil {
-		s.fail(w, r, err, api.ErrGroupNotFound, "You are not a member of that group.")
-		return
-	}
-
-	// A nickname is what the rest of the group sees, so it has to reach them
-	// now. Without this it only arrived with the next peer list, which meant
-	// everyone else kept the old name until they reconnected.
-	s.hub.Broadcast(groupID, device.ID, api.EventPeerRenamed, api.PeerRenamedData{
-		DeviceID: device.ID,
-		Nickname: nickname,
-	})
 
 	w.WriteHeader(http.StatusNoContent)
 }
