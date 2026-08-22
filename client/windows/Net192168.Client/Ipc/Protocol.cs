@@ -46,6 +46,18 @@ public enum PeerState
 }
 
 /// <summary>
+/// How much of a problem a message describes. None when there is no message.
+/// </summary>
+public enum MessageSeverity
+{
+    None,
+    /// <summary>The thing the user asked for did not happen.</summary>
+    Error,
+    /// <summary>It did, and something alongside it will not work.</summary>
+    Warning,
+}
+
+/// <summary>
 /// What is standing in the way of a link. None for one with nothing wrong.
 /// </summary>
 public enum PeerReason
@@ -87,6 +99,7 @@ public sealed record DaemonState
     public ulong PacketsSent { get; init; }
     public ulong PacketsReceived { get; init; }
     public string? Message { get; init; }
+    public MessageSeverity MessageSeverity { get; init; }
 }
 
 /// <summary>One row of the active group screen.</summary>

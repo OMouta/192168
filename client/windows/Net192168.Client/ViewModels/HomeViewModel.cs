@@ -359,11 +359,16 @@ public sealed partial class HomeViewModel : ObservableObject
     public partial bool ShowEmptyGroups { get; set; }
 
     /// <summary>
-    /// What went wrong, if anything. Only failures land here: everything that
-    /// worked is already visible in what the screen now says.
+    /// What went wrong, if anything, and what a connection that is working but
+    /// missing something is missing. Everything that simply worked is already
+    /// visible in what the screen now says.
     /// </summary>
     [ObservableProperty]
     public partial string? Message { get; set; }
+
+    /// <summary>Whether <see cref="Message"/> is a failure or a warning.</summary>
+    [ObservableProperty]
+    public partial MessageSeverity MessageSeverity { get; set; }
 
     /// <summary>False when the daemon is not answering, which disables everything.</summary>
     [ObservableProperty]
@@ -600,6 +605,7 @@ public sealed partial class HomeViewModel : ObservableObject
         if (!string.IsNullOrEmpty(state.Message))
         {
             Message = state.Message;
+            MessageSeverity = state.MessageSeverity;
         }
 
         UpdatePeers(state.Peers);

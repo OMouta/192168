@@ -53,6 +53,7 @@ func (c *Core) Connect(ctx context.Context, groupID string) error {
 	c.state.Connection = ipc.StateConnecting
 	c.state.GroupID = groupID
 	c.state.Message = ""
+	c.state.MessageSeverity = severityFor("")
 	state := c.snapshot()
 	c.mu.Unlock()
 	c.emit(ipc.EventStateChanged, state)
@@ -97,6 +98,7 @@ func (c *Core) runConnect(groupID string) {
 	c.state.GroupColor = membership.GroupColor
 	c.state.VirtualIP = session.VirtualIP
 	c.state.Message = ""
+	c.state.MessageSeverity = severityFor("")
 	c.state.IsOwner = membership.Role == api.RoleOwner
 
 	// Peers start as connecting and are in the state before it is announced, so
@@ -150,6 +152,7 @@ func (c *Core) failConnect(groupID string, err error) {
 	c.state.GroupName = ""
 	c.state.VirtualIP = ""
 	c.state.Message = message
+	c.state.MessageSeverity = severityFor(message)
 	c.state.IsOwner = false
 	c.state.PacketsSent = 0
 	c.state.PacketsReceived = 0
@@ -255,6 +258,7 @@ func (c *Core) finishDisconnect(session *activeSession, reason string) {
 	c.state.GroupName = ""
 	c.state.VirtualIP = ""
 	c.state.Message = reason
+	c.state.MessageSeverity = severityFor(reason)
 	c.state.IsOwner = false
 	c.state.PacketsSent = 0
 	c.state.PacketsReceived = 0

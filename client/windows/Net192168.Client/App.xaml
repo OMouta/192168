@@ -19,6 +19,7 @@
             <views:NotBoolean x:Key="NotBoolean" />
             <views:CopyGlyph x:Key="CopyGlyph" />
             <views:UpdateSeverity x:Key="UpdateSeverity" />
+            <views:MessageLevel x:Key="MessageLevel" />
             <views:PresenceOpacity x:Key="PresenceOpacity" />
 
             <!--

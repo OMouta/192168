@@ -74,7 +74,22 @@ type State struct {
 	PacketsSent     uint64 `json:"packetsSent,omitempty"`
 	PacketsReceived uint64 `json:"packetsReceived,omitempty"`
 	Message         string `json:"message,omitempty"`
+	// MessageSeverity is how much of a problem Message describes. Empty
+	// alongside an empty Message, and MessageError for anything that set one
+	// before there was a second kind.
+	MessageSeverity MessageSeverity `json:"messageSeverity,omitempty"`
 }
+
+// MessageSeverity tells a failure apart from a warning, because they read
+// completely differently to somebody whose group is connected and working.
+type MessageSeverity string
+
+const (
+	// MessageError means the thing the user asked for did not happen.
+	MessageError MessageSeverity = "error"
+	// MessageWarning means it did, and something alongside it will not work.
+	MessageWarning MessageSeverity = "warning"
+)
 
 // PeerView is one row of the active group screen.
 type PeerView struct {

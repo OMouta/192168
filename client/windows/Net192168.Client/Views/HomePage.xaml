@@ -734,7 +734,7 @@
             CloseButtonClick="OnDismissMessage"
             IsOpen="{x:Bind ViewModel.Message, Mode=OneWay, Converter={StaticResource NotNullToBoolean}}"
             Message="{x:Bind ViewModel.Message, Mode=OneWay}"
-            Severity="Error" />
+            Severity="{x:Bind ViewModel.MessageSeverity, Mode=OneWay, Converter={StaticResource MessageLevel}}" />
 
         <Grid
             Grid.Row="5"

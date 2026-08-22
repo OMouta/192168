@@ -32,7 +32,7 @@ func (c *Core) startAdapter(ctx context.Context, links *mesh.Mesh, virtualIP, su
 		// reported rather than treated as a failed connect. The user has to be
 		// told, because a missing adapter looks like nothing working at all.
 		c.log.Error("cannot open the virtual adapter", "error", err)
-		c.setMessage(adapterProblem(err))
+		c.setMessage(adapterProblem(err), ipc.MessageError)
 		return
 	}
 
@@ -340,10 +340,21 @@ func adapterProblem(err error) string {
 	}
 }
 
+// severityFor pairs a message with how it should read. Everything that ends a
+// connection sets one, and those are all failures; the empty message that takes
+// the bar away carries no severity at all.
+func severityFor(message string) ipc.MessageSeverity {
+	if message == "" {
+		return ""
+	}
+	return ipc.MessageError
+}
+
 // setMessage puts a line in front of the user without changing the connection.
-func (c *Core) setMessage(message string) {
+func (c *Core) setMessage(message string, severity ipc.MessageSeverity) {
 	c.mu.Lock()
 	c.state.Message = message
+	c.state.MessageSeverity = severity
 	state := c.snapshot()
 	c.mu.Unlock()
 	c.emit(ipc.EventStateChanged, state)
