@@ -52,7 +52,7 @@
             Margin="12,8,12,0"
             IsClosable="{x:Bind ViewModel.Update.IsWorking, Mode=OneWay, Converter={StaticResource NotBoolean}}"
             IsOpen="{x:Bind ViewModel.HasUpdate, Mode=TwoWay}"
-            Severity="Informational"
+            Severity="{x:Bind ViewModel.Update.IsRequired, Mode=OneWay, Converter={StaticResource UpdateSeverity}}"
             Title="{x:Bind ViewModel.Update.Title, Mode=OneWay}">
             <InfoBar.ActionButton>
                 <Button
@@ -62,10 +62,14 @@
             </InfoBar.ActionButton>
 
             <InfoBar.Content>
-                <StackPanel
-                    Margin="0,0,0,12"
-                    Spacing="4"
-                    Visibility="{x:Bind ViewModel.Update.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}">
+                <StackPanel Margin="0,0,0,12" Spacing="8">
+                    <!--  Only a breaking update explains itself. The rest are a version number.  -->
+                    <TextBlock
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Text="{x:Bind ViewModel.Update.Detail, Mode=OneWay}"
+                        TextWrapping="Wrap"
+                        Visibility="{x:Bind ViewModel.Update.Detail, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
+
                     <ProgressBar
                         Maximum="100"
                         Value="{x:Bind ViewModel.Update.Percent, Mode=OneWay}"
@@ -74,7 +78,8 @@
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                         Style="{StaticResource CaptionTextBlockStyle}"
                         Text="{x:Bind ViewModel.Update.Status, Mode=OneWay}"
-                        TextWrapping="Wrap" />
+                        TextWrapping="Wrap"
+                        Visibility="{x:Bind ViewModel.Update.Status, Mode=OneWay, Converter={StaticResource TextToVisibility}}" />
 
                     <HyperlinkButton
                         Padding="0,2"

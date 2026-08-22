@@ -11,8 +11,13 @@ namespace Net192168.Client.Services;
 /// <summary>The setup program attached to a release.</summary>
 public sealed record Setup(string Name, string Url, long Size);
 
-/// <summary>A release newer than this one, and the installer that applies it.</summary>
-public sealed record Release(string Version, string Url, Setup? Installer);
+/// <summary>
+/// A release newer than this one, and the installer that applies it.
+///
+/// Breaking means the app and the server stop agreeing across it, so putting it
+/// off costs the user something rather than nothing.
+/// </summary>
+public sealed record Release(string Version, string Url, Setup? Installer, bool Breaking);
 
 /// <summary>Where an install has got to.</summary>
 public enum UpdateStage
@@ -152,7 +157,11 @@ public static class Updates
             }
 
             var url = root.TryGetProperty("html_url", out var link) ? link.GetString() : null;
-            Available = new Release(name.TrimStart('v', 'V'), url ?? ReleasesPage, FindInstaller(root));
+            Available = new Release(
+                name.TrimStart('v', 'V'),
+                url ?? ReleasesPage,
+                FindInstaller(root),
+                Breaks(current, latest));
             Changed?.Invoke();
         }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException or JsonException)
@@ -336,6 +345,16 @@ public static class Updates
         Failure = failure;
         ProgressChanged?.Invoke();
     }
+
+    /// <summary>
+    /// Whether the protocol changes between two versions.
+    ///
+    /// Before 1.0 the minor is the breaking position, so 0.1.3 to 0.2.0 is a
+    /// break and 0.2.0 to 0.2.1 is not. After it, the major is.
+    /// </summary>
+    private static bool Breaks(Version current, Version latest)
+        => current.Major != latest.Major
+            || (latest.Major == 0 && current.Minor != latest.Minor);
 
     /// <summary>
     /// Reads a version out of a tag. Anything after the numbers is ignored,

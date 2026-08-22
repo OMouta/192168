@@ -32,7 +32,25 @@ public sealed partial class UpdateViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(Label))]
     public partial string? Version { get; set; }
 
-    public string Title => $"Version {Version} is available";
+    public string Title => IsRequired
+        ? $"Version {Version} is needed"
+        : $"Version {Version} is available";
+
+    /// <summary>
+    /// Whether the server has moved on past this build. The banner is a warning
+    /// rather than a note when it has, because putting it off leaves an app that
+    /// cannot create or join a group.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Title))]
+    [NotifyPropertyChangedFor(nameof(Detail))]
+    public partial bool IsRequired { get; set; }
+
+    /// <summary>Why it is needed, for the banner. Empty for an ordinary one,
+    /// which does not need explaining.</summary>
+    public string Detail => IsRequired
+        ? "This version changes how the app talks to the server. Until you update, you can still connect to your groups but not create or join one."
+        : "";
 
     /// <summary>What the button says on About, where no title above it names
     /// the version.</summary>
@@ -72,6 +90,7 @@ public sealed partial class UpdateViewModel : ObservableObject
     {
         Version = Updates.Available?.Version;
         HasUpdate = Version is not null;
+        IsRequired = Updates.Available?.Breaking ?? false;
         IsDownloading = Updates.Stage is UpdateStage.Downloading;
         IsWorking = Updates.Stage is UpdateStage.Downloading or UpdateStage.Starting;
         HasFailed = Updates.Stage is UpdateStage.Failed;

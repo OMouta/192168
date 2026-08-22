@@ -18,6 +18,7 @@
             <views:ConnectionBrush x:Key="ConnectionBrush" />
             <views:NotBoolean x:Key="NotBoolean" />
             <views:CopyGlyph x:Key="CopyGlyph" />
+            <views:UpdateSeverity x:Key="UpdateSeverity" />
             <views:PresenceOpacity x:Key="PresenceOpacity" />
 
             <!--
