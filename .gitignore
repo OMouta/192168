@@ -49,3 +49,4 @@ daemon/cmd/192168-service/resource.syso
 
 # Logs
 *.log
+logs/*
