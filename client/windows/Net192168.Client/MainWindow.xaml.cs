@@ -82,7 +82,7 @@ public sealed partial class MainWindow : Window
 
         // The installer kills whatever still holds the files it replaces, and a
         // killed process leaves its tray icon behind. Quit first.
-        Updates.Installing += () => _ = QuitAsync(stopService: false);
+        Updates.Installing += Quit;
 
         ContentFrame.Navigate(typeof(HomePage));
     }
@@ -172,7 +172,7 @@ public sealed partial class MainWindow : Window
     /// that did nothing.
     /// </summary>
     [RelayCommand]
-    private void ShowWindow()
+    public void ShowWindow()
     {
         AppWindow.Show();
         Activate();
@@ -204,47 +204,39 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Quits, and takes the background service with it. Leaving it up would
-    /// leave an adapter and live tunnels with no icon left to stop them from.
+    /// Quits the app. The service is left running: it is what holds the tunnels
+    /// up, and stopping it is a decision taken in Settings rather than a side
+    /// effect of closing a window.
     ///
     /// A command rather than a Click handler. The tray's flyout lives in its own
     /// window, and a Click on an item in there never reached this code, so the
     /// menu did nothing at all. The left-click binding always worked, which is
     /// what says commands are the way across that boundary.
+    ///
+    /// Synchronous, because an async command is disabled while it runs: a quit
+    /// waiting on something slow greys Exit out until it finishes, and one
+    /// waiting on something that never returns greys it out for good.
     /// </summary>
     [RelayCommand]
-    private Task ExitAppAsync() => QuitAsync(stopService: true);
+    private void ExitApp() => Quit();
 
-    /// <summary>
-    /// Quits. The service is stopped on the way out, because leaving it up
-    /// leaves live tunnels with no icon to stop them from. An update does not
-    /// stop it: the installer does that itself, and waiting for it here first
-    /// only makes the update slower.
-    /// </summary>
-    private async Task QuitAsync(bool stopService)
+    private void Quit()
     {
         _exiting = true;
         App.Daemon.StateChanged -= UpdateTray;
         App.Daemon.StateChanged -= AnnounceArrivals;
 
-        // Quitting must not depend on the service agreeing to stop, or on the
-        // stop returning at all.
+        // Taking the icon down by hand is worth trying, since it outlives the
+        // process otherwise, but nothing here is worth staying open for.
         try
         {
-            if (stopService && DaemonService.IsAvailable)
-            {
-                await Task.WhenAny(DaemonService.StopAsync(), Task.Delay(TimeSpan.FromSeconds(15)));
-            }
+            Tray.Dispose();
+            App.Daemon.Shutdown();
         }
         catch (Exception error)
         {
-            App.Trace($"tray exit: stopping the service failed: {error}");
+            App.Trace($"tray exit: {error}");
         }
-
-        // The icon outlives the process unless it is taken down by hand, which
-        // leaves a dead entry in the tray until something hovers over it.
-        Tray.Dispose();
-        App.Daemon.Shutdown();
 
         // Application.Exit closes windows, and this window is hidden rather
         // than open, so there is nothing for it to close and the process stays

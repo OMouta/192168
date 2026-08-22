@@ -103,7 +103,7 @@ public partial class App : Application
         _window.Closed += (_, _) => Daemon.Shutdown();
 
         // An invite link opens the app on the group it names.
-        var invite = InviteFromActivation(AppInstance.GetCurrent().GetActivatedEventArgs());
+        var invite = InviteFrom(AppInstance.GetCurrent().GetActivatedEventArgs()) ?? InviteFromCommandLine();
 
         // Started at sign-in, the tray icon is the whole UI until asked for more.
         if (!StartedHidden)
@@ -120,38 +120,49 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// A link that arrived while the app was already running. It comes in on a
-    /// background thread: a different process is handing it over.
+    /// A launch handed over by a second copy of the app, on that copy's thread.
+    ///
+    /// Running the app again is how people ask for the window back, so every
+    /// one of these opens it. Only acting on the ones carrying a link left the
+    /// app in the tray with the shortcut doing nothing.
     /// </summary>
     internal void OnRedirected(AppActivationArguments args)
     {
-        if (InviteFromActivation(args) is not string invite)
-        {
-            return;
-        }
+        var invite = InviteFrom(args);
 
-        _window?.DispatcherQueue.TryEnqueue(() => _window?.OpenInvite(invite));
+        _window?.DispatcherQueue.TryEnqueue(() =>
+        {
+            if (invite is not null)
+            {
+                _window?.OpenInvite(invite);
+                return;
+            }
+
+            _window?.ShowWindow();
+        });
     }
 
-    /// <summary>
-    /// The invite a launch carries, or null for an ordinary one. Unpackaged, a
-    /// protocol launch can arrive as an argument rather than as protocol
-    /// activation, so both shapes are read. Whether the string is a real invite
-    /// is the daemon's problem.
-    /// </summary>
-    private static string? InviteFromActivation(AppActivationArguments? args)
+    /// <summary>The invite an activation carries, or null. Whether the string
+    /// is a real invite is the daemon's problem.</summary>
+    private static string? InviteFrom(AppActivationArguments? args)
     {
         // Fully qualified. Importing this namespace would shadow the
         // LaunchActivatedEventArgs OnLaunched is handed.
-        if (args?.Data is Windows.ApplicationModel.Activation.IProtocolActivatedEventArgs protocol)
-        {
-            return protocol.Uri.AbsoluteUri;
-        }
+        return args?.Data is Windows.ApplicationModel.Activation.IProtocolActivatedEventArgs protocol
+            ? protocol.Uri.AbsoluteUri
+            : null;
+    }
 
-        return Environment.GetCommandLineArgs()
+    /// <summary>
+    /// The invite this process was started with, since unpackaged a protocol
+    /// launch can arrive as a plain argument. This launch only: on a redirect
+    /// the arguments are still ours, so reading them there would reopen the
+    /// link that started this instance every time somebody ran the app again.
+    /// </summary>
+    private static string? InviteFromCommandLine()
+        => Environment.GetCommandLineArgs()
             .Skip(1)
             .FirstOrDefault(argument => argument.StartsWith(InviteScheme, StringComparison.OrdinalIgnoreCase));
-    }
 
     /// <summary>The URI scheme setup registers this app for. It starts with a
     /// letter because a scheme has to.</summary>

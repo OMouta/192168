@@ -43,14 +43,25 @@ public static class Program
         var main = AppInstance.FindOrRegisterForKey("192168");
         if (main.IsCurrent)
         {
-            // Later links arrive here, since a running instance is never
-            // launched again.
+            // Kept alive, because the subscription below is on it and a local
+            // would let both be collected.
+            _instance = main;
+
+            // Every later launch arrives here, since a running instance is
+            // never launched again.
             main.Activated += (_, e) => (Application.Current as App)?.OnRedirected(e);
             return false;
         }
 
-        // Blocking is fine. Nothing has started, and this process is leaving.
-        main.RedirectActivationToAsync(AppInstance.GetCurrent().GetActivatedEventArgs()).AsTask().GetAwaiter().GetResult();
+        // Off this thread, and not for long. This STA is not pumping messages
+        // yet and the redirect answers through COM, which needs one, so waiting
+        // on it here can hang. A launch that hangs leaves a process with no
+        // window to close it by.
+        var activation = AppInstance.GetCurrent().GetActivatedEventArgs();
+        Task.Run(() => main.RedirectActivationToAsync(activation).AsTask())
+            .Wait(TimeSpan.FromSeconds(5));
         return true;
     }
+
+    private static AppInstance? _instance;
 }
