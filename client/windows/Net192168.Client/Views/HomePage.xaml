@@ -198,13 +198,20 @@
                     TextTrimming="CharacterEllipsis" />
             </Grid>
 
+            <!--
+                The whole network's traffic, on the group's own row. It sat
+                beside the address, under a count of who was online that counted
+                everybody in the group rather than everybody here, and so read
+                as two people online while both were offline.
+            -->
             <TextBlock
                 Grid.Row="0"
                 Grid.Column="2"
                 VerticalAlignment="Center"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                 Style="{StaticResource CaptionTextBlockStyle}"
-                Text="{x:Bind ViewModel.Status, Mode=OneWay}" />
+                Text="{x:Bind ViewModel.Traffic, Mode=OneWay}"
+                TextAlignment="Right" />
 
             <!--
                 The address, which is the thing people type into games, with the
@@ -251,16 +258,6 @@
                 Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                 IsTextSelectionEnabled="True"
                 Text="{x:Bind ViewModel.VirtualIp, Mode=OneWay}" />
-
-            <!--  The whole network at once, beside the address it went through.  -->
-            <TextBlock
-                Grid.Row="1"
-                Grid.Column="2"
-                VerticalAlignment="Center"
-                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                Style="{StaticResource CaptionTextBlockStyle}"
-                Text="{x:Bind ViewModel.Traffic, Mode=OneWay}"
-                TextAlignment="Right" />
 
             <!--
                 The name everyone else sees, changed in place. It is the same
@@ -575,22 +572,25 @@
                                         now, so this said the same thing five
                                         times over.
                                     -->
-                                    <StackPanel Orientation="Horizontal" Spacing="7">
-                                        <!--  Only where somebody is, so a quiet list stays quiet.  -->
-                                        <StackPanel
-                                            Orientation="Horizontal"
-                                            Spacing="5"
-                                            Visibility="{x:Bind IsAnyoneOnline, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                                            <Ellipse
-                                                Width="6"
-                                                Height="6"
-                                                VerticalAlignment="Center"
-                                                Fill="{x:Bind IsAnyoneOnline, Mode=OneWay, Converter={StaticResource ConnectionBrush}}" />
-                                            <TextBlock
-                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                Style="{StaticResource CaptionTextBlockStyle}"
-                                                Text="{x:Bind Presence, Mode=OneWay}" />
-                                        </StackPanel>
+                                    <!--
+                                        Always here. It used to appear only where
+                                        somebody was online, which took the line
+                                        away from every quiet group and left those
+                                        rows shorter than the rest. The dot still
+                                        goes grey, which is the quiet part.
+                                    -->
+                                    <StackPanel
+                                        Orientation="Horizontal"
+                                        Spacing="5">
+                                        <Ellipse
+                                            Width="6"
+                                            Height="6"
+                                            VerticalAlignment="Center"
+                                            Fill="{x:Bind IsAnyoneOnline, Mode=OneWay, Converter={StaticResource ConnectionBrush}}" />
+                                        <TextBlock
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Style="{StaticResource CaptionTextBlockStyle}"
+                                            Text="{x:Bind Presence, Mode=OneWay}" />
                                     </StackPanel>
                                 </StackPanel>
 

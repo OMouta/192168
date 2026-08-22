@@ -123,6 +123,10 @@ public sealed record Group
     public bool Active { get; init; }
     public int? OnlineMembers { get; init; }
 
+    /// <summary>How many belong to the group at all. Null from a server that
+    /// does not send it, which is not the same as an empty group.</summary>
+    public int? Members { get; init; }
+
     /// <summary>The group's code, and that code as a link. Both empty unless
     /// this device owns the group, which the server decides.</summary>
     public string InviteCode { get; init; } = "";

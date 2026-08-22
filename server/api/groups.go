@@ -131,6 +131,7 @@ func toMembership(m storage.Membership) api.Membership {
 		Role:          string(m.Role),
 		InviteCode:    code,
 		OnlineMembers: m.OnlineMembers,
+		Members:       m.Members,
 	}
 }
 

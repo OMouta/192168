@@ -124,6 +124,11 @@ type Membership struct {
 	// device. Absent where the server was not asked to count, which is not the
 	// same as nobody being there.
 	OnlineMembers *int `json:"onlineMembers,omitempty"`
+	// Members is how many belong to the group at all, connected or not. A
+	// pointer because a server older than this field sends nothing, and "not
+	// told" has to be told apart from a group with nobody in it, which is not
+	// a thing a membership can point at.
+	Members *int `json:"members,omitempty"`
 }
 
 // SetGroupAppearanceRequest changes the icon and colour a group is shown with.

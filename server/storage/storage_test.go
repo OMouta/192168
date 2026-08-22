@@ -602,3 +602,61 @@ func TestConnectedGroupIDsIsWhereARenameHasToReach(t *testing.T) {
 		t.Errorf("ids = %v, want just %s", ids, g.ID)
 	}
 }
+
+// The member count is what the group list shows when nobody is connected, so it
+// has to survive everybody leaving, and it has to stop counting anybody who was
+// put out of the group.
+func TestMembershipsCountTheWholeGroup(t *testing.T) {
+	s := newStore(t)
+	ctx := t.Context()
+	newDevice(t, s, "dev_1")
+	newDevice(t, s, "dev_2")
+	newDevice(t, s, "dev_3")
+
+	g, _ := newGroup(t, s, "dev_1", "friday night")
+	if got := membersIn(t, s, "dev_1", g.ID); got != 1 {
+		t.Errorf("a new group counted %d members, want 1", got)
+	}
+
+	for _, device := range []string{"dev_2", "dev_3"} {
+		if _, err := s.AddMembership(ctx, g, device); err != nil {
+			t.Fatalf("AddMembership %s: %v", device, err)
+		}
+	}
+	if got := membersIn(t, s, "dev_1", g.ID); got != 3 {
+		t.Errorf("counted %d members, want 3", got)
+	}
+
+	// Nobody has a session, so this is exactly the case the count exists for.
+	if got := onlineIn(t, s, "dev_1", g.ID); got != 0 {
+		t.Errorf("counted %d online with nobody connected, want 0", got)
+	}
+
+	if err := s.RevokeMembership(ctx, g.ID, "dev_3"); err != nil {
+		t.Fatalf("RevokeMembership: %v", err)
+	}
+	if got := membersIn(t, s, "dev_1", g.ID); got != 2 {
+		t.Errorf("after one was removed, counted %d members, want 2", got)
+	}
+}
+
+// membersIn reads one group's total out of a device's membership list.
+func membersIn(t *testing.T, s *Store, deviceID, groupID string) int {
+	t.Helper()
+
+	memberships, err := s.MembershipsByDevice(t.Context(), deviceID)
+	if err != nil {
+		t.Fatalf("MembershipsByDevice: %v", err)
+	}
+	for _, m := range memberships {
+		if m.GroupID != groupID {
+			continue
+		}
+		if m.Members == nil {
+			t.Fatalf("%s came back without a member count", groupID)
+		}
+		return *m.Members
+	}
+	t.Fatalf("%s is not in %s", deviceID, groupID)
+	return 0
+}

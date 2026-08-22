@@ -104,6 +104,9 @@ type Group struct {
 	Color         string `json:"color,omitempty"`
 	Active        bool   `json:"active"`
 	OnlineMembers *int   `json:"onlineMembers,omitempty"`
+	// Members is the whole group, connected or not. Absent from a server that
+	// does not send it, so the app can tell "not told" from an empty group.
+	Members *int `json:"members,omitempty"`
 	// InviteCode is only here for a group this device owns. The server decides
 	// that, not the app.
 	InviteCode string `json:"inviteCode,omitempty"`

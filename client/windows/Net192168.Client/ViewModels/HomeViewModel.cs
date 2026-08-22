@@ -63,10 +63,31 @@ public sealed partial class GroupListItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsAnyoneOnline))]
     public partial int? OnlineMembers { get; set; }
 
-    /// <summary>Nothing for an empty group, so a quiet list stays quiet.</summary>
+    /// <summary>
+    /// How many belong to the group at all. Null from a server too old to send
+    /// it, which is why the line below has something to say either way.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Presence))]
+    public partial int? Members { get; set; }
+
+    /// <summary>Whether anybody is there, which is what colours the dot.</summary>
     public bool IsAnyoneOnline => OnlineMembers is int n && n > 0;
 
-    public string Presence => IsAnyoneOnline ? $"{OnlineMembers} online" : "";
+    /// <summary>
+    /// Who is around, out of how many there are.
+    ///
+    /// Always something. This used to be blank for a group with nobody in it,
+    /// which took the line with it and left those rows shorter than the rest, so
+    /// a list with one busy group in it did not line up.
+    /// </summary>
+    public string Presence => (OnlineMembers, Members) switch
+    {
+        (int online, int total) => $"{online} of {total} online",
+        // An older server sends the online count and no total.
+        (int online, null) => $"{online} online",
+        _ => "No one online",
+    };
 
     /// <summary>Whether this device runs the group. It decides whether the row
     /// says so and offers a way into its settings.</summary>
@@ -315,9 +336,6 @@ public sealed partial class HomeViewModel : ObservableObject
     public partial string? ListLabel { get; set; }
 
     [ObservableProperty]
-    public partial string? Status { get; set; }
-
-    [ObservableProperty]
     public partial string? Nickname { get; set; }
 
     [ObservableProperty]
@@ -400,6 +418,7 @@ public sealed partial class HomeViewModel : ObservableObject
                     Icon = group.Icon,
                     Color = group.Color,
                     OnlineMembers = group.OnlineMembers,
+                    Members = group.Members,
                     IsOwner = group.IsOwner,
                     InviteLink = group.InviteLink,
                 });
@@ -572,7 +591,6 @@ public sealed partial class HomeViewModel : ObservableObject
         GroupLabel = IsConnected ? state.GroupName : "No group connected";
         ConnectedLook = GroupLooks.For(state.GroupIcon, state.GroupColor);
         ListLabel = IsConnected ? "On this network" : "Your groups";
-        Status = Describe(state);
 
         if (!IsConnected)
         {
@@ -711,19 +729,6 @@ public sealed partial class HomeViewModel : ObservableObject
             }
         }
     }
-
-    private string Describe(DaemonState state) => state.Connection switch
-    {
-        ConnectionState.Connected => state.Peers.Count switch
-        {
-            0 => "Connected",
-            1 => "1 other online",
-            var n => $"{n} others online",
-        },
-        ConnectionState.Connecting => "Connecting",
-        ConnectionState.Disconnecting => "Disconnecting",
-        _ => _daemon.IsAvailable ? "Pick a group to join" : "Background service is not running",
-    };
 
     /// <summary>
     /// What a player is told about one peer: whether they can be reached, and

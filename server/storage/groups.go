@@ -58,6 +58,10 @@ type Membership struct {
 	// this device. Nil where it was not asked for, which is not the same as
 	// nobody being there.
 	OnlineMembers *int
+
+	// Members is how many belong to the group at all, connected or not. It is
+	// what stops a list of quiet groups reading as a list of empty ones.
+	Members *int
 }
 
 // CreateGroup creates a group and makes its creator the first member, in one
@@ -305,7 +309,8 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 	// be a query each.
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT m.id, m.group_id, g.name, g.icon, g.color, g.subnet, m.virtual_ip, m.role, m.created_at, g.invite_code,
-		       (SELECT COUNT(*) FROM sessions s WHERE s.group_id = m.group_id)
+		       (SELECT COUNT(*) FROM sessions s WHERE s.group_id = m.group_id),
+		       (SELECT COUNT(*) FROM memberships mm WHERE mm.group_id = m.group_id AND mm.revoked_at IS NULL)
 		FROM memberships m
 		JOIN groups g ON g.id = m.group_id
 		WHERE m.device_id = ? AND m.revoked_at IS NULL
@@ -321,13 +326,15 @@ func (s *Store) MembershipsByDevice(ctx context.Context, deviceID string) ([]Mem
 			m       Membership
 			created int64
 			online  int
+			members int
 		)
-		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Subnet, &m.VirtualIP, &m.Role, &created, &m.InviteCode, &online); err != nil {
+		if err := rows.Scan(&m.ID, &m.GroupID, &m.GroupName, &m.GroupIcon, &m.GroupColor, &m.Subnet, &m.VirtualIP, &m.Role, &created, &m.InviteCode, &online, &members); err != nil {
 			return nil, fmt.Errorf("storage: scan membership: %w", err)
 		}
 		m.DeviceID = deviceID
 		m.CreatedAt = time.Unix(created, 0)
 		m.OnlineMembers = &online
+		m.Members = &members
 		out = append(out, m)
 	}
 	return out, rows.Err()

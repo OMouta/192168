@@ -542,6 +542,7 @@ func toGroup(m api.Membership, active bool, inviteBase string) ipc.Group {
 		Color:         m.GroupColor,
 		Active:        active,
 		OnlineMembers: m.OnlineMembers,
+		Members:       m.Members,
 		InviteCode:    m.InviteCode,
 		InviteLink:    invite.Link(inviteBase, m.InviteCode),
 		IsOwner:       m.Role == api.RoleOwner,
